@@ -4,6 +4,7 @@
     title="Users"
     subtitle="Manage accounts and multi-department role assignments"
   >
+    <button type="button" class="btn-secondary" (click)="openCredentials()">View Credentials</button>
     <a routerLink="/settings/users/new" class="btn-primary">New User</a>
     <a routerLink="/settings/admin" class="btn-secondary">Admin Home</a>
   </app-page-header>
@@ -77,3 +78,13 @@
     />
   }
 </div>
+
+<app-user-credentials-modal
+  [open]="credentialsOpen()"
+  [loading]="credentialsLoading()"
+  [rows]="credentials()"
+  [generatedAt]="credentialsGeneratedAt()"
+  (close)="closeCredentials()"
+  (print)="printCredentials()"
+  (download)="downloadCredentials()"
+/>

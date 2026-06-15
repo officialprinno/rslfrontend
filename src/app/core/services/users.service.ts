@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { environment } from '../../environments/environments';
-import { ApiResponse, Permission, Role, User, UserWritePayload } from '../models/auth.models';
+import { ApiResponse, Permission, Role, User, UserCredential, UserWritePayload } from '../models/auth.models';
 import { UserOption } from '../models/inventory.model';
 import { PaginatedData } from '../models/paginated.model';
 import { buildHttpParams, unwrapApi } from '../utils/api.util';
@@ -46,6 +46,13 @@ export class UsersService {
       .get<ApiResponse<PaginatedData<User>>>(`${this.usersUrl}/`, {
         params: buildHttpParams({ page_size: 25, ...params }),
       })
+      .pipe(unwrapApi());
+  }
+
+  /** Super admin — email and last admin-set password for all users. */
+  listUserCredentials(): Observable<UserCredential[]> {
+    return this.http
+      .get<ApiResponse<UserCredential[]>>(`${this.usersUrl}/credentials/`)
       .pipe(unwrapApi());
   }
 

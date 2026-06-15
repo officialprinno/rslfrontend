@@ -70,6 +70,16 @@ export interface User {
   updated_at: string;
 }
 
+/** Super-admin credential export row. */
+export interface UserCredential {
+  id: number;
+  full_name: string;
+  email: string;
+  role_name: string | null;
+  password: string;
+  is_active: boolean;
+}
+
 export interface UserDepartmentWrite {
   department: number;
   role: number;

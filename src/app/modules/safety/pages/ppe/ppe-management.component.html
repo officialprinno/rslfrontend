@@ -1,0 +1,672 @@
+<div class="page-container">
+  <app-safety-nav />
+  <app-page-header title="PPE Management" subtitle="Personal Protective Equipment">
+    <div class="flex flex-wrap gap-2">
+      @if (canRequest()) {
+        <button type="button" class="btn-secondary" (click)="openRequest()">Request PPE</button>
+      }
+      @if (canIssue()) {
+        <button type="button" class="btn-primary" (click)="openIssue()">Issue PPE</button>
+      }
+    </div>
+  </app-page-header>
+
+  <div class="card p-4 mb-6 bg-blue-50 border border-blue-100">
+    <p class="text-sm text-[#1B3A6B] font-medium mb-2">PPE Request Workflow</p>
+    <p class="text-xs text-gray-600">
+      Safety Officer → Anaomba PPE → Store Keeper → Je, PPE zipo? →
+      <span class="text-green-700 font-medium">Ndiyo: PPE zinatolewa</span> /
+      <span class="text-orange-700 font-medium">Hapana: Procurement → Supplier → Store → Safety Officer</span>
+    </p>
+  </div>
+
+  <div class="flex flex-wrap gap-1 p-1 bg-gray-100 rounded-xl mb-6">
+    @for (tab of [
+      { id: 'inventory', label: 'Inventory' },
+      { id: 'requests', label: 'Requests' },
+      { id: 'issuances', label: 'Issuances' },
+      { id: 'requirements', label: 'Requirements by Role' }
+    ]; track tab.id) {
+      <button
+        type="button"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-all"
+        [class]="activeTab() === tab.id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+        (click)="setTab($any(tab.id))"
+      >
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  @if (activeTab() === 'inventory') {
+    @if (loading()) {
+      <app-table-skeleton [cols]="6" />
+    } @else if (error()) {
+      <app-error-state (retry)="loadInventory()" />
+    } @else if (!inventory().length) {
+      <div class="card">
+        <app-empty-state title="No PPE items" message="PPE inventory items will appear here." />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">PPE Type</th>
+              <th class="table-th">Item Name</th>
+              <th class="table-th">Safety Standard</th>
+              <th class="table-th">Total Issued</th>
+              <th class="table-th">In Stock</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of inventory(); track item.id) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <span class="badge" [class]="typeColor(item.ppe_type)">{{ ppeTypeLabel(item.ppe_type) }}</span>
+                </td>
+                <td class="table-td font-medium">{{ item.name }}</td>
+                <td class="table-td text-sm">{{ item.safety_standard || '—' }}</td>
+                <td class="table-td">{{ item.total_issued }}</td>
+                <td class="table-td font-semibold" [class]="ppeStockStatus(item).colorClass">
+                  {{ item.stock_on_hand }}
+                </td>
+                <td class="table-td">
+                  <span [class]="ppeStockStatus(item).colorClass">{{ ppeStockStatus(item).label }}</span>
+                </td>
+                <td class="table-td">
+                  @if (canIssue() && item.stock_on_hand > 0) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openIssue(item)">
+                      Issue
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  @if (activeTab() === 'requests') {
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-end">
+      <select
+        class="input-field w-48"
+        [ngModel]="requestStatusFilter()"
+        (ngModelChange)="requestStatusFilter.set($event); requestPage.set(1); loadRequests()"
+      >
+        <option value="">All Statuses</option>
+        <option value="PENDING_STORE">Pending Store Review</option>
+        <option value="AVAILABLE">Stock Available</option>
+        <option value="IN_PROCUREMENT">In Procurement</option>
+        <option value="STOCK_RECEIVED">Stock Received</option>
+        <option value="READY_FOR_ISSUE">Ready for Issue</option>
+        <option value="ISSUED">Issued</option>
+      </select>
+      @if (canStoreReview()) {
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            [ngModel]="pendingStoreOnly()"
+            (ngModelChange)="pendingStoreOnly.set($event); requestPage.set(1); loadRequests()"
+          />
+          Pending my review only
+        </label>
+      }
+    </div>
+
+    @if (loading()) {
+      <app-table-skeleton [cols]="8" />
+    } @else if (error()) {
+      <app-error-state (retry)="loadRequests()" />
+    } @else if (!requests().length) {
+      <div class="card">
+        <app-empty-state
+          title="No PPE requests"
+          message="Safety Officers can request PPE for employees. Store Keeper reviews availability."
+          [actionLabel]="canRequest() ? 'Request PPE' : ''"
+          (actionClick)="openRequest()"
+        />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Request No.</th>
+              <th class="table-th">Employee</th>
+              <th class="table-th">PPE Item</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Stock</th>
+              <th class="table-th">Priority</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Requested</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (req of requests(); track req.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-sm">{{ req.request_number }}</td>
+                <td class="table-td">
+                  <p class="font-medium">{{ req.employee_name }}</p>
+                  <p class="text-xs text-gray-500">{{ req.department_name }}</p>
+                </td>
+                <td class="table-td">
+                  <span class="badge" [class]="typeColor(req.ppe_type)">{{ ppeTypeLabel(req.ppe_type) }}</span>
+                  <p class="text-sm mt-0.5">{{ req.ppe_name }}</p>
+                  @if (req.requested_new_item) {
+                    <span class="badge badge-orange mt-1">New item</span>
+                  }
+                </td>
+                <td class="table-td font-semibold">{{ req.quantity }}</td>
+                <td class="table-td">{{ req.stock_on_hand }}</td>
+                <td class="table-td">
+                  <span class="badge" [class]="req.priority === 'URGENT' ? 'badge-red' : 'badge-gray'">
+                    {{ req.priority }}
+                  </span>
+                </td>
+                <td class="table-td">
+                  <span class="badge" [class]="requestStatusColor(req.status)">
+                    {{ ppeRequestStatusLabel(req.status) }}
+                  </span>
+                  @if (req.pr_number) {
+                    <p class="text-xs text-gray-500 mt-1">PR: {{ req.pr_number }}</p>
+                  }
+                </td>
+                <td class="table-td text-sm">{{ formatDateTime(req.submitted_at ?? req.created_at) }}</td>
+                <td class="table-td">
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openRequestDetail(req)">
+                    View
+                  </button>
+                  @if (req.status === 'DRAFT' && canRequest()) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs text-[#1B3A6B]" (click)="submitExistingRequest(req)">
+                      Submit
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <app-pagination
+          [page]="requestPage()"
+          [pageSize]="15"
+          [total]="requestTotal()"
+          (pageChange)="requestPage.set($event); loadRequests()"
+        />
+      </div>
+    }
+  }
+
+  @if (activeTab() === 'issuances') {
+    <div class="card p-4 mb-4 flex flex-wrap gap-3">
+      <input
+        type="text"
+        class="input-field flex-1 min-w-[180px]"
+        placeholder="Search employee..."
+        [ngModel]="issuanceSearch()"
+        (ngModelChange)="issuanceSearch.set($event); issuancePage.set(1); loadIssuances()"
+      />
+      <select
+        class="input-field w-40"
+        [ngModel]="issuanceTypeFilter()"
+        (ngModelChange)="issuanceTypeFilter.set($event); issuancePage.set(1); loadIssuances()"
+      >
+        <option value="">All PPE Types</option>
+        @for (t of ppeTypeOptions(); track t) {
+          <option [value]="t">{{ ppeTypeLabel(t) }}</option>
+        }
+      </select>
+      <select
+        class="input-field w-44"
+        [ngModel]="issuanceDeptFilter()"
+        (ngModelChange)="issuanceDeptFilter.set($event ? +$event : ''); issuancePage.set(1); loadIssuances()"
+      >
+        <option value="">All Departments</option>
+        @for (d of deptOptions(); track d.id) {
+          <option [value]="d.id">{{ d.name }}</option>
+        }
+      </select>
+      <input
+        type="date"
+        class="input-field w-40"
+        [ngModel]="issuanceDateFrom()"
+        (ngModelChange)="issuanceDateFrom.set($event); issuancePage.set(1); loadIssuances()"
+      />
+      <input
+        type="date"
+        class="input-field w-40"
+        [ngModel]="issuanceDateTo()"
+        (ngModelChange)="issuanceDateTo.set($event); issuancePage.set(1); loadIssuances()"
+      />
+    </div>
+
+    @if (loading()) {
+      <app-table-skeleton [cols]="10" />
+    } @else if (error()) {
+      <app-error-state (retry)="loadIssuances()" />
+    } @else if (!issuances().length) {
+      <div class="card">
+        <app-empty-state
+          title="No PPE issuances"
+          message="Issue PPE to employees to track here."
+          [actionLabel]="canIssue() ? 'Issue PPE' : ''"
+          (actionClick)="openIssue()"
+        />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Department</th>
+              <th class="table-th">PPE Type</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Issue Date</th>
+              <th class="table-th">Expected Return</th>
+              <th class="table-th">Actual Return</th>
+              <th class="table-th">Condition</th>
+              <th class="table-th">Issued By</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of issuances(); track row.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ row.employee_name }}</td>
+                <td class="table-td">{{ row.department_name }}</td>
+                <td class="table-td">
+                  <span class="badge" [class]="typeColor(row.ppe_type)">{{ ppeTypeLabel(row.ppe_type) }}</span>
+                </td>
+                <td class="table-td">{{ row.ppe_name }}</td>
+                <td class="table-td">{{ row.quantity }}</td>
+                <td class="table-td">{{ formatDate(row.issue_date) }}</td>
+                <td class="table-td" [class.text-red-600]="isReturnOverdue(row)" [class.font-semibold]="isReturnOverdue(row)">
+                  {{ formatDate(row.expected_return) }}
+                </td>
+                <td class="table-td">{{ formatDate(row.actual_return) }}</td>
+                <td class="table-td">
+                  <span class="badge" [class]="conditionColor(row.condition_issued)">{{ row.condition_issued }}</span>
+                  @if (row.condition_returned) {
+                    <span class="badge ml-1" [class]="conditionColor(row.condition_returned)">
+                      {{ row.condition_returned }}
+                    </span>
+                  }
+                </td>
+                <td class="table-td text-sm">{{ row.issued_by_name }}</td>
+                <td class="table-td">
+                  @if (canIssue() && !row.actual_return) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openReturn(row)">
+                      Return
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <app-pagination
+          [page]="issuancePage()"
+          [pageSize]="issuancePageSize()"
+          [total]="issuanceTotal()"
+          (pageChange)="issuancePage.set($event); loadIssuances()"
+          (pageSizeChange)="issuancePageSize.set($event); issuancePage.set(1); loadIssuances()"
+        />
+      </div>
+    }
+  }
+
+  @if (activeTab() === 'requirements') {
+    @if (loading()) {
+      <app-table-skeleton [cols]="2" />
+    } @else if (error()) {
+      <app-error-state (retry)="loadRequirements()" />
+    } @else if (!requirements().length) {
+      <div class="card">
+        <app-empty-state title="No role requirements" message="PPE requirements by job role will appear here." />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Job Title</th>
+              <th class="table-th">Required PPE</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (req of requirements(); track req.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ req.job_title }}</td>
+                <td class="table-td">
+                  <div class="flex flex-wrap gap-1">
+                    @for (ppe of req.required_ppe_types; track ppe) {
+                      <span class="badge" [class]="typeColor(ppe)">{{ ppeTypeLabel(ppe) }}</span>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+
+<app-modal [open]="showIssue()" title="Issue PPE" size="lg" (close)="showIssue.set(false)">
+  <form [formGroup]="issueForm" class="space-y-4">
+    <div>
+      <label class="input-label">Employee *</label>
+      <app-searchable-select
+        [options]="employeeOptions()"
+        [value]="issueForm.controls.employee.value"
+        placeholder="Search employee..."
+        (valueChange)="setIssueEmployee($event)"
+      />
+    </div>
+    <div>
+      <label class="input-label">PPE Item *</label>
+      <select formControlName="ppe_item" class="input-field">
+        <option [ngValue]="null">Select PPE item</option>
+        @for (item of inventory(); track item.id) {
+          <option [ngValue]="item.id">
+            {{ item.name }} — Stock: {{ item.stock_on_hand }}
+          </option>
+        }
+      </select>
+      @if (selectedPpeItem(); as sel) {
+        @if (sel.stock_on_hand < 5) {
+          <p class="text-xs text-orange-600 mt-1">Warning: low stock ({{ sel.stock_on_hand }} remaining)</p>
+        }
+      }
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Quantity *</label>
+        <input type="number" formControlName="quantity" class="input-field" min="1" />
+      </div>
+      <div>
+        <label class="input-label">Issue Date *</label>
+        <input type="date" formControlName="issue_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Expected Return</label>
+        <input type="date" formControlName="expected_return" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Condition *</label>
+        <select formControlName="condition_issued" class="input-field">
+          <option value="NEW">New</option>
+          <option value="GOOD">Good</option>
+          <option value="FAIR">Fair</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showIssue.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onIssue()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Issue PPE
+    </button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="showReturn()"
+  [title]="'Return PPE — ' + (returning()?.employee_name ?? '')"
+  size="lg"
+  (close)="showReturn.set(false)"
+>
+  @if (returning(); as iss) {
+    <div class="mb-4 p-3 bg-gray-50 rounded-xl text-sm space-y-1">
+      <p><span class="text-gray-500">Item:</span> {{ iss.ppe_name }} ({{ ppeTypeLabel(iss.ppe_type) }})</p>
+      <p><span class="text-gray-500">Quantity:</span> {{ iss.quantity }}</p>
+      <p><span class="text-gray-500">Issued:</span> {{ formatDate(iss.issue_date) }} · {{ iss.condition_issued }}</p>
+    </div>
+  }
+  <form [formGroup]="returnForm" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Return Date *</label>
+        <input type="date" formControlName="actual_return" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Condition on Return *</label>
+        <select formControlName="condition_returned" class="input-field">
+          <option value="GOOD">Good</option>
+          <option value="FAIR">Fair</option>
+          <option value="DAMAGED">Damaged</option>
+          <option value="LOST">Lost</option>
+        </select>
+      </div>
+    </div>
+    @if (returnForm.controls.condition_returned.value === 'DAMAGED' || returnForm.controls.condition_returned.value === 'LOST') {
+      <div class="p-3 bg-orange-50 border border-orange-200 rounded-xl text-sm text-orange-800">
+        Damaged or lost PPE may result in cost deduction from the employee. Notes are required.
+      </div>
+    }
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showReturn.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onReturn()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Confirm Return
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showRequest()" title="Request PPE" size="lg" (close)="showRequest.set(false)">
+  <form [formGroup]="requestForm" class="space-y-4">
+    <div>
+      <label class="input-label">Employee *</label>
+      <app-searchable-select
+        [options]="employeeOptions()"
+        [value]="requestForm.controls.employee.value"
+        placeholder="Search employee..."
+        (valueChange)="setRequestEmployee($event)"
+      />
+    </div>
+    <div class="flex flex-wrap gap-2 mb-1">
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+        [class]="!useNewPpeItem() ? 'bg-[#1B3A6B] text-white' : 'bg-gray-100 text-gray-600'"
+        (click)="toggleNewPpeItem(false)"
+      >
+        From stock list
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+        [class]="useNewPpeItem() ? 'bg-[#1B3A6B] text-white' : 'bg-gray-100 text-gray-600'"
+        (click)="toggleNewPpeItem(true)"
+      >
+        New item (not in stock)
+      </button>
+    </div>
+
+    @if (!useNewPpeItem()) {
+      <div>
+        <label class="input-label">PPE Item *</label>
+        <select formControlName="ppe_item" class="input-field">
+          <option [ngValue]="null">Select PPE item</option>
+          @for (item of inventory(); track item.id) {
+            <option [ngValue]="item.id">
+              {{ item.name }} — Stock: {{ item.stock_on_hand }}
+            </option>
+          }
+        </select>
+      </div>
+    } @else {
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900 mb-1">
+        Item not in stock (e.g. uniform, coveralls). It will be added to PPE inventory with zero stock and sent to Store / Procurement.
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">PPE Type *</label>
+          <select formControlName="new_ppe_type" class="input-field">
+            @for (t of ppeTypes; track t.value) {
+              <option [value]="t.value">{{ t.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Item Name *</label>
+          <input
+            type="text"
+            formControlName="new_ppe_name"
+            class="input-field"
+            placeholder="e.g. Company Uniform — Size L"
+          />
+        </div>
+      </div>
+      <div>
+        <label class="input-label">Safety Standard (optional)</label>
+        <input
+          type="text"
+          formControlName="new_ppe_standard"
+          class="input-field"
+          placeholder="e.g. EN ISO 13688"
+        />
+      </div>
+    }
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Quantity *</label>
+        <input type="number" formControlName="quantity" class="input-field" min="1" />
+      </div>
+      <div>
+        <label class="input-label">Priority *</label>
+        <select formControlName="priority" class="input-field">
+          <option value="NORMAL">Normal</option>
+          <option value="URGENT">Urgent</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Reason / Justification *</label>
+      <textarea formControlName="reason" rows="3" class="input-field resize-none" placeholder="Why is this PPE needed?"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showRequest.set(false)">Cancel</button>
+    <button type="button" class="btn-secondary" [disabled]="saving()" (click)="onCreateRequest(false)">Save Draft</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onCreateRequest(true)">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Submit to Store
+    </button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="showRequestDetail()"
+  [title]="'PPE Request — ' + (selectedRequest()?.request_number ?? '')"
+  size="xl"
+  (close)="showRequestDetail.set(false)"
+>
+  @if (selectedRequest(); as req) {
+    <app-workflow-stepper [steps]="workflowSteps" [activeIndex]="workflowIndex(req)" />
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 text-sm">
+      <div class="p-3 bg-gray-50 rounded-xl space-y-1">
+        <p><span class="text-gray-500">Employee:</span> {{ req.employee_name }}</p>
+        <p><span class="text-gray-500">Department:</span> {{ req.department_name }}</p>
+        <p><span class="text-gray-500">PPE:</span> {{ req.ppe_name }} ({{ ppeTypeLabel(req.ppe_type) }})</p>
+        @if (req.requested_new_item) {
+          <p class="text-amber-700 text-xs font-medium">New item — was not in stock when requested</p>
+        }
+        <p><span class="text-gray-500">Quantity:</span> {{ req.quantity }}</p>
+        <p><span class="text-gray-500">Stock on hand:</span> {{ req.stock_on_hand }}</p>
+      </div>
+      <div class="p-3 bg-gray-50 rounded-xl space-y-1">
+        <p><span class="text-gray-500">Status:</span>
+          <span class="badge ml-1" [class]="requestStatusColor(req.status)">{{ ppeRequestStatusLabel(req.status) }}</span>
+        </p>
+        <p><span class="text-gray-500">Requested by:</span> {{ req.requested_by_name }}</p>
+        @if (req.store_reviewed_by_name) {
+          <p><span class="text-gray-500">Store review:</span> {{ req.store_reviewed_by_name }}</p>
+        }
+        @if (req.pr_number) {
+          <p><span class="text-gray-500">Purchase Requisition:</span> {{ req.pr_number }}</p>
+        }
+        @if (req.reason) {
+          <p><span class="text-gray-500">Reason:</span> {{ req.reason }}</p>
+        }
+      </div>
+    </div>
+
+    @if (req.status === 'PENDING_STORE' && canStoreReview()) {
+      <div class="card p-4 mb-4 border-l-4 border-yellow-400">
+        <p class="font-semibold text-gray-900 mb-2">Store Keeper — Je, PPE zipo?</p>
+        <textarea
+          class="input-field resize-none mb-3"
+          rows="2"
+          placeholder="Store notes..."
+          [ngModel]="storeReviewNotes()"
+          (ngModelChange)="storeReviewNotes.set($event)"
+        ></textarea>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="storeReview(true)">
+            Ndiyo — Stock Available
+          </button>
+          <button type="button" class="btn-secondary" [disabled]="saving()" (click)="storeReview(false)">
+            Hapana — Send to Procurement
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (req.status === 'IN_PROCUREMENT' && canStoreReview()) {
+      <div class="card p-4 mb-4 border-l-4 border-orange-400">
+        <p class="font-semibold text-gray-900 mb-1">Procurement → Supplier → Store</p>
+        <p class="text-sm text-gray-600 mb-3">
+          Mark stock as received when goods arrive from supplier.
+          @if (req.pr_number) { Linked PR: <strong>{{ req.pr_number }}</strong> }
+        </p>
+        <button type="button" class="btn-primary" [disabled]="saving()" (click)="markStockReceived()">
+          Mark Stock Received
+        </button>
+      </div>
+    }
+
+    @if ((req.status === 'AVAILABLE' || req.status === 'STOCK_RECEIVED') && (canStoreReview() || canIssue())) {
+      <div class="card p-4 mb-4 border-l-4 border-green-400">
+        <p class="font-semibold text-gray-900 mb-2">Confirm Ready for Issue</p>
+        <button type="button" class="btn-secondary mb-3" [disabled]="saving()" (click)="confirmReady()">
+          Confirm Ready
+        </button>
+      </div>
+    }
+
+    @if ((req.status === 'AVAILABLE' || req.status === 'READY_FOR_ISSUE') && canIssue()) {
+      <div class="card p-4 border-l-4 border-[#1B3A6B]">
+        <p class="font-semibold text-gray-900 mb-2">Issue PPE to Employee</p>
+        <button type="button" class="btn-primary" [disabled]="saving()" (click)="issueFromRequest()">
+          Issue PPE (PPE zinatolewa)
+        </button>
+      </div>
+    }
+
+    @if (req.status === 'ISSUED') {
+      <div class="p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 text-sm">
+        PPE issued on {{ formatDateTime(req.issued_at) }}
+      </div>
+    }
+  }
+</app-modal>

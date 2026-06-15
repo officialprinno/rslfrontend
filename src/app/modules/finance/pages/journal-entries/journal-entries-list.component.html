@@ -1,0 +1,218 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Journal Entries" subtitle="General ledger journal entries">
+    @if (canAdd()) {
+      <a routerLink="/finance/journal-entries/new" class="btn-primary">New Entry</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="JE number, description..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select
+          class="input-field"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All</option>
+          @for (st of statusOptions; track st) {
+            <option [value]="st">{{ st }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-40">
+        <label class="input-label">Reference Type</label>
+        <select
+          class="input-field"
+          [ngModel]="referenceFilter()"
+          (ngModelChange)="referenceFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All</option>
+          @for (ref of referenceTypes; track ref.value) {
+            <option [value]="ref.value">{{ ref.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-40">
+        <label class="input-label">Date From</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateFrom()"
+          (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-40">
+        <label class="input-label">Date To</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateTo()"
+          (ngModelChange)="dateTo.set($event); page.set(1); load()"
+        />
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!entries().length) {
+    <div class="card">
+      <app-empty-state
+        title="No journal entries"
+        message="Create journal entries to record financial transactions."
+        [actionLabel]="canAdd() ? 'New Entry' : ''"
+        (actionClick)="null"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">JE Number</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Description</th>
+            <th class="table-th">Reference</th>
+            <th class="table-th">Debit</th>
+            <th class="table-th">Credit</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (je of entries(); track je.id) {
+            <tr class="table-row">
+              <td class="table-td font-mono text-xs font-medium">{{ je.je_number }}</td>
+              <td class="table-td">{{ formatDate(je.date) }}</td>
+              <td class="table-td max-w-[200px] truncate">{{ je.description }}</td>
+              <td class="table-td">
+                <app-status-badge [status]="je.reference_type" [label]="je.reference_type" />
+              </td>
+              <td class="table-td font-medium">{{ formatAccountingAmount(je.total_debit) }}</td>
+              <td class="table-td font-medium">{{ formatAccountingAmount(je.total_credit) }}</td>
+              <td class="table-td">
+                <app-status-badge [status]="je.status" />
+              </td>
+              <td class="table-td">
+                <div class="flex flex-wrap gap-1">
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(je)">View</button>
+                  @if (je.status === 'DRAFT' && canAdd()) {
+                    <a [routerLink]="['/finance/journal-entries', je.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                  }
+                  @if (je.status === 'DRAFT' && canPost()) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="postEntry(je)">
+                      Post
+                    </button>
+                  }
+                  @if (je.status === 'POSTED' && canPost()) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="reverseEntry(je)">
+                      Reverse
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="20"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showView()" title="Journal Entry Details" size="xl" (close)="showView.set(false)">
+  @if (detailLoading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (viewing(); as je) {
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
+      <div>
+        <p class="text-gray-500">JE Number</p>
+        <p class="font-mono font-medium">{{ je.je_number }}</p>
+      </div>
+      <div>
+        <p class="text-gray-500">Date</p>
+        <p class="font-medium">{{ formatDate(je.date) }}</p>
+      </div>
+      <div>
+        <p class="text-gray-500">Status</p>
+        <app-status-badge [status]="je.status" />
+      </div>
+      <div>
+        <p class="text-gray-500">Currency</p>
+        <p class="font-medium">{{ je.currency_code }} ({{ je.exchange_rate }})</p>
+      </div>
+      <div class="col-span-2">
+        <p class="text-gray-500">Description</p>
+        <p>{{ je.description }}</p>
+      </div>
+      <div>
+        <p class="text-gray-500">Reference</p>
+        <p>{{ je.reference_type }} — {{ je.reference_id || '—' }}</p>
+      </div>
+      @if (je.posted_at) {
+        <div>
+          <p class="text-gray-500">Posted</p>
+          <p>{{ formatDate(je.posted_at) }} by {{ je.posted_by_name || '—' }}</p>
+        </div>
+      }
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Account</th>
+            <th class="table-th">Description</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Debit</th>
+            <th class="table-th">Credit</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of je.lines; track $index) {
+            <tr class="table-row">
+              <td class="table-td font-mono text-xs">
+                {{ line.account_code }} — {{ line.account_name }}
+              </td>
+              <td class="table-td">{{ line.description || '—' }}</td>
+              <td class="table-td">{{ line.department_name || '—' }}</td>
+              <td class="table-td">{{ formatAccountingAmount(line.debit_amount) }}</td>
+              <td class="table-td">{{ formatAccountingAmount(line.credit_amount) }}</td>
+            </tr>
+          }
+        </tbody>
+        <tfoot>
+          <tr class="border-t border-gray-200 font-semibold">
+            <td class="table-td" colspan="3">Totals</td>
+            <td class="table-td">{{ formatAccountingAmount(je.total_debit) }}</td>
+            <td class="table-td">{{ formatAccountingAmount(je.total_credit) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+    @if (viewing()?.status === 'DRAFT' && canAdd()) {
+      <a [routerLink]="['/finance/journal-entries', viewing()!.id, 'edit']" class="btn-primary" (click)="showView.set(false)">
+        Edit
+      </a>
+    }
+  </div>
+</app-modal>

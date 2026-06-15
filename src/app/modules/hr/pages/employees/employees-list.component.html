@@ -1,0 +1,121 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Employees">
+    @if (canAdd()) {
+      <a routerLink="/hr/employees/new" class="btn-primary">Add Employee</a>
+    }
+    <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search name, employee no., national ID..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-44"
+      [ngModel]="departmentFilter()"
+      (ngModelChange)="departmentFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Departments</option>
+      @for (dept of deptOptions(); track dept.id) {
+        <option [value]="dept.id">{{ dept.name }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-36"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st.value) {
+        <option [value]="st.value">{{ st.label }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-40"
+      [ngModel]="typeFilter()"
+      (ngModelChange)="typeFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Types</option>
+      @for (t of employmentTypes; track t.value) {
+        <option [value]="t.value">{{ t.label }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!employees().length) {
+    <div class="card">
+      <app-empty-state
+        title="No employees found"
+        message="Add employees or adjust your filters."
+        [actionLabel]="canAdd() ? 'Add Employee' : ''"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Employee No.</th>
+            <th class="table-th">Name</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Job Title</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Basic Salary</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (emp of employees(); track emp.id) {
+            <tr class="table-row">
+              <td class="table-td font-mono text-xs font-medium">{{ emp.employee_number }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/hr/employees', emp.id, 'view']" class="text-[#1B3A6B] hover:underline font-medium">
+                  {{ emp.full_name }}
+                </a>
+              </td>
+              <td class="table-td">{{ emp.department_name }}</td>
+              <td class="table-td">{{ emp.job_title }}</td>
+              <td class="table-td">{{ employmentTypeLabel(emp.employment_type) }}</td>
+              <td class="table-td font-medium">{{ displaySalary(emp) }}</td>
+              <td class="table-td">
+                <app-status-badge [status]="emp.status" />
+              </td>
+              <td class="table-td">
+                <div class="flex items-center gap-2">
+                  <a [routerLink]="['/hr/employees', emp.id, 'view']" class="btn-ghost !text-xs !px-2">View</a>
+                  @if (canAdd()) {
+                    <a [routerLink]="['/hr/employees', emp.id, 'edit']" class="btn-ghost !text-xs !px-2">Edit</a>
+                  }
+                  @if (canDeactivate() && emp.is_active) {
+                    <button type="button" class="btn-ghost !text-xs !px-2 !text-red-600" (click)="deactivate(emp)">
+                      Deactivate
+                    </button>
+                  }
+                  @if (canActivate() && (!emp.is_active || emp.status !== 'ACTIVE')) {
+                    <button type="button" class="btn-ghost !text-xs !px-2 !text-green-700" (click)="activate(emp)">
+                      Activate
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="15"
+      (pageChange)="page.set($event); load()"
+    />
+  }
+</div>

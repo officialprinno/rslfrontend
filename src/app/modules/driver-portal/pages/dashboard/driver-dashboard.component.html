@@ -1,0 +1,66 @@
+<div class="page-container max-w-3xl mx-auto">
+  <app-driver-portal-nav />
+  <app-page-header
+    title="Driver Dashboard"
+    [subtitle]="profile()?.full_name ?? 'Rock Solutions Limited — Logistics'"
+  />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="2" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load dashboard" (retry)="load()" />
+  } @else if (dashboard(); as d) {
+    <div class="grid grid-cols-2 gap-3 mb-6">
+      <div class="card-stat">
+        <p class="card-stat__value">{{ d.assigned_count }}</p>
+        <p class="card-stat__label">Assigned</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value">{{ d.in_progress_count }}</p>
+        <p class="card-stat__label">In Progress</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value">{{ d.completed_count }}</p>
+        <p class="card-stat__label">Completed</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-base">
+          <app-status-badge [status]="d.availability_status" />
+        </p>
+        <p class="card-stat__label">Driver Status</p>
+      </div>
+    </div>
+
+    @if (d.current_vehicle; as v) {
+      <div class="card p-4 mb-6 border-l-4 border-l-[#1B3A6B]">
+        <h3 class="font-semibold text-[#1B3A6B] mb-2">Current Vehicle</h3>
+        <p class="text-lg font-bold">{{ v.registration_number }}</p>
+        <p class="text-sm text-gray-600">{{ v.make }} {{ v.model }}</p>
+        <p class="text-xs text-gray-500 mt-1">
+          Odometer: {{ v.odometer_reading | number }} km ·
+          <app-status-badge [status]="v.status" />
+        </p>
+      </div>
+    }
+
+    <div class="card p-4 mb-6">
+      <h3 class="font-semibold mb-3">Quick Actions</h3>
+      <div class="grid grid-cols-2 gap-2">
+        @if (d.active_trip_id) {
+          <a [routerLink]="['/driver-portal/trips', d.active_trip_id]" class="btn-primary text-center !text-sm">
+            Continue Trip
+          </a>
+        } @else if (d.assigned_count) {
+          <a routerLink="/driver-portal/trips" [queryParams]="{ status: 'assigned' }" class="btn-primary text-center !text-sm">
+            Start Delivery
+          </a>
+        } @else {
+          <span class="btn-secondary text-center !text-sm opacity-60 cursor-not-allowed">No Active Trip</span>
+        }
+        <a routerLink="/driver-portal/vehicle" class="btn-secondary text-center !text-sm">Vehicle Status</a>
+        <a routerLink="/driver-portal/trips" class="btn-ghost text-center !text-sm">All Trips</a>
+        <a routerLink="/driver-portal/history" class="btn-ghost text-center !text-sm">History</a>
+      </div>
+    </div>
+  }
+</div>

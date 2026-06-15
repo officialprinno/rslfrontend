@@ -1,0 +1,105 @@
+<div class="card p-6 mb-6 border-l-4 border-l-[#1B3A6B]">
+  <h4 class="font-semibold text-[#1B3A6B] mb-4">Order Workflow Actions</h4>
+  <p class="text-sm text-gray-500 mb-4">
+    Status: <strong>{{ order().status }}</strong>
+    @if (order().inventory_status) {
+      · Inventory: <strong>{{ order().inventory_status }}</strong>
+    }
+  </p>
+
+  <div class="flex flex-wrap gap-2">
+    @if (order().status === 'NEW_ORDER' || order().status === 'DRAFT') {
+      <button type="button" class="btn-primary" (click)="submit()">Submit Order</button>
+    }
+
+    @if (order().status === 'STOCK_VERIFICATION') {
+      <button type="button" class="btn-primary" (click)="verifyStock(false)">Verify & Reserve Stock</button>
+      <button type="button" class="btn-secondary" (click)="verifyStock(true)">Partial Fulfillment</button>
+    }
+
+    @if (order().status === 'OUT_OF_STOCK') {
+      <button type="button" class="btn-primary" (click)="verifyStock(false)">Re-check Stock</button>
+      <button type="button" class="btn-secondary" (click)="createPr()">Create Procurement Request</button>
+    }
+
+    @if (order().status === 'PENDING_DELIVERY_COST') {
+      <div class="w-full mb-3 p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+        Stock is reserved. Send this order to Logistics to calculate delivery cost before preparing the quotation.
+      </div>
+      <button type="button" class="btn-primary" (click)="sendToLogistics()">Send to Logistics</button>
+    }
+
+    @if (order().status === 'DELIVERY_COST_CALC') {
+      <div class="w-full p-4 bg-amber-50 rounded-lg text-sm text-amber-900">
+        <strong>Awaiting Logistics.</strong> Delivery cost calculation is in progress. You will be notified when Logistics submits the cost — then you can send the quotation.
+      </div>
+    }
+
+    @if (order().status === 'QUOTATION_PREP') {
+      @if (order().delivery_cost_detail || order().delivery_cost) {
+        <div class="w-full mb-3 p-4 bg-green-50 rounded-lg text-sm">
+          <p class="font-semibold text-green-900 mb-2">Delivery Cost from Logistics</p>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div><span class="text-gray-500">Total</span><p class="font-medium">{{ order().delivery_cost | number:'1.2-2' }}</p></div>
+            @if (order().delivery_cost_detail; as detail) {
+              <div><span class="text-gray-500">Distance</span><p>{{ detail.delivery_distance_km }} km</p></div>
+              <div><span class="text-gray-500">Transport</span><p>{{ detail.transport_method }}</p></div>
+              <div><span class="text-gray-500">Vehicle</span><p>{{ detail.vehicle_type || '—' }}</p></div>
+            }
+          </div>
+          <p class="mt-2 text-gray-600">
+            Order + delivery total: <strong>{{ dueAmount(order()) | number:'1.2-2' }}</strong>
+          </p>
+        </div>
+      }
+      <button type="button" class="btn-primary" (click)="sendQuotation()">Send Quotation to Customer</button>
+    }
+
+    @if (order().status === 'QUOTATION_SENT' || order().status === 'WAITING_CUSTOMER') {
+      <button type="button" class="btn-primary" (click)="acceptQuotation()">Customer Accepted</button>
+      <button type="button" class="btn-secondary" (click)="rejectQuotation()">Customer Rejected</button>
+    }
+
+    @if (order().status === 'QUOTATION_ACCEPTED') {
+      <button type="button" class="btn-primary" (click)="generateInvoice()">Generate Invoice</button>
+    }
+
+    @if (order().status === 'AWAITING_PAYMENT') {
+      <div class="w-full grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <div>
+          <label class="input-label">Amount Due</label>
+          <input type="number" class="input-field" [(ngModel)]="paymentProof.amount" min="0.01" step="0.01" />
+          <p class="text-xs text-gray-500 mt-1">Order total + delivery: {{ dueAmount(order()) | number:'1.2-2' }}</p>
+        </div>
+        <div><label class="input-label">Method</label>
+          <select class="input-field" [(ngModel)]="paymentProof.payment_method">
+            @for (m of paymentMethods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+          </select>
+        </div>
+        <div><label class="input-label">Reference *</label><input class="input-field" [(ngModel)]="paymentProof.reference_number" placeholder="Bank / M-Pesa ref" /></div>
+        <div class="md:col-span-3"><label class="input-label">Notes</label><input class="input-field" [(ngModel)]="paymentProof.proof_notes" /></div>
+      </div>
+      @if (pendingPaymentProof(); as proof) {
+        <p class="text-sm text-amber-700 mb-3">
+          Pending proof #{{ proof.id }} — {{ proof.reference_number }} ({{ proof.amount }})
+        </p>
+        <button type="button" class="btn-primary" (click)="verifyPayment(true)">Verify Payment</button>
+        <button type="button" class="btn-secondary !text-red-600" (click)="verifyPayment(false)">Reject Payment</button>
+      } @else {
+        <button type="button" class="btn-primary" (click)="submitPayment()">Submit Payment Proof</button>
+      }
+    }
+
+    @if (isLogisticsHandledStatus(order().status)) {
+      <div class="w-full p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
+        <strong>Delivery handled by Logistics.</strong>
+        Dispatch, vehicle assignment, and delivery confirmation are managed in the Logistics department.
+        You will be notified when the order is completed.
+      </div>
+    }
+
+    @if (order().status === 'DELIVERY_CONFIRMED' || order().status === 'COMPLETED_PICKUP') {
+      <button type="button" class="btn-primary" (click)="closeOrder()">Close Order</button>
+    }
+  </div>
+</div>

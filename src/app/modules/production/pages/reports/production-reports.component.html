@@ -1,0 +1,150 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Production Reports" subtitle="Operator performance, downtime, and machine utilization">
+    <div class="flex items-center gap-2">
+      <label class="text-sm text-gray-600">Month</label>
+      <input
+        type="month"
+        class="input-field !w-auto"
+        [ngModel]="month()"
+        (ngModelChange)="onMonthChange($event)"
+      />
+    </div>
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load reports" (retry)="load()" />
+  } @else if (data(); as r) {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Downtime</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ r.downtime.total_downtime_minutes }} min</p>
+        <p class="text-sm text-gray-500 mt-1">{{ r.downtime.pause_event_count }} pause events</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Operators Tracked</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ r.operator_performance.operators.length }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Machines</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ r.machine_utilization.machines.length }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Completed WOs</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ r.completed_work_orders.work_orders.length }}</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div class="card p-5 flex flex-col">
+        <h3 class="font-semibold text-gray-900 mb-1">Operator Performance</h3>
+        <p class="text-sm text-gray-500 mb-4 flex-1">
+          Efficiency, output, and rejection rates by operator for {{ r.month }}.
+        </p>
+        <button
+          type="button"
+          class="btn-primary !text-sm w-fit"
+          [disabled]="exporting() === 'operator'"
+          (click)="exportReport('operator')"
+        >
+          @if (exporting() === 'operator') {
+            <span class="spinner spinner-sm"></span>
+          } @else {
+            Export Excel
+          }
+        </button>
+      </div>
+
+      <div class="card p-5 flex flex-col">
+        <h3 class="font-semibold text-gray-900 mb-1">Downtime Analysis</h3>
+        <p class="text-sm text-gray-500 mb-4 flex-1">
+          Pause events and downtime minutes grouped by machine and reason.
+        </p>
+        <button
+          type="button"
+          class="btn-primary !text-sm w-fit"
+          [disabled]="exporting() === 'downtime'"
+          (click)="exportReport('downtime')"
+        >
+          @if (exporting() === 'downtime') {
+            <span class="spinner spinner-sm"></span>
+          } @else {
+            Export Excel
+          }
+        </button>
+      </div>
+
+      <div class="card p-5 flex flex-col">
+        <h3 class="font-semibold text-gray-900 mb-1">Machine Utilization</h3>
+        <p class="text-sm text-gray-500 mb-4 flex-1">
+          Hours used, session counts, and utilization percentage per machine.
+        </p>
+        <button
+          type="button"
+          class="btn-primary !text-sm w-fit"
+          [disabled]="exporting() === 'utilization'"
+          (click)="exportReport('utilization')"
+        >
+          @if (exporting() === 'utilization') {
+            <span class="spinner spinner-sm"></span>
+          } @else {
+            Export Excel
+          }
+        </button>
+      </div>
+
+      <div class="card p-5 flex flex-col">
+        <h3 class="font-semibold text-gray-900 mb-1">Completed Work Orders</h3>
+        <p class="text-sm text-gray-500 mb-4 flex-1">
+          Closed and completed orders with planned vs actual output.
+        </p>
+        <button
+          type="button"
+          class="btn-primary !text-sm w-fit"
+          [disabled]="exporting() === 'completed'"
+          (click)="exportReport('completed')"
+        >
+          @if (exporting() === 'completed') {
+            <span class="spinner spinner-sm"></span>
+          } @else {
+            Export Excel
+          }
+        </button>
+      </div>
+    </div>
+
+    @if (r.operator_performance.operators.length) {
+      <div class="card mt-8 overflow-hidden">
+        <div class="px-5 py-4 border-b">
+          <h3 class="font-semibold text-gray-900">Top Operators — {{ r.month }}</h3>
+        </div>
+        <div class="table-container !border-0 !rounded-none">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Operator</th>
+                <th class="table-th">WOs</th>
+                <th class="table-th">Produced</th>
+                <th class="table-th">Efficiency</th>
+                <th class="table-th">Rejection</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (op of r.operator_performance.operators.slice(0, 8); track op.operator_id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ op.operator_name }}</td>
+                  <td class="table-td">{{ op.work_orders_completed }}/{{ op.work_orders_total }}</td>
+                  <td class="table-td">{{ op.quantity_produced }}</td>
+                  <td class="table-td">{{ op.efficiency_pct }}%</td>
+                  <td class="table-td">{{ op.rejection_rate_pct }}%</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+</div>

@@ -1,0 +1,86 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header [title]="editId() ? 'Edit Quotation' : 'New Quotation'">
+    <a routerLink="/sales/quotations" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">Quotation Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Customer *</label>
+          <app-searchable-select
+            [options]="customerOptions()"
+            [value]="form.controls.customer.value"
+            placeholder="Search customer..."
+            (valueChange)="onCustomerSelect($event)"
+          />
+        </div>
+        <div><label class="input-label">Valid Until *</label><input type="date" formControlName="valid_until" class="input-field" /></div>
+        <div>
+          <label class="input-label">Currency *</label>
+          <select formControlName="currency" class="input-field">
+            @for (c of currencies(); track c.id) { <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option> }
+          </select>
+        </div>
+        <div><label class="input-label">Exchange Rate</label><input type="number" formControlName="exchange_rate" step="0.0001" class="input-field" /></div>
+        <div class="md:col-span-2">
+          <label class="input-label">Notes</label>
+          <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Terms & Conditions</label>
+          <textarea formControlName="terms_conditions" rows="3" class="input-field resize-none"></textarea>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" formControlName="apply_vat" id="vat" />
+          <label for="vat" class="text-sm">Apply 18% VAT</label>
+        </div>
+        <div>
+          <label class="input-label">Delivery Cost</label>
+          <input type="number" formControlName="delivery_cost" min="0" step="0.01" class="input-field" placeholder="0.00" />
+          <p class="text-xs text-gray-500 mt-1">Include delivery charge when customer accepts this quotation.</p>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between mb-3">
+        <h4 class="font-semibold">Line Items</h4>
+        <button type="button" class="btn-ghost !text-xs" (click)="addLine()">+ Add Item</button>
+      </div>
+      <div formArrayName="lineItems" class="space-y-2">
+        @for (line of lineItems().controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-xl">
+            <div class="col-span-4">
+              <app-searchable-select [options]="itemOptions()" [value]="line.value.item" (valueChange)="onItemSelect(i, $event)" />
+            </div>
+            <div class="col-span-2"><input type="number" formControlName="quantity" class="input-field" placeholder="Qty" /></div>
+            <div class="col-span-2"><input type="number" formControlName="unit_price" class="input-field" placeholder="Price" /></div>
+            <div class="col-span-2"><input type="number" formControlName="discount_percent" class="input-field" placeholder="Disc %" /></div>
+            <div class="col-span-1 font-semibold text-sm">{{ formatCurrency(lineTotal(i)) }}</div>
+            <div class="col-span-1"><button type="button" class="btn-ghost !text-red-600" (click)="removeLine(i)">×</button></div>
+          </div>
+        }
+      </div>
+      <div class="mt-4 text-right space-y-1 text-sm">
+        <p>Subtotal: <strong>{{ formatCurrency(subtotal()) }}</strong></p>
+        <p>VAT (18%): <strong>{{ formatCurrency(taxAmount()) }}</strong></p>
+        @if (form.value.delivery_cost) {
+          <p>Delivery: <strong>{{ formatCurrency(deliveryCostAmount()) }}</strong></p>
+        }
+        <p class="text-lg">Grand Total: <strong class="text-[#1B3A6B]">{{ formatCurrency(grandTotal()) }}</strong></p>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t pt-4">
+      @if (canSendOnSave()) {
+        <button type="button" class="btn-secondary" [disabled]="saving()" (click)="saveDraft()">Save Draft</button>
+        <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveAndSend()">Save & Send</button>
+      } @else {
+        <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveDraft()">Save Changes</button>
+      }
+    </div>
+  </form>
+</div>

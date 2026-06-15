@@ -1,0 +1,99 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Credit Notes">
+    @if (canCreate()) {
+      <button type="button" class="btn-primary" (click)="openCreate()">New Credit Note</button>
+    }
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!creditNotes().length) {
+    <div class="card">
+      <app-empty-state
+        title="No credit notes"
+        message="Create credit notes against issued invoices for returns or adjustments."
+        actionLabel="New Credit Note"
+        (actionClick)="openCreate()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">CN Number</th>
+            <th class="table-th">Invoice</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">Reason</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Created By</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (cn of creditNotes(); track cn.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ cn.cn_number }}</td>
+              <td class="table-td">{{ cn.invoice_number }}</td>
+              <td class="table-td">{{ cn.customer_name }}</td>
+              <td class="table-td text-sm max-w-[200px] truncate">{{ cn.reason }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(cn.amount) }}</td>
+              <td class="table-td"><app-status-badge [status]="cn.status" /></td>
+              <td class="table-td text-sm">{{ cn.created_by_name }}</td>
+              <td class="table-td">
+                @if (cn.status === 'DRAFT' && canApprove()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="approve(cn)">
+                    Approve
+                  </button>
+                }
+                @if (cn.status === 'APPROVED' && canApprove()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="apply(cn)">Apply</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showCreate()" title="New Credit Note" size="lg" (close)="showCreate.set(false)">
+  <form [formGroup]="createForm" class="space-y-4">
+    <div>
+      <label class="input-label">Invoice *</label>
+      <select formControlName="invoice" class="input-field" (change)="onInvoiceSelect(+$any($event.target).value || null)">
+        <option [ngValue]="null">Select invoice</option>
+        @for (inv of invoices(); track inv.id) {
+          <option [ngValue]="inv.id">
+            {{ inv.invoice_number }} — {{ inv.customer_name }} ({{ formatCurrency(inv.total_amount, inv.currency_code) }})
+          </option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Reason *</label>
+      <input formControlName="reason" class="input-field" placeholder="e.g. Returned goods, pricing adjustment" />
+    </div>
+    <div>
+      <label class="input-label">Amount *</label>
+      <input type="number" formControlName="amount" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showCreate.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveCreditNote()">Create</button>
+  </div>
+</app-modal>

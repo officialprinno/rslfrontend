@@ -1,0 +1,80 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Request for Quotations">
+    @if (canAdd()) { <button type="button" class="btn-primary" (click)="openNew()">New RFQ</button> }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!rfqs().length) {
+    <div class="card"><app-empty-state title="No RFQs" message="Create an RFQ from an approved requisition." (actionClick)="openNew()" actionLabel="New RFQ" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">RFQ Number</th>
+            <th class="table-th">Linked PR</th>
+            <th class="table-th">Suppliers</th>
+            <th class="table-th">Deadline</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Created By</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of rfqs(); track r.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ r.rfq_number }}</td>
+              <td class="table-td"><a [routerLink]="['/procurement/requisitions']" class="text-[#1B3A6B] hover:underline">{{ r.pr_number }}</a></td>
+              <td class="table-td">{{ r.suppliers_count }}</td>
+              <td class="table-td">{{ formatDate(r.deadline) }}</td>
+              <td class="table-td"><app-status-badge [status]="r.status" /></td>
+              <td class="table-td">{{ r.created_by_name }}</td>
+              <td class="table-td text-xs">{{ formatDateTime(r.created_at) }}</td>
+              <td class="table-td">
+                <div class="flex gap-1">
+                  <a [routerLink]="['/procurement/rfq', r.id]" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                  @if (r.status === 'OPEN' && canAdd()) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="closeRfq(r)">Close</button>
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="cancelRfq(r)">Cancel</button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="New RFQ" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Linked PR (approved only) *</label>
+      <select formControlName="requisition" class="input-field">
+        <option [ngValue]="null">Select PR</option>
+        @for (pr of approvedPrs(); track pr.id) { <option [ngValue]="pr.id">{{ pr.pr_number }} — {{ pr.department_name }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Deadline Date *</label>
+      <input type="date" formControlName="deadline" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Select Suppliers *</label>
+      <app-multi-select [options]="supplierOptions()" [selected]="selectedSuppliers()" (selectionChange)="selectedSuppliers.set($event)" placeholder="Search suppliers..." />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="3" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">Create RFQ</button>
+  </div>
+</app-modal>

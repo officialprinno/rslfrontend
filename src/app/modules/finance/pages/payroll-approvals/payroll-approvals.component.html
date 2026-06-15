@@ -1,0 +1,80 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    title="Payroll Approvals"
+    subtitle="Review and approve payroll runs submitted by HR"
+  />
+
+  <div class="card p-4 mb-4">
+    <select
+      class="input-field w-48"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="REVIEWED">Pending Approval</option>
+      <option value="APPROVED">Approved</option>
+      <option value="PAID">Paid</option>
+      <option value="">All Statuses</option>
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (!payrolls().length) {
+    <div class="card">
+      <app-empty-state
+        title="No payroll runs"
+        message="Payroll batches submitted by HR will appear here for finance approval."
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Payroll No.</th>
+            <th class="table-th">Period</th>
+            <th class="table-th">Employees</th>
+            <th class="table-th">Net Payable</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of payrolls(); track p.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ p.payroll_number }}</td>
+              <td class="table-td">{{ p.period_display }}</td>
+              <td class="table-td">{{ p.total_employees }}</td>
+              <td class="table-td font-semibold">
+                {{ canViewAmounts() ? formatHrAmount(p.total_net) : '••••••' }}
+              </td>
+              <td class="table-td"><app-status-badge [status]="p.status" /></td>
+              <td class="table-td">
+                <div class="flex items-center gap-2">
+                  <a [routerLink]="['/finance/payroll-approvals', p.id]" class="btn-ghost !text-xs !px-2">Review</a>
+                  @if (canApprove() && p.status === 'REVIEWED') {
+                    <button
+                      type="button"
+                      class="btn-ghost !text-xs !px-2 !text-green-700"
+                      [disabled]="acting()"
+                      (click)="approvePayroll(p)"
+                    >
+                      Approve
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="10"
+      (pageChange)="page.set($event); load()"
+    />
+  }
+</div>

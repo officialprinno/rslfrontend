@@ -1,0 +1,113 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header [title]="editId() ? 'Edit Delivery Order' : 'New Delivery Order'">
+    <a routerLink="/logistics/deliveries" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">Delivery Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Sales Order *</label>
+          <app-searchable-select
+            [options]="soOptions()"
+            [value]="form.controls.sales_order.value"
+            [disabled]="!!editId()"
+            (valueChange)="onSoSelect($event)"
+          />
+          <p class="text-xs text-gray-500 mt-1">Only confirmed or processing orders are listed.</p>
+        </div>
+        <div>
+          <label class="input-label">Origin Warehouse *</label>
+          <app-searchable-select
+            [options]="warehouseOptions()"
+            [value]="form.controls.origin_warehouse.value"
+            (valueChange)="form.patchValue({ origin_warehouse: $event ? +$event : null })"
+          />
+        </div>
+        <div>
+          <label class="input-label">Vehicle</label>
+          <app-searchable-select
+            [options]="vehicleOptions()"
+            [value]="form.controls.vehicle.value"
+            (valueChange)="form.patchValue({ vehicle: $event ? +$event : null })"
+          />
+          <p class="text-xs text-gray-500 mt-1">Available vehicles only.</p>
+        </div>
+        <div>
+          <label class="input-label">Driver</label>
+          <app-searchable-select
+            [options]="driverOptions()"
+            [value]="form.controls.driver.value"
+            (valueChange)="form.patchValue({ driver: $event ? +$event : null })"
+          />
+          <p class="text-xs text-gray-500 mt-1">Available drivers only.</p>
+        </div>
+        <div>
+          <label class="input-label">Scheduled Date *</label>
+          <input type="date" formControlName="scheduled_date" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Distance (km) *</label>
+          <input type="number" formControlName="distance_km" min="0" step="0.1" class="input-field" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Destination</label>
+          <textarea formControlName="destination" rows="2" class="input-field resize-none"></textarea>
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Notes</label>
+          <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+
+    @if (selectedSo(); as so) {
+      <div class="text-sm text-gray-600 bg-gray-50 rounded-xl p-3">
+        Customer: <strong>{{ so.customer_name }}</strong> · Delivery date: {{ so.delivery_date }}
+      </div>
+    }
+
+    <div>
+      <h4 class="font-semibold mb-3">Line Items</h4>
+      @if (!lineItems().length) {
+        <p class="text-sm text-gray-500">Select a sales order to load deliverable items.</p>
+      } @else {
+        <div formArrayName="lineItems" class="space-y-2">
+          @for (line of lineItems().controls; track $index; let i = $index) {
+            <div [formGroupName]="i" class="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-xl text-sm">
+              <div class="col-span-4">
+                <span class="text-xs text-gray-500 block">Item</span>
+                <span class="font-medium">{{ line.value.item_code }} — {{ line.value.item_name }}</span>
+              </div>
+              <div class="col-span-2">
+                <span class="text-xs text-gray-500 block">Ordered</span>
+                <span>{{ line.value.quantity_ordered }}</span>
+              </div>
+              <div class="col-span-2">
+                <span class="text-xs text-gray-500 block">Delivered</span>
+                <span>{{ line.value.quantity_delivered }}</span>
+              </div>
+              <div class="col-span-2">
+                <label class="input-label !text-xs">Qty to Deliver</label>
+                <input type="number" formControlName="quantity" min="0" class="input-field" />
+              </div>
+              <div class="col-span-2">
+                <label class="input-label !text-xs">Serial No.</label>
+                <input formControlName="serial_number" class="input-field" />
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="flex justify-end gap-3 border-t pt-4">
+      <a routerLink="/logistics/deliveries" class="btn-secondary">Cancel</a>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">
+        {{ editId() ? 'Update Delivery' : 'Create Delivery' }}
+      </button>
+    </div>
+  </form>
+</div>

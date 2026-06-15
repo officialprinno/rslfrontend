@@ -1,0 +1,67 @@
+<div class="page-container">
+  <app-procurement-nav />
+  @if (grn(); as g) {
+    <app-page-header [title]="g.grn_number" [subtitle]="g.supplier_name">
+      <button type="button" class="btn-ghost" (click)="printGrn()">Print</button>
+      <button type="button" class="btn-primary" (click)="exportPdf()">Export PDF</button>
+      <a routerLink="/procurement/grn" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="grnSteps" [activeIndex]="workflowIndex(g.status)" />
+
+    <div id="grn-print-area" class="card p-6 mb-6">
+      <div class="print-only-header hidden print:block mb-4">
+        <h1 class="text-xl font-bold text-[#1B3A6B]">Rock Solutions Limited</h1>
+        <p class="text-sm text-gray-500">Goods Received Note — {{ g.grn_number }}</p>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-6">
+        <div><span class="text-gray-500 block text-xs">PO Number</span><strong>{{ g.po_number }}</strong></div>
+        <div><span class="text-gray-500 block text-xs">Supplier</span><strong>{{ g.supplier_name }}</strong></div>
+        <div><span class="text-gray-500 block text-xs">Warehouse</span><strong>{{ g.warehouse_name }}</strong></div>
+        <div><span class="text-gray-500 block text-xs">Received Date</span><strong>{{ formatDate(g.received_date) }}</strong></div>
+        <div><span class="text-gray-500 block text-xs">Received By</span><strong>{{ g.received_by_name }}</strong></div>
+        <div><span class="text-gray-500 block text-xs">Status</span><app-status-badge [status]="g.status" /></div>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead>
+          <tr>
+            <th class="table-th">Item</th>
+            <th class="table-th">Qty Received</th>
+            <th class="table-th">Unit Cost</th>
+            <th class="table-th">Condition</th>
+            <th class="table-th">Serial / Expiry</th>
+            <th class="table-th">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of g.items; track item.id) {
+            <tr class="table-row">
+              <td class="table-td">{{ item.item_name }}</td>
+              <td class="table-td font-semibold">{{ item.quantity_received }}</td>
+              <td class="table-td">{{ formatCurrency(item.unit_cost) }}</td>
+              <td class="table-td">{{ item.condition }}</td>
+              <td class="table-td text-xs">
+                @if (item.serial_number) { SN: {{ item.serial_number }} }
+                @if (item.expiry_date) { Exp: {{ formatDate(item.expiry_date) }} }
+                @if (!item.serial_number && !item.expiry_date) { — }
+              </td>
+              <td class="table-td text-gray-600">{{ item.notes || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (g.notes) {
+        <div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm">
+          <span class="text-gray-500">Notes:</span> {{ g.notes }}
+        </div>
+      }
+    </div>
+
+    @if (g.status === 'DRAFT') {
+      <a [routerLink]="['/procurement/grn', g.id, 'edit']" class="btn-secondary">Edit Draft</a>
+    }
+  }
+</div>

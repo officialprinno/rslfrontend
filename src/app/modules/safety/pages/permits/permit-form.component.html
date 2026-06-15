@@ -1,0 +1,373 @@
+<div class="page-container">
+
+  <app-safety-nav />
+
+  <app-page-header
+
+    [title]="editId() ? 'Edit Work Permit' : 'New Work Permit'"
+
+    subtitle="Complete hazard assessment and safety checklist before submission"
+
+  />
+
+
+
+  <form [formGroup]="form" class="space-y-6" (ngSubmit)="save(true)">
+
+    <div class="card p-6 space-y-4">
+
+      <h2 class="section-title">Permit Details</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div>
+
+          <label class="input-label">Permit Type *</label>
+
+          <select class="input-field" formControlName="permit_type">
+
+            @for (t of permitTypes; track t.value) {
+
+              <option [value]="t.value">{{ t.label }}</option>
+
+            }
+
+          </select>
+
+        </div>
+
+        <div>
+
+          <label class="input-label">Location *</label>
+
+          <select class="input-field" formControlName="location">
+
+            <option value="">Select location</option>
+
+            @for (loc of locations; track loc) {
+
+              <option [value]="loc">{{ loc }}</option>
+
+            }
+
+          </select>
+
+        </div>
+
+        <div>
+
+          <label class="input-label">Department</label>
+
+          <select class="input-field" formControlName="department">
+
+            <option [ngValue]="null">— None —</option>
+
+            @for (dept of deptOptions(); track dept.id) {
+
+              <option [ngValue]="dept.id">{{ dept.name }}</option>
+
+            }
+
+          </select>
+
+        </div>
+
+        <div>
+
+          <label class="input-label">Equipment / Tools</label>
+
+          <input type="text" class="input-field" formControlName="equipment_tools" />
+
+        </div>
+
+        <div>
+
+          <label class="input-label">Valid From *</label>
+
+          <input type="datetime-local" class="input-field" formControlName="valid_from" />
+
+        </div>
+
+        <div>
+
+          <label class="input-label">Valid Until *</label>
+
+          <input type="datetime-local" class="input-field" formControlName="valid_until" />
+
+        </div>
+
+      </div>
+
+      <div>
+
+        <label class="input-label">Work Description *</label>
+
+        <textarea class="input-field min-h-[100px]" formControlName="work_description" rows="4"></textarea>
+
+      </div>
+
+    </div>
+
+
+
+    <div class="card p-6 space-y-4">
+
+      <h2 class="section-title">Workers</h2>
+
+      <div formArrayName="workers" class="space-y-3">
+
+        @for (worker of workers.controls; track $index; let i = $index) {
+
+          <div [formGroupName]="i" class="flex flex-wrap gap-3 items-end">
+
+            <div class="flex-1 min-w-[140px]">
+
+              <label class="input-label">Name *</label>
+
+              <input type="text" class="input-field" formControlName="name" />
+
+            </div>
+
+            <div class="flex-1 min-w-[120px]">
+
+              <label class="input-label">ID / Badge *</label>
+
+              <input type="text" class="input-field" formControlName="id" />
+
+            </div>
+
+            @if (workers.length > 1) {
+
+              <button type="button" class="btn-ghost !text-red-600" (click)="removeWorker(i)">Remove</button>
+
+            }
+
+          </div>
+
+        }
+
+      </div>
+
+      <button type="button" class="btn-secondary !text-xs" (click)="addWorker()">Add Worker</button>
+
+    </div>
+
+
+
+    <div class="card p-6 space-y-4">
+
+      <h2 class="section-title">Hazard Assessment</h2>
+
+      <div>
+
+        <label class="input-label mb-2 block">Identified Hazards</label>
+
+        <div class="flex flex-wrap gap-2">
+
+          @for (hazard of hazards; track hazard) {
+
+            <button
+
+              type="button"
+
+              class="px-3 py-1.5 rounded-lg text-sm border transition-all"
+
+              [class]="isHazardSelected(hazard)
+
+                ? 'bg-[#1B3A6B] text-white border-[#1B3A6B]'
+
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'"
+
+              (click)="toggleHazard(hazard)"
+
+            >
+
+              {{ hazard }}
+
+            </button>
+
+          }
+
+        </div>
+
+      </div>
+
+
+
+      <div>
+
+        <label class="input-label">Control Measures *</label>
+
+        <textarea class="input-field min-h-[80px]" formControlName="control_measures" rows="3"></textarea>
+
+      </div>
+
+
+
+      <div>
+
+        <label class="input-label mb-2 block">Risk Matrix (5×5)</label>
+
+        <p class="text-xs text-gray-500 mb-3">Select likelihood (rows) and consequence (columns) to determine risk level.</p>
+
+        <div class="overflow-x-auto">
+
+          <table class="border-collapse text-xs">
+
+            <thead>
+
+              <tr>
+
+                <th class="p-2 text-left text-gray-500 font-normal w-24">Likelihood ↓</th>
+
+                @for (label of consequenceLabels; track label; let ci = $index) {
+
+                  <th class="p-1 text-center text-gray-500 font-normal w-16">{{ ci + 1 }}</th>
+
+                }
+
+              </tr>
+
+              <tr>
+
+                <th></th>
+
+                @for (label of consequenceLabels; track label) {
+
+                  <th class="p-1 text-center text-[10px] text-gray-400 font-normal max-w-[64px]">{{ label }}</th>
+
+                }
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              @for (lLabel of likelihoodLabels; track lLabel; let li = $index) {
+
+                <tr>
+
+                  <td class="p-1 text-gray-500 text-[10px]">{{ li + 1 }}. {{ lLabel }}</td>
+
+                  @for (cLabel of consequenceLabels; track cLabel; let ci = $index) {
+
+                    <td class="p-0.5">
+
+                      <button
+
+                        type="button"
+
+                        class="w-14 h-10 rounded text-xs font-medium transition-all border-2"
+
+                        [class]="riskMatrixCellClass((li + 1) * (ci + 1))"
+
+                        [class.!border-[#1B3A6B]]="isRiskCellSelected(li + 1, ci + 1)"
+
+                        [class.!ring-2]="isRiskCellSelected(li + 1, ci + 1)"
+
+                        [class.!ring-[#1B3A6B]]="isRiskCellSelected(li + 1, ci + 1)"
+
+                        (click)="selectRiskCell(li + 1, ci + 1)"
+
+                      >
+
+                        {{ (li + 1) * (ci + 1) }}
+
+                      </button>
+
+                    </td>
+
+                  }
+
+                </tr>
+
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+        <div class="mt-3 flex items-center gap-3">
+
+          <span class="text-sm text-gray-600">Risk Score: <strong>{{ riskScore() }}</strong></span>
+
+          <span
+
+            class="badge"
+
+            [class]="riskLevel() === 'HIGH' ? 'badge-red' : riskLevel() === 'MEDIUM' ? 'badge-orange' : 'badge-green'"
+
+          >
+
+            {{ riskLevel() }} RISK
+
+          </span>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+    <div class="card p-6 space-y-4">
+
+      <h2 class="section-title">Safety Checklist</h2>
+
+      <p class="text-sm text-gray-500">Complete all applicable checklist items before submission.</p>
+
+      @if (!checklist.length) {
+
+        <p class="text-sm text-gray-400">No checklist items for this permit type.</p>
+
+      } @else {
+
+        <div formArrayName="safety_checklist" class="space-y-2">
+
+          @for (item of checklist.controls; track $index; let i = $index) {
+
+            <label [formGroupName]="i" class="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
+
+              <input type="checkbox" formControlName="checked" class="mt-0.5" />
+
+              <span class="text-sm">{{ item.get('item')?.value }}</span>
+
+            </label>
+
+          }
+
+        </div>
+
+      }
+
+    </div>
+
+
+
+    <div class="flex flex-wrap gap-3">
+
+      <button type="button" class="btn-secondary" [disabled]="saving()" (click)="save(false)">
+
+        {{ saving() ? 'Saving…' : 'Save Draft' }}
+
+      </button>
+
+      <button type="submit" class="btn-primary" [disabled]="saving()">
+
+        {{ saving() ? 'Submitting…' : 'Submit for Approval' }}
+
+      </button>
+
+      <a routerLink="/safety/permits" class="btn-ghost">Cancel</a>
+
+    </div>
+
+  </form>
+
+</div>
+
+

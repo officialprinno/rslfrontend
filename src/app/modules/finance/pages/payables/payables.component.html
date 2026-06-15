@@ -1,0 +1,198 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Accounts Payable" subtitle="Supplier aging and upcoming payments" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (data(); as ap) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
+      <div class="card-stat">
+        <p class="card-stat__value">{{ formatAccountingAmount(ap.summary.total_outstanding) }}</p>
+        <p class="card-stat__label">Total Outstanding</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-green-700">{{ formatAccountingAmount(ap.summary.current) }}</p>
+        <p class="card-stat__label">Current</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-red-600">{{ formatAccountingAmount(ap.summary.days_90_plus) }}</p>
+        <p class="card-stat__label">90+ Days Overdue</p>
+      </div>
+    </div>
+
+    <h3 class="text-lg font-semibold text-gray-900 mb-3">AP Aging</h3>
+    <div class="card p-4 mb-4">
+      <div class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[200px]">
+          <label class="input-label">Search Supplier</label>
+          <input
+            type="text"
+            class="input-field"
+            placeholder="Supplier name..."
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+          />
+        </div>
+        <div class="w-44">
+          <label class="input-label">Aging Bucket</label>
+          <select class="input-field" [ngModel]="bucketFilter()" (ngModelChange)="bucketFilter.set($event)">
+            <option value="">All</option>
+            <option value="current">Current</option>
+            <option value="days_1_30">1–30 Days</option>
+            <option value="days_31_60">31–60 Days</option>
+            <option value="days_61_90">61–90 Days</option>
+            <option value="days_90_plus">90+ Days</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    @if (!filteredAging().length) {
+      <div class="card mb-8">
+        <app-empty-state title="No payables" message="No outstanding supplier balances match your filters." />
+      </div>
+    } @else {
+      <div class="table-container mb-8">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Supplier</th>
+                <th class="table-th">Current</th>
+                <th class="table-th">1–30</th>
+                <th class="table-th">31–60</th>
+                <th class="table-th">61–90</th>
+                <th class="table-th">90+</th>
+                <th class="table-th">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredAging(); track row.supplier_id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ row.supplier_name }}</td>
+                  <td class="table-td" [class]="agingClass('current')">{{ formatAccountingAmount(row.current) }}</td>
+                  <td class="table-td" [class]="agingClass('days_1_30')">{{ formatAccountingAmount(row.days_1_30) }}</td>
+                  <td class="table-td" [class]="agingClass('days_31_60')">{{ formatAccountingAmount(row.days_31_60) }}</td>
+                  <td class="table-td" [class]="agingClass('days_61_90')">{{ formatAccountingAmount(row.days_61_90) }}</td>
+                  <td class="table-td" [class]="agingClass('days_90_plus')">{{ formatAccountingAmount(row.days_90_plus) }}</td>
+                  <td class="table-td" [class]="agingClass('total_outstanding')">{{ formatAccountingAmount(row.total_outstanding) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+  <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+    <h3 class="text-lg font-semibold text-gray-900">Upcoming Payments</h3>
+    <div class="w-36">
+      <label class="input-label">Next (days)</label>
+      <select class="input-field" [ngModel]="upcomingDays()" (ngModelChange)="upcomingDays.set(+$event); loadUpcoming()">
+        @for (d of [7, 14, 30, 60]; track d) {
+          <option [value]="d">{{ d }} days</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (upcomingLoading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!upcoming().length) {
+    <div class="card">
+      <app-empty-state title="No upcoming payments" message="No supplier invoices due in the selected period." />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Invoice #</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">Due Date</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">Method</th>
+            <th class="table-th">3-Way Match</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of upcoming(); track p.invoice_id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ p.invoice_number }}</td>
+              <td class="table-td">{{ p.supplier_name }}</td>
+              <td class="table-td" [class.text-red-600]="isOverdue(p.due_date)" [class.text-amber-600]="!isOverdue(p.due_date) && isDueSoon(p.due_date)">
+                {{ formatDate(p.due_date) }}
+              </td>
+              <td class="table-td font-semibold">{{ formatAccountingAmount(p.amount) }}</td>
+              <td class="table-td">{{ p.payment_method }}</td>
+              <td class="table-td">
+                <span [class]="p.three_way_matched ? 'text-green-700 font-medium' : 'text-amber-600'">
+                  {{ p.three_way_matched ? '✓ Matched' : '✗ Pending' }}
+                </span>
+              </td>
+              <td class="table-td">
+                @if (canPay() && p.three_way_matched) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="openPay(p)">Pay</button>
+                } @else if (canPay()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs opacity-50" disabled title="3-way match required">Pay</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<app-modal [open]="showPay()" title="Supplier Payment" size="lg" (close)="showPay.set(false)">
+  @if (paying(); as p) {
+    @if (!p.three_way_matched) {
+      <div class="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm border border-red-200">
+        ✗ 3-way match not complete — PO, GRN, and invoice amounts must match before payment.
+      </div>
+    } @else {
+      <div class="mb-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm border border-green-200">
+        ✓ 3-way match verified — safe to proceed with payment.
+      </div>
+    }
+    <p class="text-sm text-gray-600 mb-4">
+      Paying <strong>{{ p.invoice_number }}</strong> to <strong>{{ p.supplier_name }}</strong>
+    </p>
+  }
+  <form [formGroup]="payForm" class="grid grid-cols-2 gap-4">
+    <div><label class="input-label">Amount *</label><input type="number" formControlName="amount" class="input-field" /></div>
+    <div><label class="input-label">Payment Date *</label><input type="date" formControlName="payment_date" class="input-field" /></div>
+    <div>
+      <label class="input-label">Method *</label>
+      <select formControlName="payment_method" class="input-field">
+        @for (m of paymentMethods; track m.value) {
+          <option [value]="m.value">{{ m.label }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Bank Account</label>
+      <select formControlName="bank_account" class="input-field">
+        <option [ngValue]="null">Select account</option>
+        @for (b of bankAccounts(); track b.id) {
+          <option [ngValue]="b.id">{{ b.bank_name }} — {{ b.account_name }}</option>
+        }
+      </select>
+    </div>
+    <div class="col-span-2"><label class="input-label">Reference</label><input formControlName="reference" class="input-field" /></div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showPay.set(false)">Cancel</button>
+    <button
+      type="button"
+      class="btn-primary"
+      [disabled]="saving() || !paying()?.three_way_matched"
+      (click)="submitPayment()"
+    >
+      Record Payment
+    </button>
+  </div>
+</app-modal>

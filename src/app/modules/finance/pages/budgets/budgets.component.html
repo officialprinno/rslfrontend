@@ -1,0 +1,165 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Budgets" subtitle="Department spending vs budget">
+    @if (canManage()) {
+      <button type="button" class="btn-primary" (click)="openCreate()">Create Budget</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-6">
+    <label class="input-label">Financial Year</label>
+    <select class="input-field max-w-xs" [ngModel]="financialYear()" (ngModelChange)="onYearChange(+$event)">
+      @for (y of [financialYear() - 1, financialYear(), financialYear() + 1]; track y) {
+        <option [value]="y">{{ y }}</option>
+      }
+    </select>
+  </div>
+
+  <h3 class="text-lg font-semibold text-gray-900 mb-3">Department Progress</h3>
+  @if (summaryLoading()) {
+    <app-table-skeleton [cols]="3" />
+  } @else if (!summary().length) {
+    <div class="card mb-8">
+      <app-empty-state title="No budget summary" message="Create budgets to track department spending." />
+    </div>
+  } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
+      @for (row of summary(); track row.department_id) {
+        <div class="card p-5">
+          <div class="flex justify-between items-start mb-3">
+            <h4 class="font-semibold text-gray-900">{{ row.department_name }}</h4>
+            <span class="text-sm font-medium">{{ progressPercent(row) }}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
+            <div class="h-2 rounded-full transition-all" [class]="progressClass(row)" [style.width.%]="progressPercent(row)"></div>
+          </div>
+          <div class="flex justify-between text-sm mb-3">
+            <span class="text-gray-500">Budget</span>
+            <span>{{ formatAccountingAmount(row.total_budgeted) }}</span>
+          </div>
+          <div class="flex justify-between text-sm mb-3">
+            <span class="text-gray-500">Actual</span>
+            <span class="font-medium">{{ formatAccountingAmount(row.total_actual) }}</span>
+          </div>
+          @if (row.top_expenses.length) {
+            <div class="pt-3 border-t">
+              <p class="text-xs text-gray-500 uppercase mb-2">Top Expenses</p>
+              @for (exp of row.top_expenses; track exp.account) {
+                <div class="flex justify-between text-xs text-gray-600 mb-1">
+                  <span>{{ exp.account }}</span>
+                  <span>{{ formatAccountingAmount(exp.amount) }}</span>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  <h3 class="text-lg font-semibold text-gray-900 mb-3">Budget Lines</h3>
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!budgets().length) {
+    <div class="card">
+      <app-empty-state
+        title="No budgets"
+        message="Define budgets by department and expense account."
+        [actionLabel]="canManage() ? 'Create Budget' : ''"
+        (actionClick)="openCreate()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Name</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Account</th>
+            <th class="table-th">Period</th>
+            <th class="table-th">Budgeted</th>
+            <th class="table-th">Actual</th>
+            <th class="table-th">Variance</th>
+            <th class="table-th">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (b of budgets(); track b.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ b.name }}</td>
+              <td class="table-td">{{ b.department_name }}</td>
+              <td class="table-td">{{ b.account_name }}</td>
+              <td class="table-td">{{ b.period }}</td>
+              <td class="table-td">{{ formatAccountingAmount(b.amount_budgeted) }}</td>
+              <td class="table-td">{{ formatAccountingAmount(b.amount_actual) }}</td>
+              <td class="table-td" [class.text-red-600]="isOverBudget(b.variance)">
+                {{ formatAccountingAmount(b.variance) }} ({{ b.variance_percent }}%)
+              </td>
+              <td class="table-td">
+                <span class="badge" [class]="statusBadge(b.status)">{{ b.status.replace('_', ' ') }}</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showCreate()" title="Create Budget" size="lg" (close)="showCreate.set(false)">
+  <form [formGroup]="createForm" class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+      <label class="input-label">Budget Name *</label>
+      <input formControlName="name" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Department *</label>
+      <select formControlName="department" class="input-field">
+        <option [ngValue]="null">Select</option>
+        @for (d of departments(); track d.id) {
+          <option [ngValue]="d.id">{{ d.name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Expense Account *</label>
+      <select formControlName="account" class="input-field">
+        <option [ngValue]="null">Select</option>
+        @for (a of accounts(); track a.id) {
+          <option [ngValue]="a.id">{{ a.account_code }} — {{ a.account_name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Financial Year *</label>
+      <input type="number" formControlName="financial_year" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Period *</label>
+      <select formControlName="period" class="input-field">
+        @for (p of budgetPeriods; track p.value) {
+          <option [value]="p.value">{{ p.label }}</option>
+        }
+      </select>
+    </div>
+    <div class="col-span-2">
+      <label class="input-label">Amount Budgeted *</label>
+      <input type="number" formControlName="amount_budgeted" class="input-field" />
+    </div>
+    <div class="col-span-2">
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showCreate.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveBudget()">Create</button>
+  </div>
+</app-modal>

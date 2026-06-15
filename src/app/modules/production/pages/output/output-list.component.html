@@ -1,0 +1,196 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Production Output">
+    @if (canRecord()) {
+      <button type="button" class="btn-primary" (click)="openRecord()">Record Output</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search batch or WO..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-48"
+      [ngModel]="woFilter()"
+      (ngModelChange)="woFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Work Orders</option>
+      @for (wo of workOrders(); track wo.id) {
+        <option [value]="wo.id">{{ wo.wo_number }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="10" />
+  } @else if (!records().length) {
+    <div class="card">
+      <app-empty-state
+        title="No output records"
+        message="Record production output from active work orders."
+        actionLabel="Record Output"
+        (actionClick)="openRecord()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Batch</th>
+            <th class="table-th">Work Order</th>
+            <th class="table-th">Product</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Shift</th>
+            <th class="table-th">Produced</th>
+            <th class="table-th">Rejected</th>
+            <th class="table-th">Rejection %</th>
+            <th class="table-th">QC</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (rec of records(); track rec.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ rec.batch_number }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/production/work-orders', rec.wo_id, 'view']" class="text-[#1B3A6B] hover:underline">
+                  {{ rec.wo_number }}
+                </a>
+              </td>
+              <td class="table-td">{{ rec.product_name }}</td>
+              <td class="table-td">{{ formatDate(rec.date) }}</td>
+              <td class="table-td">{{ shiftLabel(rec.shift) }}</td>
+              <td class="table-td">{{ rec.quantity_produced }}</td>
+              <td class="table-td">{{ rec.quantity_rejected }}</td>
+              <td class="table-td" [class]="rejectionRateClass(rejectionRate(rec))">
+                {{ rejectionRate(rec) }}%
+              </td>
+              <td class="table-td">
+                @if (rec.quality_checked && rec.qc_result) {
+                  <app-status-badge [status]="rec.qc_result === 'PASS' ? 'APPROVED' : 'REJECTED'" [label]="rec.qc_result" />
+                } @else {
+                  <span class="text-gray-400 text-sm">Pending</span>
+                }
+              </td>
+              <td class="table-td">
+                @if (!rec.quality_checked && canQc()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openQc(rec)">QC Check</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showRecord()" title="Record Output" size="lg" (close)="showRecord.set(false)">
+  <form [formGroup]="recordForm" class="space-y-4">
+    <div>
+      <label class="input-label">Work Order *</label>
+      <select formControlName="work_order" class="input-field">
+        <option [ngValue]="null">Select work order</option>
+        @for (wo of workOrders(); track wo.id) {
+          <option [ngValue]="wo.id">{{ wo.wo_number }} — {{ wo.product_name }}</option>
+        }
+      </select>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Date *</label>
+        <input type="date" formControlName="date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Shift *</label>
+        <select formControlName="shift" class="input-field">
+          @for (s of shifts; track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Qty Produced *</label>
+        <input type="number" formControlName="quantity_produced" class="input-field" min="0" />
+      </div>
+      <div>
+        <label class="input-label">Qty Rejected *</label>
+        <input type="number" formControlName="quantity_rejected" class="input-field" min="0" />
+      </div>
+      <div>
+        <label class="input-label">Operator *</label>
+        <select formControlName="operator" class="input-field">
+          <option [ngValue]="null">Select operator</option>
+          @for (op of operators(); track op.id) {
+            <option [ngValue]="op.id">{{ op.full_name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Rejection Rate</label>
+        <p class="input-field bg-gray-50" [class]="rejectionRateClass(rejectionRatePreview())">
+          {{ rejectionRatePreview() }}%
+        </p>
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Rejection Reason</label>
+      <textarea formControlName="rejection_reason" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showRecord.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveRecord()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showQc()" title="QC Check" size="md" (close)="showQc.set(false)">
+  @if (qcRecord(); as rec) {
+    <p class="text-sm text-gray-500 mb-4">
+      Batch <span class="font-medium text-gray-900">{{ rec.batch_number }}</span> — {{ rec.product_name }}
+    </p>
+  }
+  <form [formGroup]="qcForm" class="space-y-4">
+    <div>
+      <label class="input-label">QC Result *</label>
+      <select formControlName="qc_result" class="input-field">
+        <option value="PASS">PASS</option>
+        <option value="FAIL">FAIL</option>
+      </select>
+    </div>
+    <div>
+      <label class="input-label">QC Notes</label>
+      <textarea formControlName="qc_notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Rejection Reason</label>
+      <textarea formControlName="rejection_reason" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showQc.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveQc()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Submit QC
+    </button>
+  </div>
+</app-modal>

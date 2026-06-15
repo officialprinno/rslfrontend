@@ -1,0 +1,228 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Products" subtitle="Wire mesh product catalogue">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Product</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[200px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Name, item code..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select
+          class="input-field"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+        >
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!products().length) {
+    <div class="card">
+      <app-empty-state
+        title="No products"
+        message="Register manufactured products to begin production planning."
+        [actionLabel]="canAdd() ? 'Add Product' : ''"
+        (actionClick)="openAdd()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Item Code</th>
+              <th class="table-th">Product Name</th>
+              <th class="table-th">Specifications</th>
+              <th class="table-th">Std Output</th>
+              <th class="table-th">UoM</th>
+              <th class="table-th">Active BOM</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of products(); track p.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-xs">{{ p.item_code }}</td>
+                <td class="table-td font-medium">{{ p.name }}</td>
+                <td class="table-td text-sm text-gray-600 max-w-[240px] truncate" [title]="specsSummary(p.specifications)">
+                  {{ specsSummary(p.specifications) }}
+                </td>
+                <td class="table-td">{{ formatNumber(p.standard_output, 2) }}</td>
+                <td class="table-td">{{ p.unit_of_measure }}</td>
+                <td class="table-td">
+                  @if (p.active_bom_version) {
+                    <a [routerLink]="['/production/bom']" [queryParams]="{ product: p.id }" class="text-[#1B3A6B] hover:underline text-sm">
+                      v{{ p.active_bom_version }}
+                    </a>
+                  } @else {
+                    <span class="text-gray-400 text-sm">—</span>
+                  }
+                </td>
+                <td class="table-td">
+                  <app-status-badge [status]="p.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="p.is_active ? 'Active' : 'Inactive'" />
+                </td>
+                <td class="table-td">
+                  <div class="flex gap-1">
+                    @if (canAdd()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(p)">Edit</button>
+                    }
+                    @if (canDelete()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(p)">Delete</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showForm()" [title]="editing() ? 'Edit Product' : 'Add Product'" size="xl" (close)="showForm.set(false)">
+  <form [formGroup]="form" class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="md:col-span-2">
+        <label class="input-label">Inventory Item (Manufactured) *</label>
+        @if (editing()) {
+          <input
+            type="text"
+            class="input-field bg-gray-50"
+            [value]="editing()!.item_code + ' — ' + editing()!.item_name"
+            disabled
+          />
+        } @else {
+          <app-searchable-select
+            [options]="itemOptions()"
+            [value]="form.controls.item.value"
+            [hasError]="form.controls.item.touched && form.controls.item.invalid"
+            placeholder="Search manufactured items..."
+            (valueChange)="onItemSelect($event)"
+          />
+          @if (!hasAvailableItems()) {
+            <p class="text-xs text-amber-700 mt-1">
+              No manufactured items are available for linking.
+              <a routerLink="/inventory/items" class="underline font-medium">Create an inventory item</a>
+              with type <strong>Manufactured</strong> (items already linked to a product are excluded).
+            </p>
+          }
+        }
+        @if (fieldErrors()['item']) {
+          <p class="text-xs text-red-600 mt-1">{{ fieldErrors()['item'] }}</p>
+        } @else if (!editing() && form.controls.item.touched && form.controls.item.invalid) {
+          <p class="text-xs text-red-600 mt-1">Select a manufactured inventory item.</p>
+        }
+      </div>
+      <div class="md:col-span-2">
+        <label class="input-label">Product Name *</label>
+        <input type="text" formControlName="name" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Standard Output *</label>
+        <input type="number" formControlName="standard_output" step="0.0001" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Unit of Measure *</label>
+        <input type="text" formControlName="unit_of_measure" class="input-field" placeholder="e.g. roll, kg" />
+      </div>
+      <div class="flex items-center gap-2 md:col-span-2">
+        <input type="checkbox" formControlName="is_active" id="product-active" />
+        <label for="product-active" class="text-sm">Active</label>
+      </div>
+    </div>
+
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Specifications</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @for (spec of defaultSpecs; track spec.key) {
+          <div>
+            <label class="input-label">{{ spec.label }}</label>
+            <input
+              type="text"
+              class="input-field"
+              [value]="specValues()[spec.key] ?? ''"
+              [placeholder]="spec.label"
+              (input)="updateSpecValue(spec.key, $any($event.target).value)"
+            />
+          </div>
+        }
+      </div>
+    </div>
+
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="text-sm font-semibold text-gray-900">Custom Specifications</h4>
+        <button type="button" class="btn-ghost !text-xs" (click)="addCustomSpec()">+ Add Field</button>
+      </div>
+      @if (customSpecs().length) {
+        <div class="space-y-2">
+          @for (field of customSpecs(); track $index; let i = $index) {
+            <div class="grid grid-cols-12 gap-2 items-end">
+              <div class="col-span-4">
+                <input
+                  type="text"
+                  class="input-field"
+                  placeholder="Field name"
+                  [value]="field.key"
+                  (input)="updateCustomSpec(i, 'key', $any($event.target).value)"
+                />
+              </div>
+              <div class="col-span-7">
+                <input
+                  type="text"
+                  class="input-field"
+                  placeholder="Value"
+                  [value]="field.value"
+                  (input)="updateCustomSpec(i, 'value', $any($event.target).value)"
+                />
+              </div>
+              <div class="col-span-1">
+                <button type="button" class="btn-ghost !text-red-600" (click)="removeCustomSpec(i)">×</button>
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="text-sm text-gray-500">No custom fields added.</p>
+      }
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>

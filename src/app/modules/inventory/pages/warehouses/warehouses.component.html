@@ -1,0 +1,71 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Warehouses">
+    <button type="button" class="btn-primary" (click)="openAdd()">Add Warehouse</button>
+  </app-page-header>
+
+  @if (loading()) {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      @for (i of [1,2,3]; track i) {
+        <div class="card animate-pulse h-48"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!warehouses().length) {
+    <div class="card"><app-empty-state title="No warehouses" message="Add a warehouse to start tracking stock locations." actionLabel="Add Warehouse" (actionClick)="openAdd()" /></div>
+  } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      @for (w of warehouses(); track w.id) {
+        <div class="card hover:shadow-lg transition-shadow">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="font-bold text-gray-900">{{ w.name }}</h3>
+              <p class="text-sm text-gray-500 mt-0.5">{{ w.location || 'No location set' }}</p>
+            </div>
+            <app-status-badge [status]="w.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="w.is_active ? 'Active' : 'Inactive'" />
+          </div>
+          <div class="space-y-2 text-sm mb-5">
+            <div class="flex justify-between"><span class="text-gray-500">Manager</span><span class="font-medium">{{ w.manager_name || '—' }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Total Items</span><span class="font-medium">{{ w.itemCount }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Stock Value</span><span class="font-semibold text-[#1B3A6B]">{{ formatCurrency(w.stockValue) }}</span></div>
+          </div>
+          <div class="flex gap-2">
+            <a [routerLink]="['/inventory/stock']" [queryParams]="{ warehouse: w.id }" class="btn-primary !text-xs flex-1 justify-center">View Stock</a>
+            <button type="button" class="btn-secondary !text-xs" (click)="openEdit(w)">Edit</button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" [title]="modalTitle()" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Name *</label>
+      <input type="text" formControlName="name" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Location</label>
+      <input type="text" formControlName="location" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Manager</label>
+      <select formControlName="manager" class="input-field">
+        <option [ngValue]="null">Select manager</option>
+        @for (u of userOptions(); track u.id) {
+          <option [ngValue]="u.id">{{ u.full_name }}</option>
+        }
+      </select>
+    </div>
+    <label class="flex items-center gap-2 cursor-pointer">
+      <input type="checkbox" formControlName="is_active" class="login-checkbox" />
+      <span class="text-sm">Active</span>
+    </label>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">Save</button>
+  </div>
+</app-modal>

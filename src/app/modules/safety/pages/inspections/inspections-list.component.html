@@ -1,0 +1,319 @@
+<div class="page-container">
+  <app-safety-nav />
+  <app-page-header title="Safety Inspections" subtitle="Scheduled and ad-hoc inspections">
+    @if (canSchedule()) {
+      <button type="button" class="btn-primary" (click)="openSchedule()">Schedule Inspection</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search inspection number..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-36"
+      [ngModel]="typeFilter()"
+      (ngModelChange)="typeFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Types</option>
+      @for (t of inspectionTypes; track t.value) {
+        <option [value]="t.value">{{ t.label }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-40"
+      [ngModel]="areaFilter()"
+      (ngModelChange)="areaFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Areas</option>
+      @for (area of inspectionAreas; track area) {
+        <option [value]="area">{{ area }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-36"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      <option value="SCHEDULED">Scheduled</option>
+      <option value="IN_PROGRESS">In Progress</option>
+      <option value="COMPLETED">Completed</option>
+    </select>
+    <select
+      class="input-field w-44"
+      [ngModel]="inspectorFilter()"
+      (ngModelChange)="inspectorFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Inspectors</option>
+      @for (u of inspectors(); track u.id) {
+        <option [value]="u.id">{{ u.full_name }}</option>
+      }
+    </select>
+    <input
+      type="date"
+      class="input-field w-40"
+      [ngModel]="dateFrom()"
+      (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+      title="From date"
+    />
+    <input
+      type="date"
+      class="input-field w-40"
+      [ngModel]="dateTo()"
+      (ngModelChange)="dateTo.set($event); page.set(1); load()"
+      title="To date"
+    />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="10" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!inspections().length) {
+    <div class="card">
+      <app-empty-state
+        title="No inspections found"
+        message="Schedule a safety inspection or adjust your filters."
+        [actionLabel]="canSchedule() ? 'Schedule Inspection' : ''"
+        (actionClick)="openSchedule()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Inspection No.</th>
+              <th class="table-th">Type</th>
+              <th class="table-th">Area</th>
+              <th class="table-th">Scheduled</th>
+              <th class="table-th">Inspector</th>
+              <th class="table-th">Result</th>
+              <th class="table-th">Checked</th>
+              <th class="table-th">Failed</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Next Inspection</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of inspections(); track item.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-xs font-medium">{{ item.inspection_number }}</td>
+                <td class="table-td">
+                  <span class="badge" [class]="typeColor(item.inspection_type)">
+                    {{ inspectionTypeLabel(item.inspection_type) }}
+                  </span>
+                </td>
+                <td class="table-td">{{ item.area }}</td>
+                <td class="table-td">{{ formatDateTime(item.scheduled_date) }}</td>
+                <td class="table-td">{{ item.inspector_name }}</td>
+                <td class="table-td">
+                  <span class="badge" [class]="resultColor(item.overall_result)">
+                    {{ resultLabel(item.overall_result) }}
+                  </span>
+                </td>
+                <td class="table-td">{{ itemsChecked(item) }} / {{ item.total_items }}</td>
+                <td class="table-td" [class.text-red-600]="item.failed_items > 0" [class.font-semibold]="item.failed_items > 0">
+                  {{ item.failed_items }}
+                </td>
+                <td class="table-td">
+                  <span class="badge" [class]="statusColor(item.status)">
+                    {{ item.status.replace('_', ' ') }}
+                  </span>
+                </td>
+                <td class="table-td">{{ formatDate(item.next_inspection) }}</td>
+                <td class="table-td">
+                  <div class="flex flex-wrap gap-1">
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(item)">
+                      View
+                    </button>
+                    @if (item.status === 'SCHEDULED') {
+                      <button
+                        type="button"
+                        class="btn-ghost !px-2 !py-1 !text-xs"
+                        [disabled]="startingId() === item.id"
+                        (click)="startInspection(item)"
+                      >
+                        @if (startingId() === item.id) {
+                          <span class="spinner spinner-sm"></span>
+                        } @else {
+                          Start
+                        }
+                      </button>
+                    }
+                    @if (item.status === 'IN_PROGRESS') {
+                      <a
+                        [routerLink]="['/safety/inspections', item.id, 'conduct']"
+                        class="btn-ghost !px-2 !py-1 !text-xs"
+                      >
+                        Complete
+                      </a>
+                    }
+                    @if (item.status === 'COMPLETED') {
+                      <a
+                        [routerLink]="['/safety/inspections', item.id, 'conduct']"
+                        class="btn-ghost !px-2 !py-1 !text-xs"
+                      >
+                        Report
+                      </a>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showSchedule()" title="Schedule Inspection" size="lg" (close)="showSchedule.set(false)">
+  <form [formGroup]="scheduleForm" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Inspection Type *</label>
+        <select formControlName="inspection_type" class="input-field">
+          @for (t of inspectionTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Area *</label>
+        <select formControlName="area" class="input-field">
+          @for (area of inspectionAreas; track area) {
+            <option [value]="area">{{ area }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Scheduled Date & Time *</label>
+        <input type="datetime-local" formControlName="scheduled_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Inspector *</label>
+        <app-searchable-select
+          [options]="inspectorOptions()"
+          [value]="scheduleForm.controls.inspector.value"
+          placeholder="Search inspector..."
+          (valueChange)="setInspector($event)"
+        />
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="3" class="input-field resize-none"></textarea>
+    </div>
+    <p class="text-xs text-gray-500">
+      Checklist template will be auto-generated based on the selected area.
+    </p>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showSchedule.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSchedule()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Schedule
+    </button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="showView()"
+  [title]="'Inspection — ' + (viewing()?.inspection_number ?? '')"
+  size="xl"
+  (close)="showView.set(false)"
+>
+  @if (viewLoading()) {
+    <app-table-skeleton [cols]="4" [rows]="3" />
+  } @else if (viewing(); as insp) {
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div>
+          <p class="text-gray-500 text-xs">Type</p>
+          <span class="badge" [class]="typeColor(insp.inspection_type)">
+            {{ inspectionTypeLabel(insp.inspection_type) }}
+          </span>
+        </div>
+        <div>
+          <p class="text-gray-500 text-xs">Area</p>
+          <p class="font-medium">{{ insp.area }}</p>
+        </div>
+        <div>
+          <p class="text-gray-500 text-xs">Inspector</p>
+          <p class="font-medium">{{ insp.inspector_name }}</p>
+        </div>
+        <div>
+          <p class="text-gray-500 text-xs">Overall Result</p>
+          <span class="badge" [class]="resultColor(insp.overall_result)">
+            {{ resultLabel(insp.overall_result) }}
+          </span>
+        </div>
+      </div>
+      <div class="text-sm">
+        <p class="text-gray-500 text-xs mb-1">Progress</p>
+        <p>{{ insp.passed_items + insp.failed_items }} of {{ insp.total_items }} items checked — {{ insp.failed_items }} failed</p>
+      </div>
+      @if (insp.notes) {
+        <div>
+          <p class="input-label">Inspector Notes</p>
+          <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ insp.notes }}</p>
+        </div>
+      }
+      @if (insp.checklist_items.length) {
+        <div class="max-h-64 overflow-y-auto border border-gray-100 rounded-xl">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 sticky top-0">
+              <tr>
+                <th class="table-th">Section</th>
+                <th class="table-th">Item</th>
+                <th class="table-th">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ci of insp.checklist_items; track ci.id) {
+                <tr class="table-row" [class.bg-red-50]="ci.result === 'FAIL'">
+                  <td class="table-td text-xs">{{ ci.section }}</td>
+                  <td class="table-td">{{ ci.checklist_item }}</td>
+                  <td class="table-td">
+                    @if (ci.result) {
+                      <span class="badge" [class]="resultColor(ci.result)">{{ ci.result }}</span>
+                    } @else {
+                      —
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+    @if (viewing()?.status === 'IN_PROGRESS') {
+      <a
+        [routerLink]="['/safety/inspections', viewing()!.id, 'conduct']"
+        class="btn-primary"
+        (click)="showView.set(false)"
+      >
+        Continue Inspection
+      </a>
+    }
+  </div>
+</app-modal>

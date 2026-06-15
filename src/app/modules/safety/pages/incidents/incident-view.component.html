@@ -1,0 +1,256 @@
+<div class="page-container">
+  <app-safety-nav />
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error() || !incident()) {
+    <app-error-state (retry)="load()" />
+  } @else {
+    @let inc = incident()!;
+    <app-page-header [title]="inc.incident_number" [subtitle]="incidentTypeLabel(inc.incident_type) + ' · ' + inc.location">
+      <a routerLink="/safety/incidents" class="btn-secondary">Back</a>
+      @if (canInvestigate() && inc.status === 'OPEN') {
+        <button type="button" class="btn-primary" [disabled]="saving()" (click)="startInvestigation()">
+          Start Investigation
+        </button>
+      }
+      @if (inc.status === 'DRAFT') {
+        <a [routerLink]="['/safety/incidents', inc.id, 'edit']" class="btn-primary">Edit Draft</a>
+      }
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="workflowSteps" [activeIndex]="workflowIndex()" />
+
+    <div class="flex flex-wrap gap-1 mb-6 border-b border-gray-200">
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+          [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          (click)="setTab(tab.id)"
+        >{{ tab.label }}</button>
+      }
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-6">
+      <span class="badge" [class]="typeColor(inc.incident_type)">{{ incidentTypeLabel(inc.incident_type) }}</span>
+      <span class="badge" [class]="severityColor(inc.severity)">{{ inc.severity }}</span>
+      <span class="badge" [class]="statusColor(inc.status)">{{ inc.status }}</span>
+      @if (inc.days_open > 0 && inc.status !== 'CLOSED') {
+        <span class="badge badge-orange">{{ inc.days_open }} days open</span>
+      }
+    </div>
+
+    @if (activeTab() === 'details') {
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="card p-6">
+          <h4 class="text-sm font-semibold text-gray-900 mb-4">Incident Details</h4>
+          <dl class="grid grid-cols-1 gap-3 text-sm">
+            <div><dt class="text-gray-500">Date Occurred</dt><dd class="font-medium">{{ formatDateTime(inc.date_occurred) }}</dd></div>
+            <div><dt class="text-gray-500">Location</dt><dd class="font-medium">{{ inc.location }}</dd></div>
+            <div><dt class="text-gray-500">Department</dt><dd class="font-medium">{{ inc.department_name || '—' }}</dd></div>
+            <div><dt class="text-gray-500">Reported By</dt><dd class="font-medium">{{ inc.reported_by_name }}</dd></div>
+            <div><dt class="text-gray-500">Created</dt><dd class="font-medium">{{ formatDateTime(inc.created_at) }}</dd></div>
+          </dl>
+        </div>
+        <div class="card p-6">
+          <h4 class="text-sm font-semibold text-gray-900 mb-4">Description</h4>
+          <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ inc.description }}</p>
+          @if (inc.immediate_actions) {
+            <h4 class="text-sm font-semibold text-gray-900 mt-4 mb-2">Immediate Actions</h4>
+            <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ inc.immediate_actions }}</p>
+          }
+        </div>
+        @if (inc.anyone_injured) {
+          <div class="card p-6">
+            <h4 class="text-sm font-semibold text-gray-900 mb-4">Injury Details</h4>
+            <dl class="grid grid-cols-1 gap-3 text-sm">
+              <div><dt class="text-gray-500">Injured Person</dt><dd class="font-medium">{{ inc.injured_person_name || '—' }}</dd></div>
+              <div><dt class="text-gray-500">Injury Description</dt><dd class="font-medium">{{ inc.injury_description || '—' }}</dd></div>
+              @if (inc.body_parts?.length) {
+                <div><dt class="text-gray-500">Body Parts</dt><dd class="font-medium">{{ inc.body_parts.join(', ') }}</dd></div>
+              }
+              <div><dt class="text-gray-500">Medical Treatment</dt><dd class="font-medium">{{ inc.medical_treatment_required ? 'Yes' : 'No' }}</dd></div>
+              <div><dt class="text-gray-500">Hospitalized</dt><dd class="font-medium">{{ inc.hospitalized ? 'Yes' : 'No' }}</dd></div>
+              <div><dt class="text-gray-500">First Aid Given</dt><dd class="font-medium">{{ inc.first_aid_given ? 'Yes' : 'No' }}</dd></div>
+              @if (inc.first_aid_provider) {
+                <div><dt class="text-gray-500">First Aid Provider</dt><dd class="font-medium">{{ inc.first_aid_provider }}</dd></div>
+              }
+            </dl>
+          </div>
+        }
+        @if (inc.witnesses?.length) {
+          <div class="card p-6">
+            <h4 class="text-sm font-semibold text-gray-900 mb-4">Witnesses</h4>
+            <div class="space-y-3">
+              @for (w of inc.witnesses; track w.id ?? w.name) {
+                <div class="p-3 bg-gray-50 rounded-lg text-sm">
+                  <p class="font-medium">{{ w.name }} @if (w.is_employee) { <span class="text-gray-500">(Employee)</span> }</p>
+                  @if (w.contact) { <p class="text-gray-500">{{ w.contact }}</p> }
+                  @if (w.statement) { <p class="mt-1 text-gray-700">{{ w.statement }}</p> }
+                </div>
+              }
+            </div>
+          </div>
+        }
+        @if (inc.cctv_reference || inc.immediate_cause || inc.contributing_factors?.length) {
+          <div class="card p-6">
+            <h4 class="text-sm font-semibold text-gray-900 mb-4">Evidence &amp; Initial Assessment</h4>
+            <dl class="grid grid-cols-1 gap-3 text-sm">
+              @if (inc.cctv_reference) {
+                <div><dt class="text-gray-500">CCTV Reference</dt><dd class="font-medium">{{ inc.cctv_reference }}</dd></div>
+              }
+              @if (inc.immediate_cause) {
+                <div><dt class="text-gray-500">Immediate Cause</dt><dd class="font-medium">{{ inc.immediate_cause }}</dd></div>
+              }
+              @if (inc.contributing_factors?.length) {
+                <div><dt class="text-gray-500">Contributing Factors</dt><dd class="font-medium">{{ inc.contributing_factors.join(', ') }}</dd></div>
+              }
+            </dl>
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'investigation') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Investigation</h4>
+        @if (inc.status === 'OPEN' || inc.status === 'DRAFT') {
+          <p class="text-sm text-gray-500 mb-4">Investigation has not started yet.</p>
+          @if (canInvestigate() && inc.status === 'OPEN') {
+            <button type="button" class="btn-primary" [disabled]="saving()" (click)="startInvestigation()">
+              Start Investigation
+            </button>
+          }
+        } @else {
+          <dl class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-6">
+            <div><dt class="text-gray-500">Investigator</dt><dd class="font-medium">{{ inc.investigator_name || '—' }}</dd></div>
+            <div><dt class="text-gray-500">Investigated At</dt><dd class="font-medium">{{ formatDateTime(inc.investigated_at) }}</dd></div>
+            @if (inc.root_cause) {
+              <div class="md:col-span-2"><dt class="text-gray-500">Root Cause</dt><dd class="font-medium">{{ inc.root_cause }}</dd></div>
+            }
+            @if (inc.root_cause_categories?.length) {
+              <div class="md:col-span-2"><dt class="text-gray-500">Root Cause Categories</dt><dd class="font-medium">{{ inc.root_cause_categories.join(', ') }}</dd></div>
+            }
+            @if (inc.investigation_findings) {
+              <div class="md:col-span-2"><dt class="text-gray-500">Findings</dt><dd class="font-medium whitespace-pre-wrap">{{ inc.investigation_findings }}</dd></div>
+            }
+          </dl>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'corrective') {
+      <div class="space-y-6">
+        @if (inc.corrective_actions?.length) {
+          <div class="table-container">
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Action</th>
+                  <th class="table-th">Assigned To</th>
+                  <th class="table-th">Due Date</th>
+                  <th class="table-th">Priority</th>
+                  <th class="table-th">Status</th>
+                  <th class="table-th">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (action of inc.corrective_actions; track action.id) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ action.action }}</td>
+                    <td class="table-td">{{ action.assigned_to_name || '—' }}</td>
+                    <td class="table-td">{{ formatDateTime(action.due_date) }}</td>
+                    <td class="table-td"><span class="badge badge-gray">{{ action.priority }}</span></td>
+                    <td class="table-td"><span class="badge" [class]="action.status === 'DONE' ? 'badge-green' : 'badge-orange'">{{ action.status }}</span></td>
+                    <td class="table-td">
+                      @if (action.status !== 'DONE' && canInvestigate()) {
+                        <button type="button" class="btn-ghost !text-xs !px-2" (click)="markActionDone(action)">Mark Done</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <div class="card p-6">
+            <p class="text-sm text-gray-500">No corrective actions recorded yet.</p>
+          </div>
+        }
+
+        @if (canInvestigate() && inc.status === 'INVESTIGATING') {
+          <div class="card p-6" [formGroup]="correctiveForm">
+            <h4 class="text-sm font-semibold text-gray-900 mb-4">Add Corrective Action</h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="md:col-span-2">
+                <label class="input-label">Action *</label>
+                <textarea formControlName="action" rows="2" class="input-field resize-none"></textarea>
+              </div>
+              <div>
+                <label class="input-label">Assigned To</label>
+                <select formControlName="assigned_to" class="input-field">
+                  <option [ngValue]="null">Unassigned</option>
+                  @for (emp of employees(); track emp.id) {
+                    <option [ngValue]="emp.id">{{ emp.full_name }}</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label class="input-label">Due Date *</label>
+                <input type="date" formControlName="due_date" class="input-field" />
+              </div>
+              <div>
+                <label class="input-label">Priority *</label>
+                <select formControlName="priority" class="input-field">
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" class="btn-primary mt-4" [disabled]="saving()" (click)="addCorrectiveAction()">
+              Add Action
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'closure') {
+      @if (inc.status === 'CLOSED') {
+        <div class="card p-6">
+          <h4 class="text-sm font-semibold text-gray-900 mb-4">Closure Summary</h4>
+          <dl class="grid grid-cols-1 gap-4 text-sm">
+            <div><dt class="text-gray-500">Closed By</dt><dd class="font-medium">{{ inc.closed_by_name || '—' }}</dd></div>
+            <div><dt class="text-gray-500">Closed At</dt><dd class="font-medium">{{ formatDateTime(inc.closed_at) }}</dd></div>
+            <div><dt class="text-gray-500">Lessons Learned</dt><dd class="font-medium whitespace-pre-wrap">{{ inc.lessons_learned }}</dd></div>
+            @if (inc.prevention_measures) {
+              <div><dt class="text-gray-500">Prevention Measures</dt><dd class="font-medium whitespace-pre-wrap">{{ inc.prevention_measures }}</dd></div>
+            }
+          </dl>
+        </div>
+      } @else if (canClose() && inc.status === 'INVESTIGATING') {
+        <div class="card p-6" [formGroup]="closureForm">
+          <h4 class="text-sm font-semibold text-gray-900 mb-4">Close Incident</h4>
+          <div class="grid grid-cols-1 gap-4">
+            <div>
+              <label class="input-label">Lessons Learned *</label>
+              <textarea formControlName="lessons_learned" rows="4" class="input-field resize-none"></textarea>
+            </div>
+            <div>
+              <label class="input-label">Prevention Measures</label>
+              <textarea formControlName="prevention_measures" rows="3" class="input-field resize-none"></textarea>
+            </div>
+          </div>
+          <button type="button" class="btn-primary mt-4" [disabled]="saving()" (click)="closeIncident()">
+            Close Incident
+          </button>
+        </div>
+      } @else {
+        <div class="card p-6">
+          <p class="text-sm text-gray-500">Incident must be under investigation before it can be closed.</p>
+        </div>
+      }
+    }
+  }
+</div>

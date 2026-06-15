@@ -1,0 +1,248 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Fleet Vehicles" subtitle="Manage vehicles and compliance documents">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Vehicle</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[200px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Registration, make, model..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-36">
+        <label class="input-label">Type</label>
+        <select class="input-field" [ngModel]="typeFilter()" (ngModelChange)="typeFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (t of vehicleTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (s of vehicleStatuses; track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-32">
+        <label class="input-label">Active</label>
+        <select class="input-field" [ngModel]="activeFilter()" (ngModelChange)="activeFilter.set($event); page.set(1); load()">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+        <div class="card animate-pulse h-56"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!vehicles().length) {
+    <div class="card">
+      <app-empty-state
+        title="No vehicles"
+        message="Register fleet vehicles to begin logistics operations."
+        [actionLabel]="canAdd() ? 'Add Vehicle' : ''"
+        (actionClick)="openAdd()"
+      />
+    </div>
+  } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-4">
+      @for (v of vehicles(); track v.id) {
+        <div class="card border-l-4 hover:shadow-lg transition-shadow" [class]="statusBorder[v.status]">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="font-bold text-gray-900">{{ v.registration_number }}</h3>
+              <p class="text-sm text-gray-500 mt-0.5">{{ v.make }} {{ v.model }} ({{ v.year }})</p>
+            </div>
+            <app-status-badge [status]="v.status" [label]="statusLabel()(v.status)" />
+          </div>
+          <div class="space-y-2 text-sm mb-4">
+            <div class="flex justify-between"><span class="text-gray-500">Type</span><span>{{ typeLabel()(v.vehicle_type) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Capacity</span><span>{{ v.capacity_kg | number }} kg</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Odometer</span><span>{{ v.odometer_reading | number }} km</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Location</span><span class="truncate max-w-[140px]">{{ v.current_location || '—' }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Insurance</span><span>{{ formatDate(v.insurance_expiry) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Road Licence</span><span>{{ formatDate(v.road_licence_expiry) }}</span></div>
+          </div>
+          <div class="flex flex-wrap gap-1">
+            <a [routerLink]="['/logistics/vehicles', v.id]" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+            @if (canAdd()) {
+              <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(v)">Edit</button>
+            }
+            @if (canMaintenance()) {
+              <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openScheduleMaintenance(v)">Schedule Maintenance</button>
+            }
+            @if (canFuel()) {
+              <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="recordFuel(v)">Record Fuel</button>
+            }
+            <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="viewHistory(v)">View History</button>
+            @if (canDelete()) {
+              <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(v)">Delete</button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+    <app-pagination
+      [page]="page()"
+      [pageSize]="pageSize()"
+      [total]="total()"
+      (pageChange)="page.set($event); load()"
+      (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+    />
+  }
+</div>
+
+<app-modal [open]="showForm()" [title]="editing() ? 'Edit Vehicle' : 'Add Vehicle'" size="xl" (close)="showForm.set(false)">
+  <form [formGroup]="form" class="space-y-6">
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Vehicle Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Registration Number *</label>
+          <input type="text" formControlName="registration_number" class="input-field uppercase" />
+        </div>
+        <div>
+          <label class="input-label">Status *</label>
+          <select formControlName="status" class="input-field">
+            @for (s of vehicleStatuses; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Make *</label>
+          <select formControlName="make" class="input-field">
+            <option value="">Select make</option>
+            @for (m of vehicleMakes; track m) {
+              <option [value]="m">{{ m }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Model *</label>
+          <input type="text" formControlName="model" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Year *</label>
+          <input type="number" formControlName="year" class="input-field" min="1990" />
+        </div>
+        <div>
+          <label class="input-label">Vehicle Type *</label>
+          <select formControlName="vehicle_type" class="input-field">
+            @for (t of vehicleTypes; track t.value) {
+              <option [value]="t.value">{{ t.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Capacity (kg) *</label>
+          <input type="number" formControlName="capacity_kg" class="input-field" min="0" />
+        </div>
+        <div>
+          <label class="input-label">Color</label>
+          <input type="text" formControlName="color" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Odometer (km) *</label>
+          <input type="number" formControlName="odometer_reading" class="input-field" min="0" />
+        </div>
+        <div>
+          <label class="input-label">Current Location</label>
+          <input type="text" formControlName="current_location" class="input-field" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" formControlName="is_active" class="login-checkbox" />
+            <span class="text-sm">Active in fleet</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Documents & Compliance</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Insurance Expiry</label>
+          <input type="date" formControlName="insurance_expiry" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Road Licence Expiry</label>
+          <input type="date" formControlName="road_licence_expiry" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Last Service Date</label>
+          <input type="date" formControlName="last_service_date" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Next Service Date</label>
+          <input type="date" formControlName="next_service_date" class="input-field" />
+        </div>
+      </div>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showMaintenance()" title="Schedule Maintenance" size="md" (close)="showMaintenance.set(false)">
+  @if (maintenanceVehicle(); as v) {
+    <p class="text-sm text-gray-500 mb-4">Vehicle: <span class="font-medium text-gray-900">{{ v.registration_number }}</span></p>
+  }
+  <form [formGroup]="maintenanceForm" class="space-y-4">
+    <div>
+      <label class="input-label">Maintenance Type *</label>
+      <select formControlName="maintenance_type" class="input-field">
+        @for (t of maintenanceTypes; track t.value) {
+          <option [value]="t.value">{{ t.label }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Description *</label>
+      <textarea formControlName="description" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Service Date *</label>
+      <input type="date" formControlName="service_date" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Performed By</label>
+      <input type="text" formControlName="performed_by" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showMaintenance.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onScheduleMaintenance()">Schedule</button>
+  </div>
+</app-modal>
+

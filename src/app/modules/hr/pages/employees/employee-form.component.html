@@ -1,0 +1,271 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header [title]="editId() ? 'Edit Employee' : 'New Employee'">
+    <a routerLink="/hr/employees" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
+    @for (tab of tabs; track tab.id) {
+      <button
+        type="button"
+        class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+        [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+        (click)="setTab(tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  <form [formGroup]="form" class="space-y-6" (ngSubmit)="save()">
+    @if (activeTab() === 'personal') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Personal Information</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="input-label">First Name *</label>
+            <input type="text" formControlName="first_name" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Last Name *</label>
+            <input type="text" formControlName="last_name" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Gender *</label>
+            <select formControlName="gender" class="input-field">
+              @for (g of genders; track g.value) {
+                <option [value]="g.value">{{ g.label }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="input-label">Date of Birth</label>
+            <input type="date" formControlName="date_of_birth" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">National ID</label>
+            <input type="text" formControlName="national_id" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Phone</label>
+            <input type="text" formControlName="phone" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Personal Email</label>
+            <input type="email" formControlName="personal_email" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">City</label>
+            <input type="text" formControlName="city" class="input-field" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="input-label">Address</label>
+            <textarea formControlName="address" rows="2" class="input-field resize-none"></textarea>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'employment') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Employment Details</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="input-label">Department *</label>
+            <select formControlName="department" class="input-field">
+              <option [ngValue]="null">Select department</option>
+              @for (dept of deptOptions(); track dept.id) {
+                <option [ngValue]="dept.id">{{ dept.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="input-label">Job Title *</label>
+            <input type="text" formControlName="job_title" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Employment Type *</label>
+            <select formControlName="employment_type" class="input-field">
+              @for (t of employmentTypes; track t.value) {
+                <option [value]="t.value">{{ t.label }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="input-label">Reports To</label>
+            <select formControlName="reports_to" class="input-field">
+              <option [ngValue]="null">None</option>
+              @for (m of managers(); track m.id) {
+                <option [ngValue]="m.id">{{ m.full_name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="input-label">Contract Start</label>
+            <input type="date" formControlName="contract_start" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Contract End</label>
+            <input type="date" formControlName="contract_end" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Probation End</label>
+            <input type="date" formControlName="probation_end" class="input-field" />
+          </div>
+          @if (canManage() && editId()) {
+            <div>
+              <label class="input-label">Employment Status</label>
+              <select formControlName="status" class="input-field">
+                @for (st of employeeStatuses; track st.value) {
+                  <option [value]="st.value">{{ st.label }}</option>
+                }
+              </select>
+              <p class="text-xs text-gray-500 mt-1">Set to Active when the employee is ready for payroll and attendance.</p>
+            </div>
+          }
+          @if (!editId()) {
+            <div class="flex items-center gap-2 pt-6">
+              <input type="checkbox" formControlName="create_user_account" id="create_user" class="rounded" />
+              <label for="create_user" class="text-sm text-gray-700">Create system user account</label>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'compensation') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Compensation</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label class="input-label">Basic Salary *</label>
+            <input type="number" formControlName="basic_salary" class="input-field" min="0" />
+          </div>
+          <div>
+            <label class="input-label">Currency *</label>
+            <select formControlName="currency" class="input-field">
+              <option [ngValue]="null">Select currency</option>
+              @for (c of currencyOptions(); track c.id) {
+                <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="input-label">Payment Frequency *</label>
+            <select formControlName="payment_frequency" class="input-field">
+              @for (f of paymentFrequencies; track f.value) {
+                <option [value]="f.value">{{ f.label }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-3">
+          <h5 class="text-sm font-medium text-gray-800">Allowances</h5>
+          <button type="button" class="btn-ghost !text-xs" (click)="addAllowance()">Add Allowance</button>
+        </div>
+        <div formArrayName="allowances" class="space-y-3">
+          @for (ctrl of allowances.controls; track $index; let i = $index) {
+            <div [formGroupName]="i" class="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 bg-gray-50 rounded-lg">
+              <div>
+                <label class="input-label">Name</label>
+                <input type="text" formControlName="name" class="input-field" />
+              </div>
+              <div>
+                <label class="input-label">Amount</label>
+                <input type="number" formControlName="amount" class="input-field" min="0" />
+              </div>
+              <div class="flex items-end gap-2 pb-1">
+                <input type="checkbox" formControlName="is_taxable" [id]="'taxable_' + i" class="rounded" />
+                <label [for]="'taxable_' + i" class="text-sm text-gray-700">Taxable</label>
+              </div>
+              <div class="flex items-end">
+                <button type="button" class="btn-ghost !text-xs !text-red-600" (click)="removeAllowance(i)">Remove</button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'tax') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Tax &amp; Statutory</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="input-label">TIN Number</label>
+            <input type="text" formControlName="tin_number" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">NSSF Number</label>
+            <input type="text" formControlName="nssf_number" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">NHIF Number</label>
+            <input type="text" formControlName="nhif_number" class="input-field" />
+          </div>
+          <div class="flex items-center gap-2 pt-6">
+            <input type="checkbox" formControlName="paye_applicable" id="paye" class="rounded" />
+            <label for="paye" class="text-sm text-gray-700">PAYE Applicable</label>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'banking') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Banking Details</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="input-label">Bank Name</label>
+            <input type="text" formControlName="bank_name" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Account Number</label>
+            <input type="text" formControlName="bank_account" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Account Name</label>
+            <input type="text" formControlName="bank_account_name" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Branch</label>
+            <input type="text" formControlName="bank_branch" class="input-field" />
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'emergency') {
+      <div class="card p-6">
+        <h4 class="text-sm font-semibold text-gray-900 mb-4">Emergency Contact</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="input-label">Contact Name</label>
+            <input type="text" formControlName="emergency_contact_name" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Relationship</label>
+            <input type="text" formControlName="emergency_contact_relationship" class="input-field" />
+          </div>
+          <div>
+            <label class="input-label">Phone</label>
+            <input type="text" formControlName="emergency_contact_phone" class="input-field" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="input-label">Address</label>
+            <textarea formControlName="emergency_contact_address" rows="2" class="input-field resize-none"></textarea>
+          </div>
+        </div>
+      </div>
+    }
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn-primary" [disabled]="saving()">
+        @if (saving()) { <span class="spinner spinner-sm"></span> }
+        {{ editId() ? 'Update Employee' : 'Create Employee' }}
+      </button>
+      <a routerLink="/hr/employees" class="btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>

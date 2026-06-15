@@ -1,0 +1,51 @@
+<div class="page-container max-w-3xl mx-auto">
+  <app-driver-portal-nav />
+  <app-page-header title="Assigned Deliveries" subtitle="Your delivery assignments" />
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3">
+      <input
+        type="search"
+        class="input-field flex-1 min-w-[140px]"
+        placeholder="Search DO / SO..."
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+        (keyup.enter)="load()"
+      />
+      <select class="input-field w-36" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); load()">
+        <option value="all">All</option>
+        <option value="assigned">Assigned</option>
+        <option value="active">In Progress</option>
+        <option value="completed">Completed</option>
+      </select>
+      <button type="button" class="btn-primary" (click)="load()">Search</button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="3" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!trips().length) {
+    <app-empty-state title="No deliveries" message="You have no assignments matching this filter." />
+  } @else {
+    <div class="space-y-3">
+      @for (trip of trips(); track trip.id) {
+        <a [routerLink]="['/driver-portal/trips', trip.id]" class="card p-4 block hover:shadow-md transition-shadow border-l-4 border-l-[#F0A500]">
+          <div class="flex justify-between items-start gap-2 mb-2">
+            <div>
+              <p class="font-bold text-[#1B3A6B]">{{ trip.do_number }}</p>
+              <p class="text-xs text-gray-500">{{ trip.so_number }} · {{ trip.customer_name }}</p>
+            </div>
+            <app-status-badge [status]="trip.trip_status" />
+          </div>
+          <p class="text-sm text-gray-700 mb-1">{{ trip.destination }}</p>
+          <p class="text-xs text-gray-500">
+            Scheduled: {{ formatDateTime(trip.scheduled_date) }}
+            @if (trip.vehicle_registration) { · {{ trip.vehicle_registration }} }
+          </p>
+        </a>
+      }
+    </div>
+  }
+</div>

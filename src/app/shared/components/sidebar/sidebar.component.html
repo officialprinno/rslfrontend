@@ -1,0 +1,200 @@
+<aside
+  class="sidebar fixed inset-y-0 left-0 z-40 flex flex-col text-white transition-all duration-300 ease-in-out shadow-2xl"
+  [class.w-[17rem]]="!collapsed()"
+  [class.w-[4.25rem]]="collapsed()"
+  [class.-translate-x-full]="!mobileOpen()"
+  [class.md:translate-x-0]="true"
+  [class.translate-x-0]="mobileOpen()"
+>
+  <!-- Brand -->
+  <div
+    class="sidebar-brand shrink-0 flex items-center border-b border-white/10"
+    [class.px-5]="!collapsed()"
+    [class.justify-center]="collapsed()"
+    [class.px-0]="collapsed()"
+  >
+    <div class="sidebar-brand-mark">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-16 0H3m2 0v-4m10 4v-4M9 7h6m-6 4h6m-6 4h6" />
+      </svg>
+    </div>
+    @if (!collapsed()) {
+      <div class="ml-3 overflow-hidden min-w-0">
+        <p class="font-bold text-[15px] tracking-tight truncate leading-tight">{{ 'common.brand' | translate }}</p>
+        <p class="text-[10px] text-[#93B4D4]/90 uppercase tracking-[0.18em] font-medium mt-0.5">
+          {{ 'common.brand_subtitle' | translate }}
+        </p>
+      </div>
+    }
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 overflow-y-auto overflow-x-hidden py-3 sidebar-scroll">
+    <!-- Main -->
+    @for (item of mainItems(); track item.route) {
+      <ng-container *ngTemplateOutlet="navLink; context: { $implicit: item }" />
+    }
+
+    <!-- Modules section -->
+    @if (!collapsed()) {
+      <div class="sidebar-section-header">
+        <span>{{ sectionLabels.modules | translate }}</span>
+      </div>
+    } @else {
+      <div class="sidebar-divider"></div>
+    }
+
+    @for (item of moduleItems(); track item.route) {
+      @if (item.children?.length && !collapsed()) {
+        <ng-container *ngTemplateOutlet="navGroup; context: { $implicit: item }" />
+      } @else {
+        <ng-container *ngTemplateOutlet="navLink; context: { $implicit: item }" />
+      }
+    }
+
+    <!-- System section -->
+    @if (!collapsed()) {
+      <div class="sidebar-section-header mt-2">
+        <span>{{ sectionLabels.system | translate }}</span>
+      </div>
+    } @else {
+      <div class="sidebar-divider"></div>
+    }
+
+    @for (item of systemItems(); track item.route) {
+      <ng-container *ngTemplateOutlet="navLink; context: { $implicit: item }" />
+    }
+  </nav>
+
+  <!-- User footer -->
+  <div class="sidebar-footer shrink-0 border-t border-white/10">
+    <div class="flex items-center gap-3" [class.justify-center]="collapsed()">
+      <div class="sidebar-avatar">{{ userInitials() }}</div>
+      @if (!collapsed()) {
+        <div class="overflow-hidden min-w-0 flex-1">
+          <p class="text-white text-sm font-semibold truncate leading-tight">
+            {{ auth.getCurrentUser()?.full_name }}
+          </p>
+          <p class="text-[#93B4D4] text-[11px] truncate mt-0.5">
+            @if (auth.isMultiDepartment()) {
+              Multi-Dept · {{ auth.primaryDepartmentLabel() }}
+            } @else {
+              {{ auth.getCurrentUser()?.role_name }}
+            }
+          </p>
+        </div>
+      }
+    </div>
+    @if (!collapsed()) {
+      <button type="button" (click)="logout()" class="sidebar-signout">
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+        <span>{{ 'common.sign_out' | translate }}</span>
+      </button>
+    }
+  </div>
+</aside>
+
+<!-- Collapsible module group -->
+<ng-template #navGroup let-item>
+  <div
+    class="sidebar-group"
+    *hasPermission="item.module; hasPermissionAction: item.action ?? 'read'"
+    [class.sidebar-group--active]="isGroupActive(item)"
+    [class.sidebar-group--open]="isExpanded(groupKey(item))"
+  >
+    <button
+      type="button"
+      class="sidebar-group-toggle"
+      (click)="toggleGroup(groupKey(item), $event)"
+      [attr.aria-expanded]="isExpanded(groupKey(item))"
+    >
+      <span class="sidebar-icon-wrap" [class.sidebar-icon-wrap--active]="isGroupActive(item)">
+        <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" [attr.d]="iconPath(item.icon)" />
+        </svg>
+      </span>
+      <span class="flex-1 truncate text-left font-semibold text-[13px]">{{ item.labelKey | translate }}</span>
+      <svg
+        class="sidebar-chevron"
+        [class.sidebar-chevron--open]="isExpanded(groupKey(item))"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+
+    <div class="sidebar-submenu" [class.sidebar-submenu--open]="isExpanded(groupKey(item))">
+      <div class="sidebar-submenu-inner">
+        @for (child of item.children; track child.route) {
+          <a
+            *hasPermission="child.module; hasPermissionAction: child.action ?? 'read'"
+            [routerLink]="child.route"
+            routerLinkActive="sidebar-child-active"
+            [routerLinkActiveOptions]="{ exact: true }"
+            (click)="onNavClick()"
+            class="sidebar-child-link"
+            [class.sidebar-child-link--current]="isChildActive(child.route)"
+          >
+            <span class="sidebar-child-dot"></span>
+            <span class="flex-1 truncate">{{ child.labelKey | translate }}</span>
+            @if (badgeCount(child)) {
+              <span class="sidebar-badge">{{ badgeCount(child) }}</span>
+            }
+          </a>
+        }
+      </div>
+    </div>
+  </div>
+</ng-template>
+
+<!-- Single nav link -->
+<ng-template #navLink let-item>
+  @if (item.module) {
+    <a
+      *hasPermission="item.module; hasPermissionAction: item.action ?? 'read'"
+      [routerLink]="item.route"
+      routerLinkActive="sidebar-active"
+      [routerLinkActiveOptions]="{ exact: item.route === '/dashboard' }"
+      (click)="onNavClick()"
+      class="sidebar-nav-item"
+      [class.justify-center]="collapsed()"
+      [class.sidebar-nav-item--collapsed]="collapsed()"
+      [title]="collapsed() ? (item.labelKey | translate) : ''"
+    >
+      <ng-container *ngTemplateOutlet="navContent; context: { $implicit: item }" />
+    </a>
+  } @else {
+    <a
+      [routerLink]="item.route"
+      routerLinkActive="sidebar-active"
+      [routerLinkActiveOptions]="{ exact: true }"
+      (click)="onNavClick()"
+      class="sidebar-nav-item"
+      [class.justify-center]="collapsed()"
+      [class.sidebar-nav-item--collapsed]="collapsed()"
+      [title]="collapsed() ? (item.labelKey | translate) : ''"
+    >
+      <ng-container *ngTemplateOutlet="navContent; context: { $implicit: item }" />
+    </a>
+  }
+</ng-template>
+
+<ng-template #navContent let-item>
+  <span class="sidebar-icon-wrap">
+    <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" [attr.d]="iconPath(item.icon)" />
+    </svg>
+  </span>
+  @if (!collapsed()) {
+    <span class="flex-1 truncate text-[13px]">{{ item.labelKey | translate }}</span>
+    @if (badgeCount(item) > 0) {
+      <span class="sidebar-badge">{{ badgeCount(item) }}</span>
+    }
+  } @else if (badgeCount(item) > 0) {
+    <span class="sidebar-badge-dot"></span>
+  }
+</ng-template>

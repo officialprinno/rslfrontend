@@ -1,0 +1,75 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    [title]="payroll()?.payroll_number ?? 'Payroll Review'"
+    [subtitle]="payroll()?.period_display ?? 'Finance approval'"
+  >
+    <a routerLink="/finance/payroll-approvals" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (payroll(); as p) {
+    <div class="card p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Summary</h3>
+        <app-status-badge [status]="p.status" />
+      </div>
+      <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div><dt class="text-gray-500">Period</dt><dd class="font-medium">{{ p.period_display }}</dd></div>
+        <div><dt class="text-gray-500">Department</dt><dd class="font-medium">{{ p.department_name ?? 'All' }}</dd></div>
+        <div><dt class="text-gray-500">Employees</dt><dd class="font-medium">{{ p.total_employees }}</dd></div>
+        <div><dt class="text-gray-500">Net Payable</dt><dd class="font-semibold text-[#1B3A6B]">{{ canViewAmounts() ? formatHrAmount(p.total_net) : '••••••' }}</dd></div>
+        @if (p.processed_by_name) {
+          <div><dt class="text-gray-500">Processed By (HR)</dt><dd>{{ p.processed_by_name }}</dd></div>
+        }
+        @if (p.approved_by_name) {
+          <div><dt class="text-gray-500">Approved By</dt><dd>{{ p.approved_by_name }}</dd></div>
+        }
+      </dl>
+
+      <div class="flex flex-wrap gap-3 mt-6">
+        @if (canApprove() && p.status === 'REVIEWED') {
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="approvePayroll()">
+            Approve Payroll
+          </button>
+        }
+        @if (canMarkPaid() && p.status === 'APPROVED') {
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="markPaid()">
+            Mark as Paid
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (p.items.length) {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Basic</th>
+              <th class="table-th">Gross</th>
+              <th class="table-th">Deductions</th>
+              <th class="table-th">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of p.items; track item.id) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <div class="font-medium">{{ item.employee_name }}</div>
+                  <div class="text-xs text-gray-500">{{ item.department_name }}</div>
+                </td>
+                <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.basic_salary) : '••••••' }}</td>
+                <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.gross_salary) : '••••••' }}</td>
+                <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.total_deductions) : '••••••' }}</td>
+                <td class="table-td font-semibold">{{ canViewAmounts() ? formatHrAmount(item.net_salary) : '••••••' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>

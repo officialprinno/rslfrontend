@@ -1,0 +1,165 @@
+<div class="page-container max-w-3xl mx-auto pb-24">
+  <app-driver-portal-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load trip" (retry)="load()" />
+  } @else if (trip(); as t) {
+    <app-page-header [title]="t.do_number" [subtitle]="t.customer_name">
+      <a routerLink="/driver-portal/trips" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="tripSteps" [activeIndex]="workflowIndex(t.trip_status)" />
+
+    <div class="card p-4 mb-4">
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-sm text-gray-500">Trip Status</span>
+        <app-status-badge [status]="t.trip_status" />
+      </div>
+      <div class="space-y-2 text-sm">
+        <p><span class="text-gray-500">Sales Order:</span> <strong>{{ t.so_number }}</strong></p>
+        <p><span class="text-gray-500">Destination:</span> {{ t.destination }}</p>
+        <p><span class="text-gray-500">Origin:</span> {{ t.origin_warehouse_name }}</p>
+        @if (t.vehicle_registration) {
+          <p><span class="text-gray-500">Vehicle:</span> {{ t.vehicle_registration }}</p>
+        }
+        <p><span class="text-gray-500">Scheduled:</span> {{ formatDateTime(t.scheduled_date) }}</p>
+        @if (t.logistics_review_status !== 'PENDING' || t.trip_status === 'DELIVERED') {
+          <p><span class="text-gray-500">Logistics Review:</span>
+            <app-status-badge [status]="t.logistics_review_status" />
+          </p>
+        }
+      </div>
+    </div>
+
+    <div class="card p-4 mb-4">
+      <h3 class="font-semibold mb-3">Items to Deliver</h3>
+      <ul class="space-y-2 text-sm">
+        @for (item of t.items; track item.id) {
+          <li class="flex justify-between py-2 border-b border-gray-100 last:border-0">
+            <span>{{ item.item_code }} — {{ item.item_name }}</span>
+            <strong>× {{ item.quantity }}</strong>
+          </li>
+        }
+      </ul>
+    </div>
+
+    @if (t.confirmation) {
+      <div class="card p-4 mb-4 bg-green-50">
+        <h3 class="font-semibold text-green-900 mb-2">Delivery Confirmation</h3>
+        <p class="text-sm">Receiver: {{ t.confirmation.receiver_name }}</p>
+        @if (t.confirmation.receiver_company) {
+          <p class="text-sm text-gray-600">{{ t.confirmation.receiver_company }}</p>
+        }
+      </div>
+    }
+
+    @if (t.trip_events.length) {
+      <div class="card p-4 mb-4">
+        <h3 class="font-semibold mb-3">Timeline</h3>
+        <ul class="space-y-3 text-sm border-l-2 border-[#1B3A6B] pl-4">
+          @for (ev of t.trip_events; track ev.id) {
+            <li>
+              <p class="font-medium">{{ ev.action }}</p>
+              <p class="text-xs text-gray-500">{{ formatDateTime(ev.created_at) }}</p>
+              @if (ev.details) { <p class="text-gray-600 text-xs mt-1">{{ ev.details }}</p> }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <div class="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg z-10">
+      <div class="max-w-3xl mx-auto flex flex-wrap gap-2">
+        @if (t.trip_status === 'ASSIGNED') {
+          <button type="button" class="btn-primary flex-1" (click)="showStart.set(true)">Start Delivery</button>
+        }
+        @if (t.trip_status === 'IN_TRANSIT') {
+          <button type="button" class="btn-primary flex-1" (click)="showArrive.set(true)">Confirm Arrival</button>
+        }
+        @if (t.trip_status === 'ARRIVED') {
+          <button type="button" class="btn-primary flex-1" (click)="showDeliver.set(true)">Confirm Delivery</button>
+        }
+        @if (t.trip_status === 'DELIVERED') {
+          <button type="button" class="btn-primary flex-1" (click)="showReturn.set(true)">Start Return</button>
+        }
+        @if (t.trip_status === 'RETURNING') {
+          <button type="button" class="btn-primary flex-1" (click)="showConfirmReturn.set(true)">Confirm Return</button>
+        }
+        @if (t.trip_status === 'RETURN_CONFIRMED') {
+          <span class="btn-secondary flex-1 text-center opacity-70">Trip Complete</span>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+<app-modal [open]="showStart()" title="Start Delivery" (close)="showStart.set(false)">
+  <div class="space-y-4">
+    <div><label class="input-label">Odometer Start (km) *</label><input type="number" class="input-field" [(ngModel)]="odometerStart" min="0" /></div>
+    <div>
+      <label class="input-label">Vehicle Condition</label>
+      <select class="input-field" [(ngModel)]="vehicleCondition">
+        @for (c of conditions; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+      </select>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showStart.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitStart()">Start Trip</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showArrive()" title="Confirm Arrival" (close)="showArrive.set(false)">
+  <div><label class="input-label">Delivery Notes</label><textarea class="input-field resize-none" rows="3" [(ngModel)]="arrivalNotes"></textarea></div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showArrive.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitArrive()">Confirm Arrival</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showDeliver()" title="Confirm Delivery" (close)="showDeliver.set(false)">
+  <div class="space-y-3 max-h-[60vh] overflow-y-auto">
+    <div><label class="input-label">Receiver Full Name *</label><input class="input-field" [(ngModel)]="receiverName" /></div>
+    <div><label class="input-label">Position</label><input class="input-field" [(ngModel)]="receiverPosition" /></div>
+    <div><label class="input-label">Phone</label><input class="input-field" [(ngModel)]="receiverPhone" /></div>
+    <div><label class="input-label">Company</label><input class="input-field" [(ngModel)]="receiverCompany" /></div>
+    <div><label class="input-label">Quantity Delivered *</label><input type="number" class="input-field" [(ngModel)]="quantityDelivered" min="0" step="0.0001" /></div>
+    <div><label class="input-label">Delivery Notes</label><textarea class="input-field resize-none" rows="2" [(ngModel)]="deliveryNotes"></textarea></div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showDeliver.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitDelivery()">Confirm Delivery</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showReturn()" title="Start Return Trip" (close)="showReturn.set(false)">
+  <div>
+    <label class="input-label">Vehicle Condition</label>
+    <select class="input-field" [(ngModel)]="vehicleCondition">
+      @for (c of conditions; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+    </select>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showReturn.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitStartReturn()">Start Return</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showConfirmReturn()" title="Confirm Return" (close)="showConfirmReturn.set(false)">
+  <div class="space-y-4">
+    <div><label class="input-label">Odometer End (km) *</label><input type="number" class="input-field" [(ngModel)]="odometerEnd" min="0" /></div>
+    <div><label class="input-label">Fuel Remaining (L)</label><input type="number" class="input-field" [(ngModel)]="fuelRemaining" min="0" step="0.1" /></div>
+    <div>
+      <label class="input-label">Vehicle Condition</label>
+      <select class="input-field" [(ngModel)]="vehicleCondition">
+        @for (c of conditions; track c.value) { <option [value]="c.value">{{ c.label }}</option> }
+      </select>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showConfirmReturn.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitConfirmReturn()">Confirm Return</button>
+  </div>
+</app-modal>

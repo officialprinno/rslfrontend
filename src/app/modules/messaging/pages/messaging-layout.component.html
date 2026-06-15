@@ -1,0 +1,270 @@
+<div class="comm-shell messaging-shell">
+  <aside class="comm-sidebar">
+    <div class="comm-sidebar-header">
+      <input
+        type="search"
+        class="search-field w-full"
+        placeholder="Search conversations"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+      />
+    </div>
+    <div class="comm-sidebar-actions">
+      <button type="button" class="btn-primary flex-1 text-xs" (click)="openNewModal()">+ New Message</button>
+      @if (canBroadcast) {
+        <a routerLink="/messaging/broadcast" class="btn-secondary text-xs !px-3" title="Broadcast">📢</a>
+      }
+    </div>
+
+    @if (loading()) {
+      <div class="p-4 space-y-3">
+        @for (i of [1, 2, 3]; track i) {
+          <div class="skeleton h-16 rounded-lg"></div>
+        }
+      </div>
+    } @else if (error()) {
+      <app-error-state message="Failed to load conversations" (retry)="loadConversations()" />
+    } @else {
+      <div class="comm-list-section">
+        <p class="comm-list-label">Direct Messages</p>
+        @if (!filteredConversations('DIRECT').length) {
+          <p class="text-xs text-gray-400 px-4 py-2">No direct messages yet</p>
+        }
+        @for (c of filteredConversations('DIRECT'); track c.id) {
+          <button
+            type="button"
+            class="comm-list-item"
+            [class.active]="selectedId() === c.id"
+            (click)="selectConversation(c.id)"
+          >
+            <div class="comm-avatar">{{ initials(conversationTitle(c)) }}</div>
+            <div class="comm-list-body">
+              <div class="flex justify-between gap-2">
+                <span class="font-medium text-sm truncate">{{ conversationTitle(c) }}</span>
+                @if (c.last_message) {
+                  <span class="text-[10px] text-gray-400 shrink-0">{{ formatMessageTime(c.last_message.created_at) }}</span>
+                }
+              </div>
+              <div class="flex justify-between gap-2 items-center">
+                <span class="text-xs text-gray-500 truncate">{{ c.last_message?.body || 'No messages' }}</span>
+                @if (c.unread_count > 0) {
+                  <span class="comm-badge">{{ c.unread_count }}</span>
+                }
+              </div>
+            </div>
+          </button>
+        }
+      </div>
+
+      <div class="comm-list-section">
+        <p class="comm-list-label">Groups</p>
+        @for (c of filteredConversations('GROUP'); track c.id) {
+          <button
+            type="button"
+            class="comm-list-item"
+            [class.active]="selectedId() === c.id"
+            (click)="selectConversation(c.id)"
+          >
+            <div class="comm-avatar group">👥</div>
+            <div class="comm-list-body">
+              <div class="flex justify-between gap-2">
+                <span class="font-medium text-sm truncate">{{ conversationTitle(c) }}</span>
+                @if (c.unread_count > 0) {
+                  <span class="comm-badge">{{ c.unread_count }}</span>
+                }
+              </div>
+              <span class="text-xs text-gray-500 truncate block">{{ c.last_message?.body || 'No messages' }}</span>
+            </div>
+          </button>
+        }
+        @for (c of filteredConversations('BROADCAST'); track c.id) {
+          <button
+            type="button"
+            class="comm-list-item broadcast"
+            [class.active]="selectedId() === c.id"
+            (click)="selectConversation(c.id)"
+          >
+            <div class="comm-avatar broadcast">📢</div>
+            <div class="comm-list-body">
+              <span class="font-medium text-sm truncate block">[BROADCAST] {{ conversationTitle(c) }}</span>
+              <span class="text-xs text-gray-500 truncate block">{{ c.last_message?.body }}</span>
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </aside>
+
+  <section class="comm-main">
+    @if (!selectedId()) {
+      <div class="comm-empty">
+        <div class="comm-empty-logo">RSL</div>
+        <p class="text-gray-500 mt-4">Select a conversation to start</p>
+        <p class="text-sm text-gray-400 mt-1">No conversations yet? Start a conversation! 💬</p>
+      </div>
+    } @else {
+      @if (conversations().length) {
+        @for (c of conversations(); track c.id) {
+          @if (c.id === selectedId()) {
+            <header class="comm-chat-header">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="comm-avatar">{{ initials(conversationTitle(c)) }}</div>
+                <div class="min-w-0">
+                  <h2 class="font-semibold text-gray-900 truncate">{{ conversationTitle(c) }}</h2>
+                  @if (c.type === 'DIRECT') {
+                    @if (otherParticipant(c); as other) {
+                      <p class="text-xs text-gray-500">
+                        {{ other.role_name }} · {{ other.department_name }}
+                        <span class="inline-flex items-center gap-1 ml-1">
+                          <span class="w-2 h-2 rounded-full" [class.bg-green-500]="other.is_online" [class.bg-gray-300]="!other.is_online"></span>
+                          {{ other.is_online ? 'Online' : 'Offline' }}
+                        </span>
+                      </p>
+                    }
+                  } @else {
+                    <p class="text-xs text-gray-500">{{ c.participants.length }} members</p>
+                  }
+                </div>
+              </div>
+            </header>
+          }
+        }
+      }
+
+      <div class="comm-messages" #messagesEl>
+        @if (hasMore()) {
+          <button type="button" class="text-xs text-[#1B3A6B] mx-auto block mb-3 hover:underline" (click)="loadOlder()">
+            Load older messages
+          </button>
+        }
+        @for (msg of messages(); track msg.id; let i = $index) {
+          @if (showDateSeparator(i); as sep) {
+            <div class="msg-date-sep">{{ sep }}</div>
+          }
+          @if (msg.message_type === 'SYSTEM') {
+            <div class="msg-system">{{ msg.body }}</div>
+          } @else {
+            <div class="msg-row" [class.sent]="msg.sender_id === currentUserId" [class.received]="msg.sender_id !== currentUserId">
+              @if (msg.sender_id !== currentUserId) {
+                <div class="comm-avatar sm">{{ initials(msg.sender_name) }}</div>
+              }
+              <div class="msg-content">
+                @if (msg.reply_to_preview) {
+                  <div class="msg-reply-preview">{{ msg.reply_to_preview }}</div>
+                }
+                @if (msg.message_type === 'BROADCAST') {
+                  <div class="msg-broadcast-card">
+                    <span class="text-xs font-semibold text-orange-600">📢 BROADCAST</span>
+                    <p>{{ msg.body }}</p>
+                  </div>
+                } @else {
+                  <div [class]="priorityClass(msg.priority)" (contextmenu)="$event.preventDefault()">
+                    @if (msg.priority === 'URGENT') {
+                      <span class="text-xs">🔔</span>
+                    }
+                    <p class="text-sm whitespace-pre-wrap">{{ msg.body }}</p>
+                    @for (att of msg.attachments; track att.id) {
+                      <a [href]="att.file_path" target="_blank" class="msg-attachment">📎 {{ att.file_name }}</a>
+                    }
+                  </div>
+                }
+                <div class="msg-meta">
+                  <span>{{ formatMessageTime(msg.created_at) }}</span>
+                  @if (msg.sender_id === currentUserId) {
+                    <span [class]="statusClass(msg)">{{ statusIcon(msg) }}</span>
+                  }
+                </div>
+              </div>
+              @if (msg.sender_id === currentUserId) {
+                <div class="comm-avatar sm">{{ initials(msg.sender_name) }}</div>
+              }
+            </div>
+          }
+        }
+        @if (typingUser()) {
+          <div class="typing-indicator"><span></span><span></span><span></span> {{ typingUser() }} is typing...</div>
+        }
+      </div>
+
+      @if (replyTo(); as r) {
+        <div class="msg-reply-bar">
+          <span class="text-xs text-gray-500">Replying to: {{ r.body | slice: 0 : 60 }}</span>
+          <button type="button" class="text-gray-400 hover:text-gray-600" (click)="replyTo.set(null)">×</button>
+        </div>
+      }
+
+      <footer class="comm-input-bar">
+        <label class="btn-icon cursor-pointer" title="Attach file">
+          📎
+          <input type="file" class="hidden" (change)="onFileSelected($event)" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip" />
+        </label>
+        <textarea
+          class="comm-input"
+          rows="1"
+          placeholder="Type a message..."
+          [ngModel]="draft()"
+          (ngModelChange)="draft.set($event); onDraftInput()"
+        ></textarea>
+        <div class="relative">
+          <button type="button" class="btn-icon" title="Priority" (click)="showPriorityMenu.update((v) => !v)">🎯</button>
+          @if (showPriorityMenu()) {
+            <div class="dropdown-menu !right-0 !left-auto min-w-[120px]">
+              <button type="button" class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" (click)="setPriority('NORMAL')">Normal</button>
+              <button type="button" class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" (click)="setPriority('HIGH')">High</button>
+              <button type="button" class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" (click)="setPriority('URGENT')">Urgent</button>
+            </div>
+          }
+        </div>
+        <button type="button" class="btn-primary !px-3" (click)="send()" [disabled]="!draft().trim()">➤</button>
+      </footer>
+    }
+  </section>
+</div>
+
+@if (showNewModal()) {
+  <div class="modal-overlay" (click)="showNewModal.set(false)">
+    <div class="modal-container max-w-md" (click)="$event.stopPropagation()">
+      <div class="modal-body">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">New Message</h3>
+      <input
+        type="search"
+        class="search-field w-full mb-3"
+        placeholder="Search employees..."
+        [ngModel]="userSearch()"
+        (ngModelChange)="userSearch.set($event); searchUsers()"
+      />
+      <div class="max-h-60 overflow-y-auto space-y-1 mb-4">
+        @for (u of userResults(); track u.id) {
+          <button
+            type="button"
+            class="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 text-left"
+            [class.bg-blue-50]="selectedUsers().includes(u.id)"
+            (click)="toggleUserSelect(u.id)"
+          >
+            <div class="comm-avatar sm">{{ initials(u.full_name) }}</div>
+            <div>
+              <p class="text-sm font-medium">{{ u.full_name }}</p>
+              <p class="text-xs text-gray-500">{{ u.department_name }}</p>
+            </div>
+          </button>
+        }
+      </div>
+      @if (selectedUsers().length > 1) {
+        <input
+          type="text"
+          class="input-field w-full mb-3"
+          placeholder="Group name"
+          [ngModel]="groupName()"
+          (ngModelChange)="groupName.set($event)"
+        />
+      }
+      <div class="flex gap-2 justify-end">
+        <button type="button" class="btn-secondary" (click)="showNewModal.set(false)">Cancel</button>
+        <button type="button" class="btn-primary" [disabled]="!selectedUsers().length" (click)="startConversation()">
+          Start Conversation
+        </button>
+      </div>
+      </div>
+    </div>
+  </div>
+}

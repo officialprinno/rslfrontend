@@ -1,0 +1,95 @@
+<app-page-header title="Register Visitor" subtitle="Gate registration — Main Office or Stein" />
+
+<app-security-nav />
+
+<div class="card max-w-3xl space-y-6">
+  <section>
+    <h3 class="section-title mb-3">Visitor Details</h3>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <div class="sm:col-span-2">
+        <label class="form-label">Full Name *</label>
+        <input class="input-field w-full" [(ngModel)]="form.full_name" />
+      </div>
+      <div>
+        <label class="form-label">ID Type</label>
+        <select class="input-field w-full" [(ngModel)]="form.id_type">
+          <option value="NATIONAL_ID">National ID</option>
+          <option value="PASSPORT">Passport</option>
+          <option value="DRIVING_LICENCE">Driving Licence</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">ID Number *</label>
+        <input class="input-field w-full" [(ngModel)]="form.id_number" />
+      </div>
+      <div>
+        <label class="form-label">Phone *</label>
+        <input class="input-field w-full" [(ngModel)]="form.phone" />
+      </div>
+      <div>
+        <label class="form-label">Company</label>
+        <input class="input-field w-full" [(ngModel)]="form.company" />
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3 class="section-title mb-3">Visit Details</h3>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <div>
+        <label class="form-label">Reporting Gate *</label>
+        <select class="input-field w-full" [(ngModel)]="form.location">
+          @for (loc of locations(); track loc.id) {
+            <option [value]="loc.id">{{ loc.icon }} {{ loc.name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Purpose *</label>
+        <select class="input-field w-full" [(ngModel)]="form.purpose">
+          @for (p of purposes; track p.value) {
+            <option [value]="p.value">{{ p.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="form-label">Host Employee *</label>
+        <select class="input-field w-full" [(ngModel)]="form.host_employee">
+          <option [value]="0">Select host...</option>
+          @for (e of employees(); track e.id) {
+            <option [value]="e.id">{{ e.full_name }} — {{ e.department_name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Expected Time In</label>
+        <input type="datetime-local" class="input-field w-full" [(ngModel)]="form.expected_time_in" />
+      </div>
+      <div>
+        <label class="form-label">Duration (hours)</label>
+        <select class="input-field w-full" [(ngModel)]="form.duration_hours">
+          <option [ngValue]="0.5">30 min</option>
+          <option [ngValue]="1">1 hour</option>
+          <option [ngValue]="2">2 hours</option>
+          <option [ngValue]="4">Half day</option>
+          <option [ngValue]="8">Full day</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Vehicle Registration</label>
+        <input class="input-field w-full" [(ngModel)]="form.vehicle_registration" />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="form-label">Notes</label>
+        <textarea class="input-field w-full" rows="2" [(ngModel)]="form.notes"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="flex gap-2 justify-end">
+    <a routerLink="/safety/security/visitors" class="btn-secondary">Cancel</a>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">
+      {{ saving() ? 'Saving...' : 'Save & Register' }}
+    </button>
+  </div>
+</div>

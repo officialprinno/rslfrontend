@@ -1,0 +1,35 @@
+<div class="page-container max-w-3xl mx-auto">
+  <app-driver-portal-nav />
+  <app-page-header title="Delivery History" subtitle="Completed deliveries" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (!trips().length) {
+    <app-empty-state title="No history yet" message="Completed deliveries will appear here." />
+  } @else {
+    <div class="table-container">
+      <table class="w-full text-sm">
+        <thead>
+          <tr>
+            <th class="table-th">DO #</th>
+            <th class="table-th">SO #</th>
+            <th class="table-th">Destination</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of trips(); track t.id) {
+            <tr class="table-row">
+              <td class="table-td"><a [routerLink]="['/driver-portal/trips', t.id]" class="text-[#1B3A6B] font-medium">{{ t.do_number }}</a></td>
+              <td class="table-td">{{ t.so_number }}</td>
+              <td class="table-td">{{ t.destination }}</td>
+              <td class="table-td"><app-status-badge [status]="t.trip_status" /></td>
+              <td class="table-td">{{ formatDateTime(t.delivered_at ?? t.scheduled_date) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

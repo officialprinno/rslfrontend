@@ -1,0 +1,103 @@
+<div class="auth-split">
+  <!-- Brand panel -->
+  <div class="auth-brand-panel">
+    <div class="relative z-10">
+      <!-- Logo -->
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold bg-[#F0A500] text-[#1B3A6B] shadow-xl ring-4 ring-[#F0A500]/20">
+          RSL
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight">Rock Solutions Limited</h1>
+          <p class="text-sm text-white/60 mt-0.5 tracking-wide">Factory Management System</p>
+        </div>
+      </div>
+
+      <!-- Headline -->
+      <div class="mt-16 xl:mt-20">
+        <span class="inline-block text-[11px] font-semibold uppercase tracking-[0.2em] text-[#F0A500] mb-4">
+          Enterprise Platform
+        </span>
+        <h2 class="text-[2rem] xl:text-[2.5rem] font-bold leading-[1.12] tracking-tight max-w-lg">
+          Powering Tanzania's mining equipment &amp; wire mesh operations
+        </h2>
+        <p class="text-[15px] text-white/75 leading-relaxed max-w-md mt-5">
+          A unified system for inventory control, procurement, production scheduling,
+          logistics, and financial reporting — built for Rock Solutions.
+        </p>
+      </div>
+
+      <!-- Feature highlights -->
+      <div class="grid gap-3 mt-10 max-w-md">
+        <div class="auth-feature-card">
+          <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-[#F0A500]/20 text-[#F0A500]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold">Real-time Inventory</p>
+            <p class="text-xs text-white/55 mt-0.5">Stock levels, serial tracking &amp; warehouse management</p>
+          </div>
+        </div>
+        <div class="auth-feature-card">
+          <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-[#2E86AB]/30 text-[#7ec8e3]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold">End-to-End Workflows</p>
+            <p class="text-xs text-white/55 mt-0.5">Sales, procurement, production &amp; delivery pipelines</p>
+          </div>
+        </div>
+        <div class="auth-feature-card">
+          <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-white/10 text-white/80">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <div>
+            <p class="text-sm font-semibold">Role-Based Security</p>
+            <p class="text-xs text-white/55 mt-0.5">Granular permissions &amp; audit trails for every action</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="flex gap-3 mt-10">
+        <div class="auth-stat-pill">
+          <p class="text-xl font-bold text-[#F0A500]">81+</p>
+          <p class="text-[10px] text-white/50 mt-0.5 uppercase tracking-wider">Modules</p>
+        </div>
+        <div class="auth-stat-pill">
+          <p class="text-xl font-bold">TZS</p>
+          <p class="text-[10px] text-white/50 mt-0.5 uppercase tracking-wider">Currency</p>
+        </div>
+        <div class="auth-stat-pill">
+          <p class="text-xl font-bold">RBAC</p>
+          <p class="text-[10px] text-white/50 mt-0.5 uppercase tracking-wider">Access Control</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="relative z-10 flex items-end justify-between gap-4 pt-8">
+      <p class="text-[11px] text-white/40 leading-relaxed max-w-xs">
+        Plot No. 252 Block &quot;L&quot;, Mayolwa Village,<br />
+        Misungwi District, Mwanza, Tanzania
+      </p>
+      <p class="text-[10px] text-white/30 shrink-0">FMS v1.0</p>
+    </div>
+  </div>
+
+  <!-- Form panel -->
+  <div class="auth-form-panel">
+    <div class="auth-form-panel__content">
+      <div class="auth-form-panel__body">
+        <router-outlet />
+      </div>
+      <app-app-footer variant="auth" />
+    </div>
+  </div>
+</div>

@@ -1,0 +1,154 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+  @if (loading()) {
+    <div class="card p-8 text-center text-gray-500">Loading user…</div>
+  } @else if (user(); as u) {
+    <app-page-header [title]="'Edit User — ' + u.full_name" subtitle="Assign departments and preview merged permissions">
+      <a routerLink="/settings/users" class="btn-secondary">Back</a>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">
+        {{ saving() ? 'Saving…' : 'Save Changes' }}
+      </button>
+    </app-page-header>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      <div class="xl:col-span-2 space-y-5">
+        <div class="card p-5 space-y-4">
+          <h2 class="section-title">Profile</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="field-label">First name</label>
+              <input class="input-field w-full" [ngModel]="firstName()" (ngModelChange)="firstName.set($event)" />
+            </div>
+            <div>
+              <label class="field-label">Last name</label>
+              <input class="input-field w-full" [ngModel]="lastName()" (ngModelChange)="lastName.set($event)" />
+            </div>
+            <div>
+              <label class="field-label">Email</label>
+              <input class="input-field w-full" [value]="u.email" disabled />
+            </div>
+            <div>
+              <label class="field-label">Phone</label>
+              <input class="input-field w-full" [ngModel]="phone()" (ngModelChange)="phone.set($event)" />
+            </div>
+          </div>
+          <label class="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" [ngModel]="isActive()" (ngModelChange)="isActive.set($event)" />
+            Active account
+          </label>
+        </div>
+
+        <div class="card p-5 space-y-4">
+          <h2 class="section-title">Reset Password</h2>
+          <p class="text-sm text-gray-500">Set a new password for this user without requiring their current password.</p>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <input
+              type="password"
+              class="input-field flex-1"
+              placeholder="New password"
+              [ngModel]="newPassword()"
+              (ngModelChange)="newPassword.set($event)"
+            />
+            <button
+              type="button"
+              class="btn-secondary whitespace-nowrap"
+              [disabled]="resettingPassword()"
+              (click)="resetPassword()"
+            >
+              {{ resettingPassword() ? 'Resetting…' : 'Reset Password' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="card p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="section-title !mb-0">Department Assignments</h2>
+            <button type="button" class="btn-secondary !text-xs" (click)="addAssignment()">Add Department</button>
+          </div>
+          <p class="text-sm text-gray-500">
+            Each row assigns a role in a department. Mark one as primary for display and default context.
+          </p>
+
+          @for (row of assignments(); track $index; let i = $index) {
+            <div class="p-4 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+              <div class="md:col-span-4">
+                <label class="field-label">Department</label>
+                <select
+                  class="input-field w-full"
+                  [ngModel]="row.department"
+                  (ngModelChange)="onDepartmentChange(i, $event)"
+                >
+                  <option [ngValue]="''">Select…</option>
+                  @for (d of deptOptions(); track d.id) {
+                    <option [ngValue]="d.id">{{ d.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="md:col-span-4">
+                <label class="field-label">Role</label>
+                <select
+                  class="input-field w-full"
+                  [ngModel]="row.role"
+                  (ngModelChange)="onRoleChange(i, $event)"
+                  [disabled]="!row.department"
+                >
+                  <option [ngValue]="''">Select…</option>
+                  @for (r of rolesFor(row.department); track r.id) {
+                    <option [ngValue]="r.id">{{ r.name }}</option>
+                  }
+                </select>
+              </div>
+              <div class="md:col-span-3 flex items-center gap-3">
+                <label class="inline-flex items-center gap-2 text-sm whitespace-nowrap">
+                  <input type="radio" name="primaryDept" [checked]="row.is_primary" (change)="setPrimary(i)" />
+                  Primary
+                </label>
+                @if (assignments().length > 1) {
+                  <button type="button" class="btn-ghost !text-xs text-red-600" (click)="removeAssignment(i)">
+                    Remove
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="section-title">Permissions Matrix</h2>
+        <p class="text-xs text-gray-500 mb-4">Merged from all assigned roles. HODs also get Inventory read/query.</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead>
+              <tr>
+                <th class="table-th !py-2">Module</th>
+                @for (action of permissionActions; track action) {
+                  <th class="table-th !py-2 text-center capitalize">{{ action.slice(0, 1) }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (mod of permissionModules; track mod) {
+                <tr class="table-row">
+                  <td class="table-td capitalize">{{ mod }}</td>
+                  @for (action of permissionActions; track action) {
+                    <td class="table-td text-center">
+                      @if (matrix()[mod]?.[action]) {
+                        <span class="text-emerald-600 font-bold">✓</span>
+                      } @else {
+                        <span class="text-gray-300">—</span>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-amber-700 mt-4 bg-amber-50 p-3 rounded-lg">
+          After saving department changes, the user must log out and back in (or refresh token) to update JWT claims.
+        </p>
+      </div>
+    </div>
+  }
+</div>

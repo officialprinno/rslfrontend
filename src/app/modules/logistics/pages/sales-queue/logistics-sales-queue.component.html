@@ -1,0 +1,88 @@
+<div class="page-container">
+  <app-logistics-nav />
+
+  <app-page-header
+    title="Sales Order Queue"
+    subtitle="Delivery cost calculation and dispatch operations from Sales"
+  />
+
+  <div class="flex flex-wrap gap-2 mb-6">
+    @for (tab of queueTabs; track tab.value) {
+      <button
+        type="button"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+        [class.bg-[#1B3A6B]]="queue() === tab.value"
+        [class.text-white]="queue() === tab.value"
+        [class.bg-gray-100]="queue() !== tab.value"
+        [class.text-gray-700]="queue() !== tab.value"
+        (click)="setQueue(tab.value)"
+      >
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="5" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load sales order queue" (retry)="load()" />
+  } @else {
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div class="xl:col-span-4 card overflow-hidden">
+        <div class="px-4 py-3 border-b bg-gray-50 text-sm font-medium text-gray-700">
+          Orders ({{ orders().length }})
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr>
+              <th class="table-th">Order</th>
+              <th class="table-th">Customer</th>
+              <th class="table-th">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of orders(); track order.id) {
+              <tr
+                class="table-row cursor-pointer"
+                [class.!bg-blue-50]="selectedId() === order.id"
+                (click)="selectOrder(order)"
+              >
+                <td class="table-td font-medium">{{ order.so_number }}</td>
+                <td class="table-td">{{ order.customer_name }}</td>
+                <td class="table-td"><app-status-badge [status]="order.status" /></td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="3" class="table-td text-center text-gray-500 py-8">No orders in this queue.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="xl:col-span-8 space-y-4">
+        @if (loadingDetail()) {
+          <app-table-skeleton [cols]="4" />
+        } @else if (selectedDetail(); as detail) {
+          <app-lo-so-order-detail [order]="detail" />
+          <app-lo-so-workflow-panel [order]="detail" (refreshed)="onWorkflowRefresh()" />
+          <div class="flex flex-wrap gap-2">
+            @if (detail.delivery_order_id) {
+              <a
+                [routerLink]="['/logistics/deliveries', detail.delivery_order_id, 'view']"
+                class="btn-secondary"
+              >
+                Open Delivery Order
+              </a>
+            }
+            <a [routerLink]="['/sales/orders', detail.id, 'view']" class="btn-secondary">View in Sales</a>
+          </div>
+        } @else {
+          <div class="card p-8 text-center text-gray-500">
+            Select a sales order to view full details and perform logistics actions.
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

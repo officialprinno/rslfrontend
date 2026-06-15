@@ -1,0 +1,226 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Production Dashboard" subtitle="Manufacturing operations overview" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (data(); as d) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ d.active_work_orders }}</p>
+        <p class="card-stat__label">Active Work Orders</p>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ formatNumber(d.units_today, 0) }}</p>
+        <p class="card-stat__label">Units Today</p>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ formatNumber(d.units_this_month, 0) }}</p>
+        <p class="card-stat__label">Units This Month</p>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ d.efficiency_rate | number:'1.1-1' }}%</p>
+        <p class="card-stat__label">Efficiency Rate</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
+      <div class="table-container xl:col-span-2">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 class="section-title">Active Work Orders</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Approved and in-progress orders</p>
+          </div>
+          <a routerLink="/production/work-orders" class="btn-ghost !text-xs">View all</a>
+        </div>
+        <div class="overflow-x-auto">
+          @if (d.active_wos.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">WO Number</th>
+                  <th class="table-th">Product</th>
+                  <th class="table-th">Progress</th>
+                  <th class="table-th">Status</th>
+                  <th class="table-th">Operator</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (wo of d.active_wos; track wo.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono text-xs font-medium">
+                      <div class="flex items-center gap-2">
+                        @if (wo.status === 'IN_PROGRESS') {
+                          <span class="relative flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                          </span>
+                        }
+                        <a [routerLink]="['/production/work-orders', wo.id, 'view']" class="text-[#1B3A6B] hover:underline">{{ wo.wo_number }}</a>
+                      </div>
+                    </td>
+                    <td class="table-td">{{ wo.product_name }}</td>
+                    <td class="table-td min-w-[140px]">
+                      <div class="flex items-center gap-2">
+                        <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            class="h-full bg-[#1B3A6B] rounded-full transition-all"
+                            [style.width.%]="wo.progress_percent"
+                          ></div>
+                        </div>
+                        <span class="text-xs text-gray-500 w-10 text-right">{{ wo.progress_percent | number:'1.0-0' }}%</span>
+                      </div>
+                      <p class="text-[10px] text-gray-400 mt-0.5">{{ wo.quantity_produced }}/{{ wo.quantity_planned }} units</p>
+                    </td>
+                    <td class="table-td"><app-status-badge [status]="wo.status" /></td>
+                    <td class="table-td">{{ wo.operator_name || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No active work orders.</p>
+          }
+        </div>
+      </div>
+
+      <div class="table-container">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Raw Materials Status</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Stock vs active WO requirements</p>
+        </div>
+        <div class="overflow-x-auto">
+          @if (d.raw_material_status.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Material</th>
+                  <th class="table-th">Stock</th>
+                  <th class="table-th">Required</th>
+                  <th class="table-th">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (m of d.raw_material_status; track m.item_id) {
+                  <tr class="table-row">
+                    <td class="table-td font-medium">{{ m.item_name }}</td>
+                    <td class="table-td">{{ formatNumber(m.current_stock, 2) }}</td>
+                    <td class="table-td">{{ formatNumber(m.required_for_active_wos, 2) }}</td>
+                    <td class="table-td">
+                      <span class="text-sm font-semibold" [class]="materialStatusColor[m.status]">
+                        {{ m.status }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No raw material data available.</p>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="section-title">Daily Output</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Planned vs actual (last 7 days)</p>
+          </div>
+          <a routerLink="/production/output" class="btn-ghost !text-xs">View output</a>
+        </div>
+        @if (d.daily_output.length) {
+          <div class="flex items-end gap-2 h-44">
+            @for (day of d.daily_output; track day.date) {
+              <div class="flex-1 flex flex-col items-center gap-1">
+                <div class="flex items-end gap-0.5 h-32 w-full justify-center">
+                  <div class="flex flex-col items-center w-[45%]">
+                    <span class="text-[9px] text-gray-500">{{ formatNumber(day.planned, 0) }}</span>
+                    <div
+                      class="w-full bg-blue-200 rounded-t-sm min-h-[2px] transition-all"
+                      [style.height.%]="(+day.planned / maxDailyOutput()) * 100"
+                    ></div>
+                  </div>
+                  <div class="flex flex-col items-center w-[45%]">
+                    <span class="text-[9px] font-medium text-emerald-700">{{ formatNumber(day.actual, 0) }}</span>
+                    <div
+                      class="w-full bg-emerald-500 rounded-t-sm min-h-[2px] transition-all"
+                      [style.height.%]="(+day.actual / maxDailyOutput()) * 100"
+                    ></div>
+                  </div>
+                </div>
+                <span class="text-[10px] text-gray-500 truncate w-full text-center">{{ day.date | slice:5:10 }}</span>
+              </div>
+            }
+          </div>
+          <div class="flex justify-center gap-4 mt-3 text-xs text-gray-500">
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-blue-200"></span> Planned</span>
+            <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-emerald-500"></span> Actual</span>
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">No output data available.</p>
+        }
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title">Machine Status</h2>
+          <a routerLink="/production/machines" class="btn-ghost !text-xs">View machines</a>
+        </div>
+        @if (d.machine_status.length) {
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+            @for (machine of d.machine_status; track machine.id) {
+              <div
+                class="p-4 rounded-xl border border-gray-200 border-l-4 bg-gray-50"
+                [class]="machineStatusBorder[machine.status]"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <p class="font-mono text-xs text-gray-500">{{ machine.machine_code }}</p>
+                    <p class="font-medium text-sm mt-0.5">{{ machine.name }}</p>
+                    <p class="text-xs text-gray-500 mt-1">{{ machineTypeLabel(machine.machine_type) }}</p>
+                  </div>
+                  <app-status-badge [status]="machine.status" />
+                </div>
+                @if (machine.current_wo) {
+                  <p class="text-xs text-[#1B3A6B] mt-2">
+                    WO: <a [routerLink]="['/production/work-orders', machine.current_wo.id, 'view']" class="hover:underline">{{ machine.current_wo.wo_number }}</a>
+                  </p>
+                } @else {
+                  <p class="text-xs text-gray-400 mt-2">No active work order</p>
+                }
+                <p class="text-xs text-gray-500 mt-1">Utilization: {{ machine.utilization_rate | number:'1.0-0' }}%</p>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">No machine data available.</p>
+        }
+      </div>
+    </div>
+  }
+</div>

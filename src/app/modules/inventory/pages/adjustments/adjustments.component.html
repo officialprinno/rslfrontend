@@ -1,0 +1,114 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Stock Adjustments">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openNew()">New Adjustment</button>
+    }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="9" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!adjustments().length) {
+    <div class="card"><app-empty-state title="No adjustments" message="Create a stock adjustment when physical counts differ from system records." [actionLabel]="canAdd() ? 'New Adjustment' : ''" (actionClick)="openNew()" /></div>
+  } @else {
+    <div class="table-container">
+      <div class="flex justify-end px-4 pt-3">
+        <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Date</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Type</th>
+              <th class="table-th">Quantity</th>
+              <th class="table-th">Reason</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Requested By</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (adj of adjustments(); track adj.id) {
+              <tr class="table-row">
+                <td class="table-td text-xs whitespace-nowrap">{{ formatDateTime(adj.created_at) }}</td>
+                <td class="table-td font-medium">{{ adj.item_name }}</td>
+                <td class="table-td">{{ adj.warehouse_name }}</td>
+                <td class="table-td"><span class="badge" [class]="typeBadgeClass(adj.adjustment_type)">{{ adj.adjustment_type }}</span></td>
+                <td class="table-td font-semibold">{{ formatNumber(adj.quantity) }}</td>
+                <td class="table-td max-w-xs truncate text-gray-600">{{ adj.reason }}</td>
+                <td class="table-td"><app-status-badge [status]="adj.status" /></td>
+                <td class="table-td text-sm">{{ adj.requested_by_name }}</td>
+                <td class="table-td">
+                  @if (adj.status === 'PENDING' && canApprove()) {
+                    <div class="flex gap-1">
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="approve(adj)">Approve</button>
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="reject(adj)">Reject</button>
+                    </div>
+                  } @else {
+                    <span class="text-xs text-gray-400">{{ adj.approved_by_name || '—' }}</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="New Stock Adjustment" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Item *</label>
+      <app-searchable-select
+        [options]="itemOptions()"
+        [value]="form.controls.item.value"
+        placeholder="Search items..."
+        [hasError]="!!fieldErrors()['item'] || (form.controls.item.invalid && form.controls.item.touched)"
+        (valueChange)="onItemSelected($event)"
+      />
+      @if (fieldErrors()['item']) { <p class="input-error">{{ fieldErrors()['item'] }}</p> }
+      @else if (form.controls.item.invalid && form.controls.item.touched) { <p class="input-error">Please select an item</p> }
+      @else if (!items().length) { <p class="input-error">No items found. Create an item first.</p> }
+    </div>
+    <div>
+      <label class="input-label">Warehouse *</label>
+      <select formControlName="warehouse" class="input-field" [class.input-field--error]="fieldErrors()['warehouse'] || (form.controls.warehouse.invalid && form.controls.warehouse.touched)">
+        <option [ngValue]="null">Select warehouse</option>
+        @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+      </select>
+      @if (fieldErrors()['warehouse']) { <p class="input-error">{{ fieldErrors()['warehouse'] }}</p> }
+      @else if (form.controls.warehouse.invalid && form.controls.warehouse.touched) { <p class="input-error">Please select a warehouse</p> }
+      @else if (!warehouses().length) { <p class="input-error">No warehouses found. Create a warehouse first.</p> }
+    </div>
+    <div>
+      <label class="input-label">Adjustment Type *</label>
+      <select formControlName="adjustment_type" class="input-field">
+        <option value="INCREASE">INCREASE</option>
+        <option value="DECREASE">DECREASE</option>
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Quantity *</label>
+      <input type="number" formControlName="quantity" min="0.0001" step="0.01" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Reason *</label>
+      <textarea formControlName="reason" rows="3" class="input-field resize-none" [class.input-field--error]="fieldErrors()['reason'] || (form.controls.reason.invalid && form.controls.reason.touched)"></textarea>
+      @if (fieldErrors()['reason']) { <p class="input-error">{{ fieldErrors()['reason'] }}</p> }
+      @else if (form.controls.reason.invalid && form.controls.reason.touched) { <p class="input-error">Reason is required</p> }
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Submit Adjustment
+    </button>
+  </div>
+</app-modal>

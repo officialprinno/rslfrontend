@@ -1,0 +1,77 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Stock Movements" subtitle="Complete stock movement history" [hasActions]="false" />
+
+  <div class="card !p-4 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      <input type="date" class="input-field" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
+      <input type="date" class="input-field" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
+      <select class="input-field" [ngModel]="itemFilter()" (ngModelChange)="itemFilter.set($event)">
+        <option value="">All Items</option>
+        @for (i of items(); track i.id) { <option [value]="i.id">{{ i.code }} — {{ i.name }}</option> }
+      </select>
+      <select class="input-field" [ngModel]="warehouseFilter()" (ngModelChange)="warehouseFilter.set($event)">
+        <option value="">All Warehouses</option>
+        @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+      </select>
+      <select class="input-field" [ngModel]="typeFilter()" (ngModelChange)="typeFilter.set($event)">
+        <option value="">All Types</option>
+        @for (t of movementTypes; track t) { <option [value]="t">{{ t }}</option> }
+      </select>
+      <select class="input-field" [ngModel]="refTypeFilter()" (ngModelChange)="refTypeFilter.set($event)">
+        <option value="">All References</option>
+        @for (r of refTypes; track r) { <option [value]="r">{{ r }}</option> }
+      </select>
+    </div>
+    <div class="flex gap-2 mt-3">
+      <button type="button" class="btn-primary !text-sm" (click)="onSearch()">Apply Filters</button>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!movements().length) {
+    <div class="card"><app-empty-state title="No movements" message="Stock movements will appear as transactions occur." /></div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Date & Time</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Type</th>
+              <th class="table-th">Reference</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Unit Cost</th>
+              <th class="table-th">Created By</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of movements(); track m.id) {
+              <tr class="table-row">
+                <td class="table-td whitespace-nowrap text-xs">{{ formatDateTime(m.created_at) }}</td>
+                <td class="table-td">
+                  <span class="font-mono text-xs text-[#1B3A6B]">{{ m.item_code }}</span>
+                  <span class="block text-gray-600">{{ m.item_name }}</span>
+                </td>
+                <td class="table-td">{{ m.warehouse_name }}</td>
+                <td class="table-td"><app-movement-type-badge [type]="m.movement_type" /></td>
+                <td class="table-td">
+                  <span class="text-xs text-gray-500">{{ m.reference_type }}</span>
+                  <span class="block font-mono text-xs text-[#1B3A6B]">{{ m.reference_id || '—' }}</span>
+                </td>
+                <td class="table-td" [class]="qtyClass(m)">{{ qtyDisplay(m) }}</td>
+                <td class="table-td">{{ formatCurrency(m.unit_cost) }}</td>
+                <td class="table-td">{{ m.created_by_name || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>

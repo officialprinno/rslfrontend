@@ -1,0 +1,178 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Accounts Receivable" subtitle="Customer aging and statements">
+    <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (data(); as ar) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5 mb-6">
+      <div class="card-stat">
+        <p class="card-stat__value">{{ formatAccountingAmount(ar.summary.total_outstanding) }}</p>
+        <p class="card-stat__label">Total Outstanding</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-green-700">{{ formatAccountingAmount(ar.summary.current) }}</p>
+        <p class="card-stat__label">Current</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-red-600">{{ formatAccountingAmount(ar.summary.days_90_plus) }}</p>
+        <p class="card-stat__label">90+ Days Overdue</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value">{{ formatAccountingAmount(ar.summary.days_1_30) }}</p>
+        <p class="card-stat__label">1–30 Days</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-amber-600">{{ formatAccountingAmount(ar.summary.days_31_60) }}</p>
+        <p class="card-stat__label">31–60 Days</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-orange-600">{{ formatAccountingAmount(ar.summary.days_61_90) }}</p>
+        <p class="card-stat__label">61–90 Days</p>
+      </div>
+    </div>
+
+    <div class="card p-4 mb-4">
+      <div class="flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[200px]">
+          <label class="input-label">Search Customer</label>
+          <input
+            type="text"
+            class="input-field"
+            placeholder="Customer name..."
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+          />
+        </div>
+        <div class="w-44">
+          <label class="input-label">Aging Bucket</label>
+          <select class="input-field" [ngModel]="bucketFilter()" (ngModelChange)="bucketFilter.set($event)">
+            <option value="">All</option>
+            <option value="current">Current</option>
+            <option value="days_1_30">1–30 Days</option>
+            <option value="days_31_60">31–60 Days</option>
+            <option value="days_61_90">61–90 Days</option>
+            <option value="days_90_plus">90+ Days</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    @if (!filteredAging().length) {
+      <div class="card">
+        <app-empty-state title="No receivables" message="No outstanding customer balances match your filters." />
+      </div>
+    } @else {
+      <div class="table-container">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Customer</th>
+                <th class="table-th">Current</th>
+                <th class="table-th">1–30</th>
+                <th class="table-th">31–60</th>
+                <th class="table-th">61–90</th>
+                <th class="table-th">90+</th>
+                <th class="table-th">Total</th>
+                <th class="table-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of filteredAging(); track row.customer_id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ row.customer_name }}</td>
+                  <td class="table-td" [class]="agingClass('current')">{{ formatAccountingAmount(row.current) }}</td>
+                  <td class="table-td" [class]="agingClass('days_1_30')">{{ formatAccountingAmount(row.days_1_30) }}</td>
+                  <td class="table-td" [class]="agingClass('days_31_60')">{{ formatAccountingAmount(row.days_31_60) }}</td>
+                  <td class="table-td" [class]="agingClass('days_61_90')">{{ formatAccountingAmount(row.days_61_90) }}</td>
+                  <td class="table-td" [class]="agingClass('days_90_plus')">{{ formatAccountingAmount(row.days_90_plus) }}</td>
+                  <td class="table-td" [class]="agingClass('total_outstanding')">{{ formatAccountingAmount(row.total_outstanding) }}</td>
+                  <td class="table-td">
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openStatement(row)">Statement</button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<app-modal [open]="showStatement()" title="Customer Statement" size="lg" (close)="showStatement.set(false)">
+  @if (statementLoading()) {
+    <app-table-skeleton [cols]="5" />
+  } @else if (statement(); as stmt) {
+    <div id="customer-statement-print">
+      <div class="mb-4">
+        <h2 class="text-lg font-semibold text-[#1B3A6B]">{{ company.name }}</h2>
+        <p class="text-sm text-gray-600">{{ company.address }}</p>
+        <p class="text-sm text-gray-600">TIN: {{ company.tin }}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
+        <div>
+          <span class="text-gray-500 block">Customer</span>
+          <span class="font-medium">{{ stmt.customer_name }}</span>
+        </div>
+        <div>
+          <span class="text-gray-500 block">Period</span>
+          <span>{{ formatDate(stmt.date_from) }} — {{ formatDate(stmt.date_to) }}</span>
+        </div>
+        <div>
+          <span class="text-gray-500 block">Opening Balance</span>
+          <span>{{ formatAccountingAmount(stmt.opening_balance) }}</span>
+        </div>
+        <div>
+          <span class="text-gray-500 block">Closing Balance</span>
+          <span class="font-semibold">{{ formatAccountingAmount(stmt.closing_balance) }}</span>
+        </div>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr>
+            <th class="table-th">Date</th>
+            <th class="table-th">Reference</th>
+            <th class="table-th">Description</th>
+            <th class="table-th">Debit</th>
+            <th class="table-th">Credit</th>
+            <th class="table-th">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (tx of stmt.transactions; track tx.reference + tx.date) {
+            <tr class="table-row">
+              <td class="table-td">{{ formatDate(tx.date) }}</td>
+              <td class="table-td">{{ tx.reference }}</td>
+              <td class="table-td">{{ tx.description }}</td>
+              <td class="table-td">{{ formatAccountingAmount(tx.debit) }}</td>
+              <td class="table-td">{{ formatAccountingAmount(tx.credit) }}</td>
+              <td class="table-td font-medium">{{ formatAccountingAmount(tx.balance) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+      <div>
+        <label class="input-label">From</label>
+        <input type="date" class="input-field" [ngModel]="statementDateFrom()" (ngModelChange)="statementDateFrom.set($event)" />
+      </div>
+      <div>
+        <label class="input-label">To</label>
+        <input type="date" class="input-field" [ngModel]="statementDateTo()" (ngModelChange)="statementDateTo.set($event)" />
+      </div>
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showStatement.set(false)">Close</button>
+    @if (statement()) {
+      <button type="button" class="btn-ghost" (click)="refreshStatement()">Refresh</button>
+      <button type="button" class="btn-primary" (click)="printStatement()">Print</button>
+    }
+  </div>
+</app-modal>

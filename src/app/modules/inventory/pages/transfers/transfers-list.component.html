@@ -1,0 +1,105 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Stock Transfers">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openNew()">New Transfer</button>
+    }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!transfers().length) {
+    <div class="card"><app-empty-state title="No stock transfers" message="Move stock between warehouses with approval workflow." [actionLabel]="canAdd() ? 'New Transfer' : ''" (actionClick)="openNew()" /></div>
+  } @else {
+    <div class="table-container">
+      <div class="flex justify-end px-4 pt-3">
+        <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Transfer #</th>
+              <th class="table-th">Date</th>
+              <th class="table-th">Source</th>
+              <th class="table-th">Destination</th>
+              <th class="table-th">Items</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Requested By</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of transfers(); track t.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-sm">{{ t.transfer_number }}</td>
+                <td class="table-td text-xs">{{ formatDateTime(t.created_at) }}</td>
+                <td class="table-td">{{ t.source_warehouse_name }}</td>
+                <td class="table-td">{{ t.destination_warehouse_name }}</td>
+                <td class="table-td text-sm">
+                  @for (line of t.lines; track line.id) {
+                    <div>{{ line.item_name }} × {{ formatNumber(line.quantity) }}</div>
+                  }
+                </td>
+                <td class="table-td"><app-status-badge [status]="t.status" /></td>
+                <td class="table-td text-sm">{{ t.requested_by_name }}</td>
+                <td class="table-td">
+                  @if (canApprove()) {
+                    <div class="flex gap-1 flex-wrap">
+                      @if (t.status === 'PENDING') {
+                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="approve(t)">Approve</button>
+                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="reject(t)">Reject</button>
+                      }
+                      @if (t.status === 'APPROVED') {
+                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-[#1B3A6B]" (click)="complete(t)">Complete</button>
+                      }
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="New Stock Transfer" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Source Warehouse *</label>
+      <select formControlName="source_warehouse" class="input-field">
+        <option [ngValue]="null">Select source warehouse</option>
+        @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Destination Warehouse *</label>
+      <select formControlName="destination_warehouse" class="input-field">
+        <option [ngValue]="null">Select destination warehouse</option>
+        @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Item *</label>
+      <app-searchable-select [options]="itemOptions()" [value]="form.controls.item.value" placeholder="Search items..." (valueChange)="form.controls.item.setValue($event != null ? +$event : null)" />
+    </div>
+    <div>
+      <label class="input-label">Quantity *</label>
+      <input type="number" formControlName="quantity" min="0.0001" step="0.01" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Create Transfer
+    </button>
+  </div>
+</app-modal>

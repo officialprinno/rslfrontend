@@ -1,0 +1,105 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+  <app-page-header title="New User" subtitle="Create an account and assign departments and roles">
+    <a routerLink="/settings/users" class="btn-secondary">Back to Users</a>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Create User
+    </button>
+  </app-page-header>
+
+  <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+    <div class="card p-5 space-y-4">
+      <h2 class="section-title">Account</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="field-label">Email *</label>
+          <input
+            type="email"
+            class="input-field w-full"
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+          />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="field-label">Password *</label>
+          <input
+            type="password"
+            class="input-field w-full"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+        </div>
+        <div>
+          <label class="field-label">First name *</label>
+          <input class="input-field w-full" [ngModel]="firstName()" (ngModelChange)="firstName.set($event)" />
+        </div>
+        <div>
+          <label class="field-label">Last name *</label>
+          <input class="input-field w-full" [ngModel]="lastName()" (ngModelChange)="lastName.set($event)" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="field-label">Phone</label>
+          <input class="input-field w-full" [ngModel]="phone()" (ngModelChange)="phone.set($event)" />
+        </div>
+      </div>
+      <label class="inline-flex items-center gap-2 text-sm">
+        <input type="checkbox" [ngModel]="isActive()" (ngModelChange)="isActive.set($event)" />
+        Active account
+      </label>
+    </div>
+
+    <div class="card p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="section-title !mb-0">Department Assignments</h2>
+        <button type="button" class="btn-secondary !text-xs" (click)="addAssignment()">Add Department</button>
+      </div>
+      <p class="text-sm text-gray-500">
+        Assign at least one department and role. Mark one assignment as primary.
+      </p>
+
+      @for (row of assignments(); track $index; let i = $index) {
+        <div class="p-4 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+          <div class="md:col-span-4">
+            <label class="field-label">Department</label>
+            <select
+              class="input-field w-full"
+              [ngModel]="row.department"
+              (ngModelChange)="onDepartmentChange(i, $event)"
+            >
+              <option [ngValue]="''">Select…</option>
+              @for (d of deptOptions(); track d.id) {
+                <option [ngValue]="d.id">{{ d.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="md:col-span-4">
+            <label class="field-label">Role</label>
+            <select
+              class="input-field w-full"
+              [ngModel]="row.role"
+              (ngModelChange)="onRoleChange(i, $event)"
+              [disabled]="!row.department"
+            >
+              <option [ngValue]="''">Select…</option>
+              @for (r of rolesFor(row.department); track r.id) {
+                <option [ngValue]="r.id">{{ r.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="md:col-span-3 flex items-center gap-3">
+            <label class="inline-flex items-center gap-2 text-sm whitespace-nowrap">
+              <input type="radio" name="primaryDept" [checked]="row.is_primary" (change)="setPrimary(i)" />
+              Primary
+            </label>
+            @if (assignments().length > 1) {
+              <button type="button" class="btn-ghost !text-xs text-red-600" (click)="removeAssignment(i)">
+                Remove
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>

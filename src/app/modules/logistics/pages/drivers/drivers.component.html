@@ -1,0 +1,423 @@
+<div class="page-container">
+
+  <app-logistics-nav />
+
+  <app-page-header title="Drivers" subtitle="Manage driver licences and availability">
+
+    @if (canAdd()) {
+
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Driver</button>
+
+    }
+
+  </app-page-header>
+
+
+
+  <div class="card p-4 mb-4">
+
+    <div class="flex flex-wrap gap-3 items-end">
+
+      <div class="flex-1 min-w-[200px]">
+
+        <label class="input-label">Search</label>
+
+        <input
+
+          type="text"
+
+          class="input-field"
+
+          placeholder="Name, licence number..."
+
+          [ngModel]="search()"
+
+          (ngModelChange)="search.set($event); page.set(1); load()"
+
+        />
+
+      </div>
+
+      <div class="w-36">
+
+        <label class="input-label">Availability</label>
+
+        <select class="input-field" [ngModel]="availabilityFilter()" (ngModelChange)="availabilityFilter.set($event); page.set(1); load()">
+
+          <option value="all">All</option>
+
+          <option value="available">Available</option>
+
+          <option value="unavailable">Unavailable</option>
+
+        </select>
+
+      </div>
+
+      <div class="w-32">
+
+        <label class="input-label">Status</label>
+
+        <select class="input-field" [ngModel]="activeFilter()" (ngModelChange)="activeFilter.set($event); page.set(1); load()">
+
+          <option value="all">All</option>
+
+          <option value="active">Active</option>
+
+          <option value="inactive">Inactive</option>
+
+        </select>
+
+      </div>
+
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+
+    </div>
+
+  </div>
+
+
+
+  @if (loading()) {
+
+    <app-table-skeleton [cols]="8" />
+
+  } @else if (error()) {
+
+    <app-error-state (retry)="load()" />
+
+  } @else if (!drivers().length) {
+
+    <div class="card">
+
+      <app-empty-state
+
+        title="No drivers"
+
+        message="Register drivers to assign delivery orders."
+
+        [actionLabel]="canAdd() ? 'Add Driver' : ''"
+
+        (actionClick)="openAdd()"
+
+      />
+
+    </div>
+
+  } @else {
+
+    <div class="table-container">
+
+      <div class="overflow-x-auto">
+
+        <table class="w-full">
+
+          <thead>
+
+            <tr>
+
+              <th class="table-th">Name</th>
+
+              <th class="table-th">Phone</th>
+
+              <th class="table-th">Licence</th>
+
+              <th class="table-th">Class</th>
+
+              <th class="table-th">Licence Expiry</th>
+
+              <th class="table-th">Medical Expiry</th>
+
+              <th class="table-th">Availability</th>
+
+              <th class="table-th">Status</th>
+
+              <th class="table-th">Actions</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            @for (d of drivers(); track d.id) {
+
+              <tr class="table-row">
+
+                <td class="table-td font-medium">{{ d.full_name }}</td>
+
+                <td class="table-td">{{ d.phone || '—' }}</td>
+
+                <td class="table-td font-mono text-xs">{{ d.license_number }}</td>
+
+                <td class="table-td">{{ licenseClassLabel(d.license_class) }}</td>
+
+                <td class="table-td" [class]="expiryClass(d.license_expiry)">{{ formatDate(d.license_expiry) }}</td>
+
+                <td class="table-td" [class]="expiryClass(d.medical_expiry)">{{ formatDate(d.medical_expiry) }}</td>
+
+                <td class="table-td">
+
+                  <app-status-badge
+
+                    [status]="d.is_available ? 'ACTIVE' : 'CANCELLED'"
+
+                    [label]="d.is_available ? 'Available' : 'Unavailable'"
+
+                  />
+
+                </td>
+
+                <td class="table-td">
+
+                  <app-status-badge [status]="d.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="d.is_active ? 'Active' : 'Inactive'" />
+
+                </td>
+
+                <td class="table-td">
+
+                  <div class="flex gap-1">
+
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(d)">View</button>
+
+                    @if (canAdd()) {
+
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(d)">Edit</button>
+
+                    }
+
+                    @if (canDelete()) {
+
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(d)">Delete</button>
+
+                    }
+
+                  </div>
+
+                </td>
+
+              </tr>
+
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+      <app-pagination
+
+        [page]="page()"
+
+        [pageSize]="pageSize()"
+
+        [total]="total()"
+
+        (pageChange)="page.set($event); load()"
+
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+
+      />
+
+    </div>
+
+  }
+
+</div>
+
+
+
+<app-modal [open]="showForm()" [title]="editing() ? 'Edit Driver' : 'Add Driver'" size="lg" (close)="showForm.set(false)">
+
+  <form [formGroup]="form" class="space-y-4">
+
+    <div>
+
+      <label class="input-label">Employee *</label>
+
+      @if (editing()) {
+
+        <input type="text" class="input-field bg-gray-50" [value]="editing()!.full_name" disabled />
+
+      } @else {
+
+        <app-searchable-select
+
+          [options]="employeeSelectOptions()"
+
+          [value]="form.controls.employee.value"
+
+          placeholder="Search employee..."
+
+          (valueChange)="setEmployee($event)"
+
+        />
+
+        <p class="text-xs text-gray-500 mt-1">Shows active HR employees. Activate the employee in HR first if they are missing.</p>
+
+      }
+
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div>
+
+        <label class="input-label">Licence Number *</label>
+
+        <input type="text" formControlName="license_number" class="input-field" />
+
+      </div>
+
+      <div>
+
+        <label class="input-label">Licence Class *</label>
+
+        <select formControlName="license_class" class="input-field">
+
+          @for (c of licenseClasses; track c.value) {
+
+            <option [value]="c.value">{{ c.label }}</option>
+
+          }
+
+        </select>
+
+      </div>
+
+      <div>
+
+        <label class="input-label">Licence Expiry *</label>
+
+        <input type="date" formControlName="license_expiry" class="input-field" />
+
+      </div>
+
+      <div>
+
+        <label class="input-label">Medical Expiry *</label>
+
+        <input type="date" formControlName="medical_expiry" class="input-field" />
+
+      </div>
+
+    </div>
+
+    <label class="flex items-center gap-2 cursor-pointer">
+
+      <input type="checkbox" formControlName="is_available" class="login-checkbox" />
+
+      <span class="text-sm">Available for assignments</span>
+
+    </label>
+
+  </form>
+
+  <div modalFooter>
+
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+
+      Save
+
+    </button>
+
+  </div>
+
+</app-modal>
+
+
+
+<app-modal [open]="showView()" title="Driver Details" size="lg" (close)="showView.set(false)">
+
+  @if (viewing(); as v) {
+
+    <div class="space-y-6 text-sm">
+
+      <div class="grid grid-cols-2 gap-4">
+
+        <div><span class="text-gray-500">Name</span><p class="font-medium">{{ v.full_name }}</p></div>
+
+        <div><span class="text-gray-500">Phone</span><p>{{ v.phone || '—' }}</p></div>
+
+        <div><span class="text-gray-500">Licence Number</span><p class="font-mono">{{ v.license_number }}</p></div>
+
+        <div><span class="text-gray-500">Licence Class</span><p>{{ licenseClassLabel(v.license_class) }}</p></div>
+
+        <div><span class="text-gray-500">Licence Expiry</span><p [class]="expiryClass(v.license_expiry)">{{ formatDate(v.license_expiry) }}</p></div>
+
+        <div><span class="text-gray-500">Medical Expiry</span><p [class]="expiryClass(v.medical_expiry)">{{ formatDate(v.medical_expiry) }}</p></div>
+
+        <div><span class="text-gray-500">Availability</span><p><app-status-badge [status]="v.is_available ? 'ACTIVE' : 'CANCELLED'" [label]="v.is_available ? 'Available' : 'Unavailable'" /></p></div>
+
+        <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="v.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="v.is_active ? 'Active' : 'Inactive'" /></p></div>
+
+      </div>
+
+
+
+      @if (v.current_assignment) {
+
+        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+
+          <h4 class="font-semibold text-blue-900 mb-1">Current Assignment</h4>
+
+          <p class="text-blue-800">{{ v.current_assignment.do_number }} → {{ v.current_assignment.destination }}</p>
+
+        </div>
+
+      }
+
+
+
+      <div class="p-4 bg-gray-50 rounded-xl">
+
+        <h4 class="font-semibold mb-3">Performance Stats</h4>
+
+        <div class="grid grid-cols-3 gap-4">
+
+          <div>
+
+            <span class="text-gray-500 block">Total Trips</span>
+
+            <span class="text-2xl font-bold text-[#1B3A6B]">{{ v.total_trips ?? 0 }}</span>
+
+          </div>
+
+          <div>
+
+            <span class="text-gray-500 block">On-Time Rate</span>
+
+            <span class="text-2xl font-bold text-emerald-600">{{ v.on_time_percent ?? 0 }}%</span>
+
+          </div>
+
+          <div>
+
+            <span class="text-gray-500 block">Incidents</span>
+
+            <span class="text-2xl font-bold" [class.text-red-600]="(v.incidents_count ?? 0) > 0" [class.text-gray-900]="!(v.incidents_count ?? 0)">{{ v.incidents_count ?? 0 }}</span>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  }
+
+  <div modalFooter>
+
+    <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+
+  </div>
+
+</app-modal>
+
+

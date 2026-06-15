@@ -1,0 +1,230 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Attendance" subtitle="Daily marking and monthly summaries" />
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end justify-between">
+      <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+          [class]="viewMode() === 'daily' ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-gray-600'"
+          (click)="setViewMode('daily')"
+        >
+          Daily
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+          [class]="viewMode() === 'monthly' ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-gray-600'"
+          (click)="setViewMode('monthly')"
+        >
+          Monthly
+        </button>
+      </div>
+
+      @if (canMark() && viewMode() === 'daily') {
+        <button type="button" class="btn-primary" (click)="openBulkMark()">
+          Bulk Mark ({{ selectedCount() }})
+        </button>
+      }
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+      @if (viewMode() === 'daily') {
+        <div>
+          <label class="input-label">Date</label>
+          <input
+            type="date"
+            class="input-field"
+            [ngModel]="selectedDate()"
+            (ngModelChange)="selectedDate.set($event); load()"
+          />
+        </div>
+      } @else {
+        <div>
+          <label class="input-label">Month</label>
+          <select class="input-field" [ngModel]="summaryMonth()" (ngModelChange)="summaryMonth.set(+$event); load()">
+            @for (m of months; track m.value) {
+              <option [value]="m.value">{{ m.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Year</label>
+          <input
+            type="number"
+            class="input-field"
+            [ngModel]="summaryYear()"
+            (ngModelChange)="summaryYear.set(+$event); load()"
+          />
+        </div>
+      }
+
+      <div>
+        <label class="input-label">Department</label>
+        <select class="input-field" [ngModel]="departmentFilter()" (ngModelChange)="departmentFilter.set($event); onDepartmentChange()">
+          <option value="">All Departments</option>
+          @for (d of departments(); track d.id) {
+            <option [value]="d.id">{{ d.name }}</option>
+          }
+        </select>
+      </div>
+
+      @if (viewMode() === 'daily') {
+        <div>
+          <label class="input-label">Status</label>
+          <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+            <option value="">All Statuses</option>
+            @for (s of attendanceStatuses; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      <div>
+        <label class="input-label">Search Employee</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Name..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+        />
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="viewMode() === 'daily' ? 6 : 8" />
+  } @else if (viewMode() === 'daily') {
+    @if (!filteredDailyRows().length) {
+      <div class="card">
+        <app-empty-state title="No employees" message="No active employees match your filters." />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              @if (canMark()) {
+                <th class="table-th w-10">
+                  <input
+                    type="checkbox"
+                    [checked]="selectedCount() === filteredDailyRows().length"
+                    (change)="toggleAll($any($event.target).checked)"
+                  />
+                </th>
+              }
+              <th class="table-th">Employee</th>
+              <th class="table-th">Department</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Time In</th>
+              <th class="table-th">Time Out</th>
+              @if (canMark()) {
+                <th class="table-th">Actions</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredDailyRows(); track row.employee.id) {
+              <tr class="table-row">
+                @if (canMark()) {
+                  <td class="table-td">
+                    <input
+                      type="checkbox"
+                      [checked]="row.selected"
+                      (change)="toggleRow(row.employee.id, $any($event.target).checked)"
+                    />
+                  </td>
+                }
+                <td class="table-td font-medium">{{ row.employee.full_name }}</td>
+                <td class="table-td">{{ row.employee.department_name }}</td>
+                <td class="table-td">
+                  @if (canMark()) {
+                    <select
+                      class="input-field !py-1 !text-sm"
+                      [ngModel]="row.status"
+                      (ngModelChange)="updateRowStatus(row.employee.id, $event)"
+                    >
+                      @for (s of attendanceStatuses; track s.value) {
+                        <option [value]="s.value">{{ s.label }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <app-status-badge [status]="row.status" />
+                  }
+                </td>
+                <td class="table-td">{{ row.record?.time_in ?? '—' }}</td>
+                <td class="table-td">{{ row.record?.time_out ?? '—' }}</td>
+                @if (canMark()) {
+                  <td class="table-td">
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" [disabled]="saving()" (click)="saveSingleRow(row)">
+                      Save
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    @if (!filteredMonthly().length) {
+      <div class="card">
+        <app-empty-state title="No summary data" message="No attendance records for the selected period." />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Working Days</th>
+              <th class="table-th">Present</th>
+              <th class="table-th">Absent</th>
+              <th class="table-th">Late</th>
+              <th class="table-th">Leave</th>
+              <th class="table-th">Attendance %</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredMonthly(); track row.employee_id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ row.employee_name }}</td>
+                <td class="table-td">{{ row.working_days }}</td>
+                <td class="table-td text-green-700">{{ row.present }}</td>
+                <td class="table-td text-red-600">{{ row.absent }}</td>
+                <td class="table-td text-amber-600">{{ row.late }}</td>
+                <td class="table-td text-blue-600">{{ row.leave }}</td>
+                <td class="table-td font-semibold" [class.text-red-600]="row.attendance_percent < 80" [class.text-green-700]="row.attendance_percent >= 90">
+                  {{ row.attendance_percent }}%
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+
+<app-modal [open]="showBulk()" title="Bulk Mark Attendance" (close)="showBulk.set(false)">
+  <p class="text-sm text-gray-600 mb-4">
+    Mark <strong>{{ selectedCount() }}</strong> employee(s) for <strong>{{ formatDate(selectedDate()) }}</strong>
+  </p>
+  <div>
+    <label class="input-label">Status</label>
+    <select class="input-field" [ngModel]="bulkStatus()" (ngModelChange)="bulkStatus.set($event)">
+      @for (s of attendanceStatuses; track s.value) {
+        <option [value]="s.value">{{ s.label }}</option>
+      }
+    </select>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showBulk.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitBulkMark()">Save Attendance</button>
+  </div>
+</app-modal>

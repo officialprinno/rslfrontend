@@ -1,0 +1,109 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Bank Accounts" subtitle="Cash and bank account register">
+    @if (canManage()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Bank Account</button>
+    }
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="3" />
+  } @else if (!accounts().length) {
+    <div class="card">
+      <app-empty-state
+        title="No bank accounts"
+        message="Register bank accounts to track cash balances and reconciliation."
+        [actionLabel]="canManage() ? 'Add Bank Account' : ''"
+        (actionClick)="openAdd()"
+      />
+    </div>
+  } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      @for (a of accounts(); track a.id) {
+        <div class="card p-5 border-l-4 border-[#1B3A6B] hover:shadow-lg transition-shadow">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="font-semibold text-gray-900">{{ a.bank_name }}</h3>
+              <p class="text-sm text-gray-500">{{ a.account_name }}</p>
+            </div>
+            <app-status-badge [status]="a.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="a.is_active ? 'Active' : 'Inactive'" />
+          </div>
+          <div class="space-y-2 text-sm">
+            <div class="flex justify-between">
+              <span class="text-gray-500">Account No.</span>
+              <span class="font-mono">{{ maskAccountNumber(a.account_number) }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Currency</span>
+              <span>{{ a.currency_code }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">GL Account</span>
+              <span>{{ a.gl_account_name }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Current Balance</span>
+              <span class="font-semibold text-[#1B3A6B]">{{ formatAccountingAmount(a.current_balance, a.currency_code) }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-500">Last Reconciled</span>
+              <span>{{ a.last_reconciled ? formatDate(a.last_reconciled) : '—' }}</span>
+            </div>
+          </div>
+          @if (canManage()) {
+            <button type="button" class="btn-ghost !text-xs mt-4 w-full" (click)="openEdit(a)">Edit</button>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>
+
+<app-modal [open]="showForm()" [title]="editing() ? 'Edit Bank Account' : 'Add Bank Account'" size="lg" (close)="showForm.set(false)">
+  <form [formGroup]="accountForm" class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+      <label class="input-label">Bank Name *</label>
+      <input formControlName="bank_name" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Account Number *</label>
+      <input formControlName="account_number" class="input-field font-mono" />
+    </div>
+    <div>
+      <label class="input-label">Account Name *</label>
+      <input formControlName="account_name" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Currency *</label>
+      <select formControlName="currency" class="input-field">
+        <option [ngValue]="null">Select</option>
+        @for (c of currencies(); track c.id) {
+          <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">GL Account *</label>
+      <select formControlName="gl_account" class="input-field">
+        <option [ngValue]="null">Select</option>
+        @for (g of glAccounts(); track g.id) {
+          <option [ngValue]="g.id">{{ g.account_code }} — {{ g.account_name }}</option>
+        }
+      </select>
+    </div>
+    @if (!editing()) {
+      <div>
+        <label class="input-label">Opening Balance</label>
+        <input type="number" formControlName="opening_balance" class="input-field" />
+      </div>
+    }
+    <div class="flex items-center gap-2 pt-6">
+      <input type="checkbox" formControlName="is_active" id="bank-active" />
+      <label for="bank-active" class="text-sm text-gray-700">Active</label>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">Save</button>
+  </div>
+</app-modal>

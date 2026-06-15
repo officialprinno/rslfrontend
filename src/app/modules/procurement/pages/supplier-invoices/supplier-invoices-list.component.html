@@ -1,0 +1,132 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Supplier Invoices" subtitle="3-way matching required before payment">
+    @if (canRecord()) { <button type="button" class="btn-primary" (click)="openRecord()">Record Invoice</button> }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="10" /> }
+  @else if (!invoices().length) {
+    <div class="card"><app-empty-state title="No invoices" message="Record supplier invoices linked to PO and GRN." actionLabel="Record Invoice" (actionClick)="openRecord()" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Invoice #</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">PO</th>
+            <th class="table-th">GRN</th>
+            <th class="table-th">Due Date</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Balance</th>
+            <th class="table-th">3-Way Match</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (inv of invoices(); track inv.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ inv.invoice_number }}</td>
+              <td class="table-td">{{ inv.supplier_name }}</td>
+              <td class="table-td">{{ inv.po_number }}</td>
+              <td class="table-td">{{ inv.grn_number }}</td>
+              <td class="table-td" [class.text-red-600]="isOverdue(inv)">{{ formatDate(inv.due_date) }}</td>
+              <td class="table-td">{{ formatCurrency(inv.total_amount, inv.currency_code) }}</td>
+              <td class="table-td">{{ formatCurrency(inv.balance, inv.currency_code) }}</td>
+              <td class="table-td">
+                <span [class]="inv.three_way_matched ? 'text-green-700 font-medium' : 'text-amber-600'">
+                  {{ inv.three_way_matched ? '✓ Matched' : '✗ Pending' }}
+                </span>
+              </td>
+              <td class="table-td"><app-status-badge [status]="inv.status" /></td>
+              <td class="table-td">
+                <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="viewInvoice(inv)">View</button>
+                <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="matchInvoice(inv)">Match</button>
+                @if (inv.three_way_matched && canPay() && inv.balance > 0) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="openPay(inv)">Pay</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [page]="page()" [pageSize]="10" [total]="total()" (pageChange)="page.set($event); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showRecord()" title="Record Invoice" size="lg" (close)="showRecord.set(false)">
+  <form [formGroup]="recordForm" class="grid grid-cols-2 gap-4">
+    <div class="col-span-2"><label class="input-label">Invoice Number *</label><input formControlName="invoice_number" class="input-field" /></div>
+    <div><label class="input-label">Supplier *</label>
+      <select formControlName="supplier" class="input-field">
+        <option [ngValue]="null">Select</option>
+        @for (s of suppliers(); track s.id) { <option [ngValue]="s.id">{{ s.name }}</option> }
+      </select>
+    </div>
+    <div><label class="input-label">Linked PO *</label>
+      <select formControlName="purchase_order" class="input-field" (change)="onPoSelect(+$any($event.target).value)">
+        <option [ngValue]="null">Select PO</option>
+        @for (po of pos(); track po.id) { <option [ngValue]="po.id">{{ po.po_number }}</option> }
+      </select>
+    </div>
+    <div><label class="input-label">Linked GRN *</label>
+      <select formControlName="grn" class="input-field">
+        <option [ngValue]="null">Select GRN</option>
+        @for (g of grns(); track g.id) { <option [ngValue]="g.id">{{ g.grn_number }}</option> }
+      </select>
+    </div>
+    <div><label class="input-label">Invoice Date</label><input type="date" formControlName="invoice_date" class="input-field" /></div>
+    <div><label class="input-label">Due Date</label><input type="date" formControlName="due_date" class="input-field" /></div>
+    <div><label class="input-label">Subtotal</label><input type="number" formControlName="subtotal" class="input-field" /></div>
+    <div><label class="input-label">Tax</label><input type="number" formControlName="tax_amount" class="input-field" /></div>
+    <div><label class="input-label">Total *</label><input type="number" formControlName="total_amount" class="input-field" /></div>
+    <div class="col-span-2"><textarea formControlName="notes" rows="2" class="input-field resize-none" placeholder="Notes"></textarea></div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showRecord.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveInvoice()">Save</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showView()" title="3-Way Match" size="lg" (close)="showView.set(false)">
+  @if (viewing(); as v) {
+    <app-workflow-stepper [steps]="invoiceSteps" [activeIndex]="v.three_way_matched ? 1 : 0" />
+    <table class="w-full text-sm mt-4">
+      <thead><tr><th class="table-th">Source</th><th class="table-th">Amount</th></tr></thead>
+      <tbody>
+        <tr class="table-row"><td class="table-td">PO ({{ v.po_number }})</td><td class="table-td">{{ formatCurrency(v.po_amount, v.currency_code) }}</td></tr>
+        <tr class="table-row"><td class="table-td">GRN ({{ v.grn_number }})</td><td class="table-td">{{ formatCurrency(v.grn_amount, v.currency_code) }}</td></tr>
+        <tr class="table-row"><td class="table-td">Invoice</td><td class="table-td font-semibold">{{ formatCurrency(v.total_amount, v.currency_code) }}</td></tr>
+      </tbody>
+    </table>
+    <p class="mt-4 text-sm" [class]="v.three_way_matched ? 'text-green-700' : 'text-red-600'">
+      {{ v.three_way_matched ? '✓ All amounts matched' : '✗ Discrepancy detected — review before payment' }}
+    </p>
+  }
+  <div modalFooter>
+    @if (viewing(); as v) {
+      <button type="button" class="btn-primary" (click)="matchInvoice(v)">Run Match</button>
+    }
+    <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showPay()" title="Record Payment" (close)="showPay.set(false)">
+  <form [formGroup]="payForm" class="space-y-4">
+    <div><label class="input-label">Amount</label><input type="number" formControlName="amount" class="input-field" /></div>
+    <div><label class="input-label">Payment Date</label><input type="date" formControlName="payment_date" class="input-field" /></div>
+    <div><label class="input-label">Method</label>
+      <select formControlName="payment_method" class="input-field">
+        @for (m of paymentMethods; track m) { <option [value]="m">{{ m }}</option> }
+      </select>
+    </div>
+    <div><label class="input-label">Reference</label><input formControlName="reference" class="input-field" /></div>
+    <div><label class="input-label">Bank</label><input formControlName="bank" class="input-field" /></div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showPay.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" (click)="submitPayment()">Record Payment</button>
+  </div>
+</app-modal>

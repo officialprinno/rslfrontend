@@ -1,0 +1,85 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Delivery Notes" />
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search DN or DO number..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-40"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!notes().length) {
+    <div class="card">
+      <app-empty-state
+        title="No delivery notes"
+        message="Delivery notes are created when deliveries are marked as delivered."
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">DN Number</th>
+            <th class="table-th">DO Number</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">Delivery Date</th>
+            <th class="table-th">Signed By</th>
+            <th class="table-th">Signed At</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (note of notes(); track note.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ note.dn_number }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/logistics/deliveries', note.do_id, 'view']" class="text-[#1B3A6B] hover:underline">
+                  {{ note.do_number }}
+                </a>
+              </td>
+              <td class="table-td">{{ note.customer_name }}</td>
+              <td class="table-td">{{ formatDate(note.delivery_date) }}</td>
+              <td class="table-td">{{ note.signed_by || '—' }}</td>
+              <td class="table-td">{{ formatDateTime(note.signed_at) }}</td>
+              <td class="table-td"><app-status-badge [status]="note.status" /></td>
+              <td class="table-td">
+                <button
+                  type="button"
+                  class="btn-ghost !px-2 !py-1 !text-xs"
+                  [disabled]="printingId() === note.id"
+                  (click)="printNote(note)"
+                >
+                  {{ printingId() === note.id ? 'Loading…' : 'Print PDF' }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

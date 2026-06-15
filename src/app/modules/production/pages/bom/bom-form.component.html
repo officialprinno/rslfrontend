@@ -1,0 +1,102 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header [title]="editId() ? 'Edit BOM' : 'New BOM'" subtitle="Define raw material components and costs">
+    <a routerLink="/production/bom" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">BOM Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="input-label">Product *</label>
+          <app-searchable-select
+            [options]="productOptions()"
+            [value]="form.controls.product.value"
+            placeholder="Search product..."
+            (valueChange)="onProductSelect($event)"
+          />
+        </div>
+        <div>
+          <label class="input-label">Version *</label>
+          <input type="text" formControlName="version" class="input-field" placeholder="e.g. 1.0" />
+        </div>
+        <div class="md:col-span-1">
+          <label class="input-label">Status</label>
+          <input type="text" class="input-field bg-gray-50" [value]="bomStatus()" readonly />
+        </div>
+        <div class="md:col-span-3">
+          <label class="input-label">Notes</label>
+          <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between items-center mb-3">
+        <h4 class="font-semibold">Components (Raw Materials)</h4>
+        <button type="button" class="btn-ghost !text-xs" (click)="addComponent()">+ Add Component</button>
+      </div>
+      <div formArrayName="items" class="space-y-3">
+        @for (line of items().controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div class="grid grid-cols-12 gap-3 items-end">
+              <div class="col-span-12 md:col-span-4">
+                <label class="input-label">Raw Material *</label>
+                <app-searchable-select
+                  [options]="materialOptions(i)"
+                  [value]="line.value.item"
+                  placeholder="Search raw materials..."
+                  (valueChange)="onMaterialSelect(i, $event)"
+                />
+              </div>
+              <div class="col-span-4 md:col-span-2">
+                <label class="input-label">Qty Required *</label>
+                <input type="number" formControlName="quantity_required" step="0.0001" class="input-field" />
+              </div>
+              <div class="col-span-4 md:col-span-2">
+                <label class="input-label">Wastage %</label>
+                <input type="number" formControlName="wastage_percent" step="0.1" min="0" max="100" class="input-field" />
+              </div>
+              <div class="col-span-4 md:col-span-2">
+                <label class="input-label">Effective Qty</label>
+                <input type="text" class="input-field bg-white" [value]="formatNumber(effectiveQty(i), 4)" readonly />
+              </div>
+              <div class="col-span-4 md:col-span-1">
+                <label class="input-label">Line Cost</label>
+                <p class="input-field bg-white font-semibold text-sm !py-2.5">{{ formatCurrency(lineCost(i)) }}</p>
+              </div>
+              <div class="col-span-4 md:col-span-1 flex justify-end">
+                <button type="button" class="btn-ghost !text-red-600 mt-6" (click)="removeComponent(i)">×</button>
+              </div>
+              <div class="col-span-12">
+                <label class="input-label">Notes</label>
+                <input type="text" formControlName="notes" class="input-field" placeholder="Optional notes" />
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="border-t pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="text-sm space-y-1">
+        <p class="text-gray-500">Total components: <strong>{{ items().length }}</strong></p>
+        <p class="text-lg">
+          Material Cost per Unit:
+          <strong class="text-[#1B3A6B]">{{ formatCurrency(totalMaterialCost()) }}</strong>
+        </p>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button type="button" class="btn-secondary" [disabled]="saving() || !canSave()" (click)="saveDraft()">
+          @if (saving()) { <span class="spinner spinner-sm"></span> }
+          Save Draft
+        </button>
+        <button type="button" class="btn-primary" [disabled]="saving() || !canActivate()" (click)="saveAndActivate()">
+          @if (saving()) { <span class="spinner spinner-sm"></span> }
+          Activate BOM
+        </button>
+      </div>
+    </div>
+  </form>
+</div>

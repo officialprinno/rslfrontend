@@ -1,0 +1,381 @@
+<div class="page-container">
+
+  <app-logistics-nav />
+
+
+
+  @if (loading()) {
+
+    <app-table-skeleton [cols]="4" />
+
+  } @else if (error()) {
+
+    <app-error-state (retry)="loadVehicle()" />
+
+  } @else if (vehicle(); as v) {
+
+    <app-page-header [title]="v.registration_number" [subtitle]="v.make + ' ' + v.model + ' (' + v.year + ')'">
+
+      <a routerLink="/logistics/vehicles" class="btn-secondary">Back</a>
+
+    </app-page-header>
+
+
+
+    <div class="flex flex-wrap gap-1 p-1 bg-gray-100 rounded-xl mb-6">
+
+      @for (tab of tabs; track tab.id) {
+
+        <button
+
+          type="button"
+
+          class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all"
+
+          [class]="activeTab() === tab.id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+
+          (click)="setTab(tab.id)"
+
+        >
+
+          {{ tab.label }}
+
+        </button>
+
+      }
+
+    </div>
+
+
+
+    @if (activeTab() === 'overview') {
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+        <div class="card p-6 lg:col-span-2">
+
+          <h4 class="font-semibold mb-4">Vehicle Information</h4>
+
+          <div class="grid grid-cols-2 gap-4 text-sm">
+
+            <div><span class="text-gray-500">Type</span><p class="font-medium">{{ typeLabel(v.vehicle_type) }}</p></div>
+
+            <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="v.status" [label]="statusLabel(v.status)" /></p></div>
+
+            <div><span class="text-gray-500">Capacity</span><p>{{ v.capacity_kg | number }} kg</p></div>
+
+            <div><span class="text-gray-500">Color</span><p>{{ v.color || '—' }}</p></div>
+
+            <div><span class="text-gray-500">Odometer</span><p>{{ v.odometer_reading | number }} km</p></div>
+
+            <div><span class="text-gray-500">Location</span><p>{{ v.current_location || '—' }}</p></div>
+
+            <div><span class="text-gray-500">Last Service</span><p>{{ formatDate(v.last_service_date) }}</p></div>
+
+            <div><span class="text-gray-500">Next Service</span><p>{{ formatDate(v.next_service_date) }}</p></div>
+
+            <div><span class="text-gray-500">Active</span><p><app-status-badge [status]="v.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="v.is_active ? 'Active' : 'Inactive'" /></p></div>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="space-y-4">
+
+          <div class="card p-6">
+
+            <h4 class="font-semibold mb-4">Performance Stats</h4>
+
+            <div class="space-y-3 text-sm">
+
+              <div class="flex justify-between"><span class="text-gray-500">Total Trips</span><span class="font-semibold">{{ statTrips(v) }}</span></div>
+
+              <div class="flex justify-between"><span class="text-gray-500">Total Distance</span><span class="font-semibold">{{ statKm(v) | number }} km</span></div>
+
+              <div class="flex justify-between"><span class="text-gray-500">Fuel This Month</span><span class="font-semibold">{{ formatCurrency(statFuel(v)) }}</span></div>
+
+            </div>
+
+          </div>
+
+
+
+          <div class="card p-6">
+
+            <h4 class="font-semibold mb-4">Compliance</h4>
+
+            <div class="space-y-3">
+
+              @for (item of [
+
+                { label: 'Insurance', date: v.insurance_expiry },
+
+                { label: 'Road Licence', date: v.road_licence_expiry },
+
+                { label: 'Next Service', date: v.next_service_date }
+
+              ]; track item.label) {
+
+                @let level = complianceLevel(item.date);
+
+                <div class="flex items-center justify-between p-3 rounded-xl border" [class]="complianceClass(level)">
+
+                  <div class="flex items-center gap-2">
+
+                    <span class="w-2.5 h-2.5 rounded-full shrink-0" [class]="complianceDotClass(level)"></span>
+
+                    <div>
+
+                      <p class="text-sm font-medium">{{ item.label }}</p>
+
+                      <p class="text-xs opacity-80">{{ formatDate(item.date) }}</p>
+
+                    </div>
+
+                  </div>
+
+                  <span class="text-xs font-semibold uppercase">{{ complianceLabel(level) }}</span>
+
+                </div>
+
+              }
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    }
+
+
+
+    @if (activeTab() === 'trips') {
+
+      @if (historyLoading()) {
+
+        <app-table-skeleton [cols]="6" />
+
+      } @else if (!hasTrips()) {
+
+        <div class="card"><app-empty-state title="No trip history" message="This vehicle has not completed any deliveries yet." /></div>
+
+      } @else {
+
+        <div class="table-container">
+
+          <table class="w-full">
+
+            <thead>
+
+              <tr>
+
+                <th class="table-th">DO Number</th>
+
+                <th class="table-th">Customer</th>
+
+                <th class="table-th">Destination</th>
+
+                <th class="table-th">Driver</th>
+
+                <th class="table-th">Distance</th>
+
+                <th class="table-th">Status</th>
+
+                <th class="table-th">Scheduled</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              @for (t of history()!.trips; track t.id) {
+
+                <tr class="table-row">
+
+                  <td class="table-td font-mono text-xs">
+
+                    <a [routerLink]="['/logistics/deliveries', t.id, 'view']" class="text-[#1B3A6B] hover:underline">{{ t.do_number }}</a>
+
+                  </td>
+
+                  <td class="table-td">{{ t.customer_name }}</td>
+
+                  <td class="table-td">{{ t.destination }}</td>
+
+                  <td class="table-td">{{ t.driver_name || '—' }}</td>
+
+                  <td class="table-td">{{ t.distance_km | number }} km</td>
+
+                  <td class="table-td"><app-status-badge [status]="t.status" /></td>
+
+                  <td class="table-td text-xs text-gray-500">{{ formatDateTime(t.scheduled_date) }}</td>
+
+                </tr>
+
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      }
+
+    }
+
+
+
+    @if (activeTab() === 'maintenance') {
+
+      @if (historyLoading()) {
+
+        <app-table-skeleton [cols]="5" />
+
+      } @else if (!hasMaintenance()) {
+
+        <div class="card"><app-empty-state title="No maintenance records" message="No maintenance has been recorded for this vehicle." /></div>
+
+      } @else {
+
+        <div class="table-container">
+
+          <table class="w-full">
+
+            <thead>
+
+              <tr>
+
+                <th class="table-th">Type</th>
+
+                <th class="table-th">Description</th>
+
+                <th class="table-th">Service Date</th>
+
+                <th class="table-th">Cost</th>
+
+                <th class="table-th">Status</th>
+
+                <th class="table-th">Performed By</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              @for (m of history()!.maintenance; track m.id) {
+
+                <tr class="table-row">
+
+                  <td class="table-td">{{ m.maintenance_type }}</td>
+
+                  <td class="table-td max-w-xs truncate">{{ m.description }}</td>
+
+                  <td class="table-td">{{ formatDate(m.service_date) }}</td>
+
+                  <td class="table-td">{{ formatCurrency(m.cost) }}</td>
+
+                  <td class="table-td"><app-status-badge [status]="m.status" /></td>
+
+                  <td class="table-td">{{ m.performed_by || '—' }}</td>
+
+                </tr>
+
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      }
+
+    }
+
+
+
+    @if (activeTab() === 'fuel') {
+
+      @if (historyLoading()) {
+
+        <app-table-skeleton [cols]="6" />
+
+      } @else if (!hasFuel()) {
+
+        <div class="card"><app-empty-state title="No fuel records" message="No fuel has been recorded for this vehicle." /></div>
+
+      } @else {
+
+        <div class="table-container">
+
+          <table class="w-full">
+
+            <thead>
+
+              <tr>
+
+                <th class="table-th">Date</th>
+
+                <th class="table-th">Driver</th>
+
+                <th class="table-th">Liters</th>
+
+                <th class="table-th">Cost/L</th>
+
+                <th class="table-th">Total</th>
+
+                <th class="table-th">Odometer</th>
+
+                <th class="table-th">Station</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              @for (f of history()!.fuel; track f.id) {
+
+                <tr class="table-row">
+
+                  <td class="table-td">{{ formatDate(f.date) }}</td>
+
+                  <td class="table-td">{{ f.driver_name || '—' }}</td>
+
+                  <td class="table-td">{{ f.liters | number:'1.1-1' }}</td>
+
+                  <td class="table-td">{{ formatCurrency(f.cost_per_liter) }}</td>
+
+                  <td class="table-td font-medium">{{ formatCurrency(f.total_cost) }}</td>
+
+                  <td class="table-td">{{ f.odometer_reading | number }} km</td>
+
+                  <td class="table-td">{{ f.station_name || '—' }}</td>
+
+                </tr>
+
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      }
+
+    }
+
+  }
+
+</div>
+
+

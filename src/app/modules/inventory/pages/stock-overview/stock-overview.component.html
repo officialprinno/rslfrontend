@@ -1,0 +1,90 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Stock Overview" subtitle="Real-time stock levels" [hasActions]="false" />
+
+  @if (summary(); as s) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div class="card-stat">
+        <p class="card-stat__value">{{ s.total_items }}</p>
+        <p class="card-stat__label">Total Items in Stock</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-red-600">{{ s.low_stock_count }}</p>
+        <p class="card-stat__label">Low Stock Items</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-red-600">{{ s.out_of_stock_count }}</p>
+        <p class="card-stat__label">Out of Stock Items</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-[#1B3A6B]">{{ formatCurrency(s.total_stock_value) }}</p>
+        <p class="card-stat__label">Total Stock Value</p>
+      </div>
+    </div>
+  }
+
+  <div class="card !p-4">
+    <div class="flex flex-col lg:flex-row gap-3">
+      <input type="search" class="search-field flex-1" placeholder="Search item..." [ngModel]="search()" (ngModelChange)="search.set($event)" (keyup.enter)="onSearch()" />
+      <select class="input-field !w-auto" [ngModel]="warehouseFilter()" (ngModelChange)="warehouseFilter.set($event); onSearch()">
+        <option value="">All Warehouses</option>
+        @for (w of warehouses(); track w.id) { <option [value]="w.id">{{ w.name }}</option> }
+      </select>
+      <select class="input-field !w-auto" [ngModel]="categoryFilter()" (ngModelChange)="categoryFilter.set($event); onSearch()">
+        <option value="">All Categories</option>
+        @for (c of categories(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+      </select>
+      <select class="input-field !w-auto" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); onSearch()">
+        <option value="ALL">All Status</option>
+        <option value="IN_STOCK">In Stock</option>
+        <option value="LOW_STOCK">Low Stock</option>
+        <option value="OUT_OF_STOCK">Out of Stock</option>
+      </select>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export</button>
+    </div>
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="10" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!stock().length) {
+    <div class="card"><app-empty-state title="No stock records" message="Stock will appear when items are received into warehouses." /></div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Item Code</th>
+              <th class="table-th">Item Name</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Qty on Hand</th>
+              <th class="table-th">Qty Reserved</th>
+              <th class="table-th">Qty Available</th>
+              <th class="table-th">Reorder Level</th>
+              <th class="table-th">Unit Cost</th>
+              <th class="table-th">Total Value</th>
+              <th class="table-th">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of stock(); track row.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-xs">{{ row.item_code }}</td>
+                <td class="table-td font-medium">{{ row.item_name }}</td>
+                <td class="table-td">{{ row.warehouse_name }}</td>
+                <td class="table-td">{{ formatNumber(row.quantity_on_hand) }}</td>
+                <td class="table-td">{{ formatNumber(row.quantity_reserved) }}</td>
+                <td class="table-td" [class]="qtyClass(row)">{{ formatNumber(row.quantity_available) }}</td>
+                <td class="table-td">{{ formatNumber(row.reorder_level) }}</td>
+                <td class="table-td">{{ formatCurrency(row.unit_cost) }}</td>
+                <td class="table-td font-medium">{{ formatCurrency(row.total_value) }}</td>
+                <td class="table-td"><app-stock-status-badge [status]="row.status" /></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+    </div>
+  }
+</div>

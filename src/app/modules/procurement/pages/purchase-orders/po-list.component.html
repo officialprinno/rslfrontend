@@ -1,0 +1,64 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Purchase Orders">
+    @if (canAdd()) { <a routerLink="/procurement/purchase-orders/new" class="btn-primary">New PO</a> }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input type="text" class="input-field flex-1 min-w-[180px]" placeholder="Search PO number..." [ngModel]="search()" (ngModelChange)="search.set($event); load()" />
+    <select class="input-field w-40" [ngModel]="supplierFilter()" (ngModelChange)="supplierFilter.set($event ? +$event : ''); load()">
+      <option value="">All Suppliers</option>
+      @for (s of suppliers(); track s.id) { <option [value]="s.id">{{ s.name }}</option> }
+    </select>
+    <select class="input-field w-36" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); load()">
+      <option value="">All Status</option>
+      @for (st of ['DRAFT','PENDING','APPROVED','SENT','PARTIAL','RECEIVED','CANCELLED']; track st) {
+        <option [value]="st">{{ st }}</option>
+      }
+    </select>
+    <input type="date" class="input-field w-36" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event); load()" />
+    <input type="date" class="input-field w-36" [ngModel]="dateAfter()" (ngModelChange)="dateAfter.set($event); load()" />
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (!orders().length) {
+    <div class="card"><app-empty-state title="No purchase orders" message="Create a PO from a quotation or manually." actionLabel="New PO" (actionClick)="null" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">PO Number</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">Order Date</th>
+            <th class="table-th">Expected Delivery</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Approved By</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (po of orders(); track po.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ po.po_number }}</td>
+              <td class="table-td">{{ po.supplier_name }}</td>
+              <td class="table-td">{{ formatDate(po.order_date) }}</td>
+              <td class="table-td">{{ formatDate(po.expected_delivery) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(po.total_amount, po.currency_code) }}</td>
+              <td class="table-td"><app-status-badge [status]="po.status" /></td>
+              <td class="table-td text-sm">{{ po.approved_by_name || '—' }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/procurement/purchase-orders', po.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (po.status === 'DRAFT') {
+                  <a [routerLink]="['/procurement/purchase-orders', po.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [page]="page()" [pageSize]="10" [total]="total()" (pageChange)="page.set($event); load()" />
+    </div>
+  }
+</div>

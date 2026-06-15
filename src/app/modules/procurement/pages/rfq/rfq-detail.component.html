@@ -1,0 +1,85 @@
+<div class="page-container">
+  <app-procurement-nav />
+  @if (rfq(); as r) {
+    <app-page-header [title]="r.rfq_number" subtitle="Linked PR: {{ r.pr_number }}">
+      <a routerLink="/procurement/rfq" class="btn-secondary">Back</a>
+    </app-page-header>
+    <app-workflow-stepper [steps]="rfqSteps" [activeIndex]="workflowIndex(r.status)" />
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="card p-6">
+        <h4 class="font-semibold mb-4">RFQ Details</h4>
+        <div class="text-sm space-y-2 mb-4">
+          <p><span class="text-gray-500">Deadline:</span> {{ formatDate(r.deadline) }}</p>
+          <p><span class="text-gray-500">Status:</span> <app-status-badge [status]="r.status" /></p>
+          <p><span class="text-gray-500">Notes:</span> {{ r.notes || '—' }}</p>
+        </div>
+        <h5 class="font-medium mb-2">Items from PR</h5>
+        <table class="w-full text-sm">
+          <thead><tr><th class="table-th">Item</th><th class="table-th">Qty</th><th class="table-th">Est.</th></tr></thead>
+          <tbody>
+            @for (item of r.items; track item.id) {
+              <tr class="table-row">
+                <td class="table-td">{{ item.item_code }}</td>
+                <td class="table-td">{{ item.quantity_requested }}</td>
+                <td class="table-td">{{ formatCurrency(item.total_estimate) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card p-6">
+        <h4 class="font-semibold mb-4">Supplier Responses</h4>
+        <table class="w-full text-sm">
+          <thead>
+            <tr>
+              <th class="table-th">Supplier</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Amount</th>
+              <th class="table-th">Delivery</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (q of quotations(); track q.id) {
+              <tr class="table-row">
+                <td class="table-td">{{ q.supplier_name }}</td>
+                <td class="table-td"><app-status-badge [status]="q.status" /></td>
+                <td class="table-td font-semibold">{{ formatCurrency(q.total_amount, q.currency_code) }}</td>
+                <td class="table-td">{{ q.delivery_days }} days</td>
+                <td class="table-td">
+                  @if (q.status === 'PENDING') {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="selectWinner(q)">Select Winner</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (respondedQuotations().length >= 2) {
+          <div class="mt-6">
+            <h5 class="font-medium mb-2">Price Comparison</h5>
+            <table class="w-full text-sm">
+              <thead><tr><th class="table-th">Supplier</th><th class="table-th">Total</th></tr></thead>
+              <tbody>
+                @for (q of respondedQuotations(); track q.id) {
+                  <tr class="table-row" [class.bg-green-50]="isLowestPrice(q)">
+                    <td class="table-td">{{ q.supplier_name }}</td>
+                    <td class="table-td font-semibold">
+                      {{ formatCurrency(q.total_amount, q.currency_code) }}
+                      @if (isLowestPrice(q)) {
+                        <span class="badge bg-green-100 text-green-800 ml-2">Recommended</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

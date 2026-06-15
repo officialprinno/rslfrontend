@@ -1,0 +1,142 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Machine Usage">
+    @if (canLog()) {
+      <button type="button" class="btn-primary" (click)="openLog()">Log Usage</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search WO or operator..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-48"
+      [ngModel]="machineFilter()"
+      (ngModelChange)="machineFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Machines</option>
+      @for (m of machines(); track m.id) {
+        <option [value]="m.id">{{ m.machine_code }} — {{ m.name }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!records().length) {
+    <div class="card">
+      <app-empty-state
+        title="No usage records"
+        message="Log machine hours against active work orders."
+        actionLabel="Log Usage"
+        (actionClick)="openLog()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Machine</th>
+            <th class="table-th">Work Order</th>
+            <th class="table-th">Operator</th>
+            <th class="table-th">Start</th>
+            <th class="table-th">End</th>
+            <th class="table-th">Hours</th>
+            <th class="table-th">Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (rec of records(); track rec.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">
+                <a [routerLink]="['/production/machines', rec.machine_id]" class="text-[#1B3A6B] hover:underline">
+                  {{ rec.machine_name }}
+                </a>
+              </td>
+              <td class="table-td">
+                <a [routerLink]="['/production/work-orders', rec.wo_id, 'view']" class="text-[#1B3A6B] hover:underline">
+                  {{ rec.wo_number }}
+                </a>
+              </td>
+              <td class="table-td">{{ rec.operator_name }}</td>
+              <td class="table-td text-sm">{{ formatDateTime(rec.start_time) }}</td>
+              <td class="table-td text-sm">{{ formatDateTime(rec.end_time) }}</td>
+              <td class="table-td font-semibold">{{ rec.hours_used }}</td>
+              <td class="table-td text-sm text-gray-500">{{ rec.notes || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showLog()" title="Log Machine Usage" size="lg" (close)="showLog.set(false)">
+  <form [formGroup]="logForm" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Machine *</label>
+        <select formControlName="machine" class="input-field">
+          <option [ngValue]="null">Select machine</option>
+          @for (m of machines(); track m.id) {
+            <option [ngValue]="m.id">{{ m.machine_code }} — {{ m.name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Work Order *</label>
+        <select formControlName="work_order" class="input-field">
+          <option [ngValue]="null">Select work order</option>
+          @for (wo of workOrders(); track wo.id) {
+            <option [ngValue]="wo.id">{{ wo.wo_number }} — {{ wo.product_name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Operator *</label>
+        <select formControlName="operator" class="input-field">
+          <option [ngValue]="null">Select operator</option>
+          @for (op of operators(); track op.id) {
+            <option [ngValue]="op.id">{{ op.full_name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Hours Used</label>
+        <input type="number" formControlName="hours_used" class="input-field bg-gray-50" readonly />
+        <p class="text-xs text-gray-400 mt-1">Auto-calculated from start and end times</p>
+      </div>
+      <div>
+        <label class="input-label">Start Time *</label>
+        <input type="datetime-local" formControlName="start_time" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">End Time *</label>
+        <input type="datetime-local" formControlName="end_time" class="input-field" />
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showLog.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveLog()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Log Usage ({{ hoursPreview() }} hrs)
+    </button>
+  </div>
+</app-modal>

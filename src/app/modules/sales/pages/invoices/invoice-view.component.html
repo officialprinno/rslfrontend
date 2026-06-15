@@ -1,0 +1,153 @@
+<div class="page-container">
+  <app-sales-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load invoice" (retry)="load()" />
+  } @else if (invoice(); as inv) {
+    <app-page-header [title]="inv.invoice_number" [subtitle]="inv.customer_name">
+      <button type="button" class="btn-ghost" (click)="printInvoice()">Print</button>
+      <button type="button" class="btn-primary" (click)="exportPdf()">Export PDF</button>
+      <a routerLink="/sales/invoices" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="invoiceSteps" [activeIndex]="workflowIndex(inv.status)" />
+
+    <div id="invoice-print-area" class="card p-6 mb-6">
+      <div class="border-b-2 border-[#1B3A6B] pb-4 mb-6">
+        <div class="flex flex-wrap justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-[#1B3A6B]">{{ company.name }}</h2>
+            <p class="text-xs text-gray-600">TIN: {{ company.tin }} | VRN: {{ company.vat }}</p>
+            <p class="text-xs text-gray-600">{{ company.address }}</p>
+          </div>
+          <div class="text-right">
+            <h3 class="text-xl font-bold text-[#1B3A6B]">TAX INVOICE</h3>
+            <p class="text-sm font-medium">{{ inv.invoice_number }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm mb-6">
+        <div>
+          <span class="text-gray-500 block text-xs">Bill To</span>
+          <p class="font-semibold">{{ inv.customer_name }}</p>
+          <p class="text-xs">TIN: {{ inv.customer_tin }}</p>
+        </div>
+        <div>
+          <span class="text-gray-500 block text-xs">Invoice Date</span>
+          <p>{{ formatDate(inv.invoice_date) }}</p>
+        </div>
+        <div>
+          <span class="text-gray-500 block text-xs">Due Date</span>
+          <p>{{ formatDate(inv.due_date) }}</p>
+        </div>
+        <div>
+          <span class="text-gray-500 block text-xs">Sales Order</span>
+          <p>{{ inv.so_number || '—' }}</p>
+        </div>
+        <div>
+          <span class="text-gray-500 block text-xs">TRA Receipt No.</span>
+          <p>{{ inv.tra_receipt_number || 'Pending issuance' }}</p>
+        </div>
+        <div>
+          <span class="text-gray-500 block text-xs">Status</span>
+          <p><app-status-badge [status]="inv.status" /></p>
+        </div>
+      </div>
+
+      <table class="w-full text-sm mb-4">
+        <thead>
+          <tr>
+            <th class="table-th">#</th>
+            <th class="table-th">Description</th>
+            <th class="table-th">Qty</th>
+            <th class="table-th">Unit Price</th>
+            <th class="table-th">Disc %</th>
+            <th class="table-th">Tax %</th>
+            <th class="table-th">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of inv.items; track item.id; let idx = $index) {
+            <tr class="table-row">
+              <td class="table-td">{{ idx + 1 }}</td>
+              <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
+              <td class="table-td">{{ item.quantity }}</td>
+              <td class="table-td">{{ formatCurrency(item.unit_price, inv.currency_code) }}</td>
+              <td class="table-td">{{ item.discount_percent }}%</td>
+              <td class="table-td">{{ item.tax_rate }}%</td>
+              <td class="table-td font-semibold">{{ formatCurrency(item.total_price, inv.currency_code) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (inv.delivery_cost) {
+        <div class="text-sm mb-4 px-2">
+          <div class="flex justify-between py-2 border-t border-dashed">
+            <span>Delivery Cost</span>
+            <span class="font-semibold">{{ formatCurrency(inv.delivery_cost, inv.currency_code) }}</span>
+          </div>
+        </div>
+      }
+
+      <div class="flex justify-end">
+        <div class="text-sm space-y-1 w-64">
+          <div class="flex justify-between"><span>Subtotal</span><span>{{ formatCurrency(inv.subtotal, inv.currency_code) }}</span></div>
+          <div class="flex justify-between"><span>VAT (18%)</span><span>{{ formatCurrency(inv.tax_amount, inv.currency_code) }}</span></div>
+          <div class="flex justify-between font-bold text-base border-t pt-2">
+            <span>Total</span><span>{{ formatCurrency(inv.total_amount, inv.currency_code) }}</span>
+          </div>
+          <div class="flex justify-between text-gray-600"><span>Paid</span><span>{{ formatCurrency(inv.paid_amount, inv.currency_code) }}</span></div>
+          <div class="flex justify-between font-bold text-[#1B3A6B]">
+            <span>Balance Due</span><span>{{ formatCurrency(inv.balance, inv.currency_code) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="text-xs text-gray-500 mt-8 border-t pt-4">
+        This tax invoice is issued in compliance with Tanzania Revenue Authority (TRA) requirements.
+        {{ company.name }} — TIN {{ company.tin }}, VRN {{ company.vat }}.
+      </p>
+    </div>
+
+    <div class="flex gap-2 flex-wrap">
+      @if (inv.status === 'DRAFT' && canManage()) {
+        <a [routerLink]="['/sales/invoices', inv.id, 'edit']" class="btn-secondary">Edit</a>
+        <button type="button" class="btn-primary" (click)="issue()">Issue Invoice</button>
+      }
+      @if (inv.status === 'SENT' || inv.status === 'PARTIAL' || inv.status === 'OVERDUE') {
+        @if (canManage()) {
+          <button type="button" class="btn-secondary" (click)="send()">Send to Customer</button>
+        }
+      }
+      @if (inv.balance > 0 && canPay()) {
+        <button type="button" class="btn-primary" (click)="openPayment()">Record Payment</button>
+      }
+    </div>
+  }
+</div>
+
+<app-modal [open]="showPayment()" title="Record Payment" (close)="showPayment.set(false)">
+  <form [formGroup]="paymentForm" class="space-y-4">
+    <div><label class="input-label">Amount *</label><input type="number" formControlName="amount" class="input-field" /></div>
+    <div><label class="input-label">Payment Date *</label><input type="date" formControlName="payment_date" class="input-field" /></div>
+    <div>
+      <label class="input-label">Method *</label>
+      <select formControlName="payment_method" class="input-field">
+        @for (m of paymentMethods; track m.value) {
+          <option [value]="m.value">{{ m.label }}</option>
+        }
+      </select>
+    </div>
+    <div><label class="input-label">Reference Number</label><input formControlName="reference_number" class="input-field" /></div>
+    <div><label class="input-label">Bank Name</label><input formControlName="bank_name" class="input-field" /></div>
+    <div><label class="input-label">Notes</label><textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea></div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showPayment.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingPayment()" (click)="submitPayment()">Record Payment</button>
+  </div>
+</app-modal>

@@ -1,0 +1,175 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Customers" subtitle="Manage mining customers">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Customer</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[200px]">
+        <label class="input-label">Search</label>
+        <input type="text" class="input-field" placeholder="Name, TIN, mine..." [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1); load()" />
+      </div>
+      <div class="w-40">
+        <label class="input-label">Country</label>
+        <select class="input-field" [ngModel]="countryFilter()" (ngModelChange)="countryFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (c of countries; track c) { <option [value]="c">{{ c }}</option> }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div class="w-40">
+        <label class="input-label">Payment Terms</label>
+        <select class="input-field" [ngModel]="paymentTermsFilter()" (ngModelChange)="paymentTermsFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (t of paymentTerms; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+        </select>
+      </div>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="12" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!customers().length) {
+    <div class="card">
+      <app-empty-state title="No customers" message="Register customers to begin sales." [actionLabel]="canAdd() ? 'Add Customer' : ''" (actionClick)="openAdd()" />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Name</th>
+              <th class="table-th">TIN</th>
+              <th class="table-th">Mine Name</th>
+              <th class="table-th">Mine Location</th>
+              <th class="table-th">Email</th>
+              <th class="table-th">Phone</th>
+              <th class="table-th">Currency</th>
+              <th class="table-th">Credit Limit</th>
+              <th class="table-th">Credit Balance</th>
+              <th class="table-th">Payment Terms</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of customers(); track c.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ c.name }}</td>
+                <td class="table-td">{{ c.tin_number }}</td>
+                <td class="table-td">{{ c.mine_name }}</td>
+                <td class="table-td">{{ c.mine_location || '—' }}</td>
+                <td class="table-td">{{ c.email }}</td>
+                <td class="table-td">{{ c.phone }}</td>
+                <td class="table-td">{{ c.currency_code }}</td>
+                <td class="table-td">{{ formatCurrency(c.credit_limit, c.currency_code) }}</td>
+                <td class="table-td font-semibold" [class.text-green-600]="c.credit_balance > 0" [class.text-red-600]="c.credit_balance <= 0">
+                  {{ formatCurrency(c.credit_balance, c.currency_code) }}
+                </td>
+                <td class="table-td"><app-payment-terms-badge [terms]="$any(c.payment_terms)" /></td>
+                <td class="table-td"><app-status-badge [status]="c.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="c.is_active ? 'Active' : 'Inactive'" /></td>
+                <td class="table-td">
+                  <div class="flex gap-1">
+                    <a [routerLink]="['/sales/customers', c.id]" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                    @if (canAdd()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(c)">Edit</button>
+                    }
+                    @if (canDelete()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(c)">Delete</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showForm()" [title]="editing() ? 'Edit Customer' : 'Add Customer'" size="xl" (close)="showForm.set(false)">
+  <form [formGroup]="form" class="space-y-6">
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Company Info</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="md:col-span-2">
+          <label class="input-label">Company Name *</label>
+          <input type="text" formControlName="name" class="input-field" />
+        </div>
+        <div><label class="input-label">Registration Number</label><input type="text" formControlName="registration_number" class="input-field" /></div>
+        <div><label class="input-label">TIN Number *</label><input type="text" formControlName="tin_number" class="input-field" /></div>
+        <div><label class="input-label">VAT Number</label><input type="text" formControlName="vat_number" class="input-field" /></div>
+        <div>
+          <label class="input-label">Country *</label>
+          <select formControlName="country" class="input-field">
+            @for (c of countries; track c) { <option [value]="c">{{ c }}</option> }
+          </select>
+        </div>
+        <div><label class="input-label">City</label><input type="text" formControlName="city" class="input-field" /></div>
+        <div class="md:col-span-2"><label class="input-label">Address</label><textarea formControlName="address" rows="2" class="input-field resize-none"></textarea></div>
+      </div>
+    </div>
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Mine Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="input-label">Mine Name *</label><input type="text" formControlName="mine_name" class="input-field" /></div>
+        <div><label class="input-label">Mine Location</label><input type="text" formControlName="mine_location" class="input-field" /></div>
+        <div>
+          <label class="input-label">Mine Type *</label>
+          <select formControlName="mine_type" class="input-field">
+            @for (m of mineTypes; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+          </select>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Contact</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="input-label">Email *</label><input type="email" formControlName="email" class="input-field" /></div>
+        <div><label class="input-label">Phone *</label><input type="text" formControlName="phone" class="input-field" /></div>
+        <div><label class="input-label">Contact Person</label><input type="text" formControlName="contact_person" class="input-field" /></div>
+        <div><label class="input-label">Contact Phone</label><input type="text" formControlName="contact_phone" class="input-field" /></div>
+      </div>
+    </div>
+    <div>
+      <h4 class="text-sm font-semibold text-gray-900 mb-3">Financial</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Currency *</label>
+          <select formControlName="currency" class="input-field">
+            <option [ngValue]="null">Select currency</option>
+            @for (cur of currencies(); track cur.id) { <option [ngValue]="cur.id">{{ cur.code }} — {{ cur.name }}</option> }
+          </select>
+        </div>
+        <div><label class="input-label">Credit Limit *</label><input type="number" formControlName="credit_limit" class="input-field" /></div>
+        <div>
+          <label class="input-label">Payment Terms *</label>
+          <select formControlName="payment_terms" class="input-field">
+            @for (t of paymentTerms; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+          </select>
+        </div>
+      </div>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>

@@ -1,0 +1,109 @@
+<div class="card p-6 border-l-4 border-l-orange-500">
+  <h4 class="font-semibold text-[#1B3A6B] mb-2">Logistics Actions — {{ order().so_number }}</h4>
+  <p class="text-sm text-gray-500 mb-4">
+    Status: <strong>{{ order().status }}</strong>
+    · Customer: <strong>{{ order().customer_name }}</strong>
+  </p>
+
+  @if (order().status === 'DELIVERY_COST_CALC') {
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+      <div><label class="input-label">Distance (km)</label><input type="number" class="input-field" [(ngModel)]="deliveryCost.delivery_distance_km" /></div>
+      <div><label class="input-label">Transport</label>
+        <select class="input-field" [(ngModel)]="deliveryCost.transport_method">
+          @for (m of transportMethods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+        </select>
+      </div>
+      <div><label class="input-label">Vehicle Type</label><input class="input-field" [(ngModel)]="deliveryCost.vehicle_type" /></div>
+      <div><label class="input-label">Fuel Cost</label><input type="number" class="input-field" [(ngModel)]="deliveryCost.fuel_cost" /></div>
+      <div><label class="input-label">Loading</label><input type="number" class="input-field" [(ngModel)]="deliveryCost.loading_cost" /></div>
+      <div><label class="input-label">Offloading</label><input type="number" class="input-field" [(ngModel)]="deliveryCost.offloading_cost" /></div>
+      <div><label class="input-label">Additional</label><input type="number" class="input-field" [(ngModel)]="deliveryCost.additional_charges" /></div>
+      <div class="md:col-span-3"><label class="input-label">Notes</label><input class="input-field" [(ngModel)]="deliveryCost.notes" /></div>
+    </div>
+    <p class="text-xs text-gray-500 mb-3">Destination: {{ order().requested_delivery_location || order().delivery_address || '—' }}</p>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="calculateDeliveryCost()">
+      Submit Delivery Cost to Sales
+    </button>
+  }
+
+  @if (order().status === 'PAYMENT_CONFIRMED') {
+    <div class="flex gap-2 items-end flex-wrap mb-3">
+      <select class="input-field !w-auto" [(ngModel)]="deliveryMethod">
+        @for (m of deliveryMethods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+      </select>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="setDeliveryMethod()">Set Delivery Method</button>
+    </div>
+  }
+
+  @if (order().status === 'READY_FOR_DELIVERY') {
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+      <div>
+        <label class="input-label">Vehicle *</label>
+        @if (loadingFleet()) {
+          <p class="text-sm text-gray-500 py-2">Loading available vehicles…</p>
+        } @else {
+          <app-searchable-select
+            placeholder="Search vehicle by registration…"
+            [options]="vehicleOptions()"
+            [value]="vehicleForm.vehicle_id"
+            (valueChange)="onVehicleSelected($event)"
+          />
+          <p class="text-xs text-gray-500 mt-1">Available vehicles only.</p>
+        }
+      </div>
+      <div>
+        <label class="input-label">Driver *</label>
+        @if (loadingFleet()) {
+          <p class="text-sm text-gray-500 py-2">Loading available drivers…</p>
+        } @else {
+          <app-searchable-select
+            placeholder="Search driver by name…"
+            [options]="driverOptions()"
+            [value]="vehicleForm.driver_id"
+            (valueChange)="onDriverSelected($event)"
+          />
+          <p class="text-xs text-gray-500 mt-1">Available drivers only.</p>
+        }
+      </div>
+      @if (vehicleForm.driver_phone) {
+        <div class="md:col-span-2">
+          <label class="input-label">Driver Phone</label>
+          <input class="input-field" [(ngModel)]="vehicleForm.driver_phone" readonly />
+        </div>
+      }
+      <div class="md:col-span-2 border-t pt-3 mt-1">
+        <p class="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Or assign third party</p>
+      </div>
+      <div class="md:col-span-2"><label class="input-label">Transport Company</label><input class="input-field" [(ngModel)]="thirdPartyForm.transport_company" /></div>
+      <div><label class="input-label">Tracking #</label><input class="input-field" [(ngModel)]="thirdPartyForm.tracking_number" /></div>
+      <div><label class="input-label">Contact Phone</label><input class="input-field" [(ngModel)]="thirdPartyForm.contact_phone" /></div>
+    </div>
+    <button type="button" class="btn-primary mr-2" [disabled]="saving() || loadingFleet()" (click)="assignVehicle()">Assign Company Vehicle</button>
+    <button type="button" class="btn-secondary" [disabled]="saving()" (click)="assignThirdParty()">Assign Third Party</button>
+  }
+
+  @if (order().status === 'READY_FOR_PICKUP' || order().status === 'VEHICLE_ASSIGNED' || order().status === 'THIRD_PARTY_ASSIGNED') {
+    <button type="button" class="btn-primary mb-3" [disabled]="saving()" (click)="dispatch()">Dispatch / Release Stock</button>
+  }
+
+  @if (order().status === 'READY_FOR_PICKUP' || order().status === 'DISPATCHED') {
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div><label class="input-label">Pickup Date</label><input type="date" class="input-field" [(ngModel)]="pickupForm.pickup_date" /></div>
+      <div><label class="input-label">Receiver Name</label><input class="input-field" [(ngModel)]="pickupForm.receiver_name" /></div>
+      <div><label class="input-label">Receiver Phone</label><input class="input-field" [(ngModel)]="pickupForm.receiver_phone" /></div>
+    </div>
+    <button type="button" class="btn-primary mb-3" [disabled]="saving()" (click)="confirmPickup()">Confirm Customer Pickup</button>
+  }
+
+  @if (order().status === 'IN_TRANSIT' || order().status === 'DISPATCHED') {
+    <div class="grid grid-cols-2 gap-3 mb-3">
+      <div><label class="input-label">Receiver Name</label><input class="input-field" [(ngModel)]="deliveryForm.receiver_name" /></div>
+      <div><label class="input-label">Receiver Phone</label><input class="input-field" [(ngModel)]="deliveryForm.receiver_phone" /></div>
+    </div>
+    <button type="button" class="btn-primary mb-3" [disabled]="saving()" (click)="confirmDelivery()">Confirm Delivered</button>
+  }
+
+  @if (order().status === 'DELIVERED') {
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="logisticsConfirm()">Logistics Confirm</button>
+  }
+</div>

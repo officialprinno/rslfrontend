@@ -1,0 +1,146 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Work Orders">
+    @if (canAdd()) {
+      <a routerLink="/production/work-orders/new" class="btn-primary">New Work Order</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search WO number..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-40"
+      [ngModel]="productFilter()"
+      (ngModelChange)="productFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Products</option>
+      @for (p of products(); track p.id) {
+        <option [value]="p.id">{{ p.name }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-36"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st.replace('_', ' ') }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-36"
+      [ngModel]="shiftFilter()"
+      (ngModelChange)="shiftFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Shifts</option>
+      @for (s of shifts; track s.value) {
+        <option [value]="s.value">{{ s.label }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="9" />
+  } @else if (!workOrders().length) {
+    <div class="card">
+      <app-empty-state
+        title="No work orders"
+        message="Create a work order to schedule production runs."
+        actionLabel="New Work Order"
+        (actionClick)="null"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">WO Number</th>
+            <th class="table-th">Product</th>
+            <th class="table-th">Shift</th>
+            <th class="table-th">Planned Qty</th>
+            <th class="table-th">Progress</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Operator</th>
+            <th class="table-th">Planned Start</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (wo of workOrders(); track wo.id) {
+            <tr
+              class="table-row"
+              [class]="wo.status === 'IN_PROGRESS' ? 'animate-pulse bg-blue-50/30' : ''"
+            >
+              <td class="table-td font-medium">{{ wo.wo_number }}</td>
+              <td class="table-td">{{ wo.product_name }}</td>
+              <td class="table-td">
+                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" [class]="shiftColor()(wo.shift)">
+                  {{ shiftLabel()(wo.shift) }}
+                </span>
+              </td>
+              <td class="table-td">{{ wo.quantity_planned }}</td>
+              <td class="table-td min-w-[120px]">
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all"
+                      [class]="wo.status === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-emerald-500'"
+                      [style.width.%]="wo.progress_percent"
+                    ></div>
+                  </div>
+                  <span class="text-xs text-gray-500 w-8">{{ wo.progress_percent }}%</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-0.5">
+                  {{ wo.quantity_produced }} / {{ wo.quantity_planned }} produced
+                </p>
+              </td>
+              <td class="table-td">
+                <app-status-badge [status]="wo.status" [label]="wo.status.replace('_', ' ')" />
+              </td>
+              <td class="table-td text-sm">{{ wo.operator_name }}</td>
+              <td class="table-td text-sm">{{ formatDateTime(wo.planned_start) }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/production/work-orders', wo.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (wo.status === 'DRAFT') {
+                  <a [routerLink]="['/production/work-orders', wo.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-blue-700" (click)="submitWo(wo)">
+                    Submit
+                  </button>
+                }
+                @if (wo.status === 'DRAFT' && canApprove()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="approveWo(wo)">
+                    Approve
+                  </button>
+                }
+                @if (wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED') {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="cancelWo(wo)">
+                    Cancel
+                  </button>
+                }
+                @if (wo.status === 'DRAFT' && canDelete()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="deleteWo(wo)">
+                    Delete
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

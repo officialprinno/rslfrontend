@@ -1,0 +1,87 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header
+    title="Internal Issue"
+    subtitle="Issue approved requisitions — stock deducts only on confirmed issue"
+  />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="5" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load issue queue" (retry)="load()" />
+  } @else if (!queue().length) {
+    <app-empty-state title="No approved requests" message="Approved requisitions awaiting issue appear here." />
+  } @else {
+    <div class="space-y-4">
+      @for (req of queue(); track req.id) {
+        <div class="card p-5">
+          <div class="flex flex-wrap justify-between gap-3 mb-4">
+            <div>
+              <p class="font-semibold text-[#1B3A6B]">{{ req.request_number }}</p>
+              <p class="text-sm text-gray-500">
+                {{ req.department }} · {{ req.requested_by_name }} · Approved {{ formatDateTime(req.approved_at!) }}
+              </p>
+            </div>
+            <app-status-badge [status]="req.status" />
+          </div>
+
+          <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-gray-500 border-b">
+                  <th class="pb-2">Item</th>
+                  <th class="pb-2">Remaining</th>
+                  <th class="pb-2">Available</th>
+                  <th class="pb-2">Issue Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of req.lines; track line.id) {
+                  <tr class="border-b border-gray-50" [class.bg-amber-50]="isLowStock(line)">
+                    <td class="py-2">{{ line.item_code }} — {{ line.item_name }}</td>
+                    <td class="py-2">{{ formatNumber(line.remaining_qty ?? line.requested_qty ?? line.quantity) }}</td>
+                    <td class="py-2" [class.text-red-600]="isLowStock(line)">
+                      {{ formatNumber(line.available_stock ?? 0) }}
+                      @if (isLowStock(line)) {
+                        <span class="text-xs block">Low stock</span>
+                      }
+                    </td>
+                    <td class="py-2">
+                      <input
+                        type="number"
+                        class="input w-24"
+                        min="0"
+                        step="0.0001"
+                        [value]="issueQty()[line.id] ?? line.remaining_qty ?? line.requested_qty ?? line.quantity"
+                        (input)="setIssueQty(line.id, +$any($event.target).value)"
+                      />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="btn-primary text-sm"
+              [disabled]="issuing() === req.id"
+              (click)="issueFull(req)"
+            >
+              Issue Full & Generate GIN
+            </button>
+            <button
+              type="button"
+              class="btn-secondary text-sm"
+              [disabled]="issuing() === req.id"
+              (click)="issuePartial(req)"
+            >
+              Partial Issue
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

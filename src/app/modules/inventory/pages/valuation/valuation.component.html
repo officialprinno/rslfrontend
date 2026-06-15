@@ -1,0 +1,101 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Inventory Valuation">
+    <div class="flex items-center gap-3">
+      <select class="input-field !w-auto" [ngModel]="method()" (ngModelChange)="onMethodChange($event)">
+        @for (m of methods; track m.value) {
+          <option [value]="m.value">{{ m.label }}</option>
+        }
+      </select>
+      @if (report()) {
+        <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+      }
+    </div>
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="4" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!report()) {
+    <div class="card"><app-empty-state title="No valuation data" message="Valuation report could not be generated." /></div>
+  } @else {
+    <div class="card mb-6 p-6">
+      <p class="text-sm text-gray-500 mb-1">Total Inventory Value ({{ report()!.method }})</p>
+      <p class="text-3xl font-bold text-[#1B3A6B]">{{ formatCurrency(report()!.total_value) }}</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="table-container">
+        <h3 class="px-4 pt-4 text-sm font-semibold text-gray-700">By Category</h3>
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Category</th>
+              <th class="table-th text-right">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of report()!.by_category; track row.category) {
+              <tr class="table-row">
+                <td class="table-td">{{ row.category }}</td>
+                <td class="table-td text-right font-semibold">{{ formatCurrency(row.value) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-container">
+        <h3 class="px-4 pt-4 text-sm font-semibold text-gray-700">By Warehouse</h3>
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th text-right">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of report()!.by_warehouse; track row.warehouse) {
+              <tr class="table-row">
+                <td class="table-td">{{ row.warehouse }}</td>
+                <td class="table-td text-right font-semibold">{{ formatCurrency(row.value) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <h3 class="px-4 pt-4 text-sm font-semibold text-gray-700">Item Detail</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Item</th>
+              <th class="table-th">Category</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Unit Cost</th>
+              <th class="table-th text-right">Total Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of report()!.items; track item.item_code + item.warehouse) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <div class="font-mono text-sm">{{ item.item_code }}</div>
+                  <div class="text-xs text-gray-500">{{ item.item_name }}</div>
+                </td>
+                <td class="table-td">{{ item.category }}</td>
+                <td class="table-td">{{ item.warehouse }}</td>
+                <td class="table-td">{{ formatNumber(item.quantity) }}</td>
+                <td class="table-td">{{ formatCurrency(item.unit_cost) }}</td>
+                <td class="table-td text-right font-semibold">{{ formatCurrency(item.total_value) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

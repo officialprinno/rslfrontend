@@ -1,0 +1,30 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Inventory Reports" />
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    @for (card of cards; track card.route) {
+      <div class="card p-5 flex flex-col">
+        <h3 class="font-semibold text-gray-900 mb-1">{{ card.title }}</h3>
+        <p class="text-sm text-gray-500 mb-4 flex-1">{{ card.description }}</p>
+        <div class="flex gap-2">
+          <a [routerLink]="card.route" class="btn-primary !text-sm">View Report</a>
+          @if (card.exportable && card.exportKey) {
+            <button
+              type="button"
+              class="btn-ghost !text-sm"
+              [disabled]="exporting() === card.exportKey"
+              (click)="exportReport(card.exportKey!)"
+            >
+              @if (exporting() === card.exportKey) {
+                <span class="spinner spinner-sm"></span>
+              } @else {
+                Export
+              }
+            </button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>

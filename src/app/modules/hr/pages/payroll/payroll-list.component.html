@@ -1,0 +1,84 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Payroll" subtitle="Monthly payroll runs">
+    @if (canProcess()) {
+      <a routerLink="/hr/payroll/new" class="btn-primary">New Payroll</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          <option value="DRAFT">Draft</option>
+          <option value="REVIEWED">Reviewed</option>
+          <option value="APPROVED">Approved</option>
+          <option value="PAID">Paid</option>
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Year</label>
+        <input
+          type="number"
+          class="input-field"
+          placeholder="e.g. 2026"
+          [ngModel]="yearFilter()"
+          (ngModelChange)="yearFilter.set($event); page.set(1); load()"
+        />
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!payrolls().length) {
+    <div class="card">
+      <app-empty-state title="No payroll runs" message="Generate a new payroll to get started." />
+    </div>
+  } @else {
+    <div class="table-container mb-4">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Payroll #</th>
+            <th class="table-th">Period</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Employees</th>
+            <th class="table-th">Gross</th>
+            <th class="table-th">Net</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of payrolls(); track p.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ p.payroll_number }}</td>
+              <td class="table-td">{{ p.period_display }}</td>
+              <td class="table-td">{{ p.department_name ?? 'All' }}</td>
+              <td class="table-td">{{ p.total_employees }}</td>
+              <td class="table-td">{{ canViewAmounts() ? formatHrAmount(p.total_gross) : '••••••' }}</td>
+              <td class="table-td font-semibold">{{ canViewAmounts() ? formatHrAmount(p.total_net) : '••••••' }}</td>
+              <td class="table-td"><app-status-badge [status]="p.status" /></td>
+              <td class="table-td">
+                <a [routerLink]="['/hr/payroll', p.id]" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (canProcess() && p.status === 'DRAFT') {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" [disabled]="acting()" (click)="submitPayroll(p)">Submit to Finance</button>
+                }
+                @if (canApprove() && p.status === 'REVIEWED') {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" [disabled]="acting()" (click)="approvePayroll(p)">Approve</button>
+                }
+                @if (canMarkPaid() && p.status === 'APPROVED') {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" [disabled]="acting()" (click)="markPaid(p)">Mark Paid</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [total]="total()" [pageSize]="10" (pageChange)="page.set($event); load()" />
+  }
+</div>

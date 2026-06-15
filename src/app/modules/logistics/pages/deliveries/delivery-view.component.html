@@ -1,0 +1,135 @@
+<div class="page-container">
+  <app-logistics-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load delivery order" (retry)="load()" />
+  } @else if (delivery(); as d) {
+    <app-page-header [title]="d.do_number" [subtitle]="d.customer_name">
+      <a routerLink="/logistics/deliveries" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="deliverySteps" [activeIndex]="workflowIndex(d.status)" />
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 space-y-6">
+        <div class="card p-6">
+          <h4 class="font-semibold mb-4">Delivery Information</h4>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div><span class="text-gray-500 block text-xs">Sales Order</span><p class="font-medium">{{ d.so_number }}</p></div>
+            <div><span class="text-gray-500 block text-xs">Status</span><p><app-status-badge [status]="d.status" /></p></div>
+            @if (d.trip_status) {
+              <div><span class="text-gray-500 block text-xs">Driver Trip</span><p><app-status-badge [status]="d.trip_status" /></p></div>
+            }
+            @if (d.logistics_review_status) {
+              <div><span class="text-gray-500 block text-xs">Logistics Review</span><p><app-status-badge [status]="d.logistics_review_status" /></p></div>
+            }
+            <div><span class="text-gray-500 block text-xs">Scheduled</span><p>{{ formatDate(d.scheduled_date) }}</p></div>
+            <div><span class="text-gray-500 block text-xs">Origin Warehouse</span><p>{{ d.origin_warehouse_name }}</p></div>
+            <div><span class="text-gray-500 block text-xs">Vehicle</span><p>{{ d.vehicle_registration || '—' }}</p></div>
+            <div><span class="text-gray-500 block text-xs">Driver</span><p>{{ d.driver_name || '—' }}</p></div>
+            <div><span class="text-gray-500 block text-xs">Phone</span><p>{{ d.driver_phone || '—' }}</p></div>
+            <div><span class="text-gray-500 block text-xs">Distance</span><p>{{ d.distance_km }} km</p></div>
+            <div><span class="text-gray-500 block text-xs">Created By</span><p>{{ d.created_by_name }}</p></div>
+            @if (d.actual_departure) {
+              <div><span class="text-gray-500 block text-xs">Departed</span><p>{{ formatDateTime(d.actual_departure) }}</p></div>
+            }
+            @if (d.actual_arrival) {
+              <div><span class="text-gray-500 block text-xs">Arrived</span><p>{{ formatDateTime(d.actual_arrival) }}</p></div>
+            }
+          </div>
+          @if (d.destination) {
+            <p class="text-sm mt-4 pt-4 border-t"><span class="text-gray-500">Destination:</span> {{ d.destination }}</p>
+          }
+          @if (d.failure_reason) {
+            <p class="text-sm mt-2 text-red-600"><span class="font-medium">Failure reason:</span> {{ d.failure_reason }}</p>
+          }
+          @if (d.notes) {
+            <p class="text-sm mt-2"><span class="text-gray-500">Notes:</span> {{ d.notes }}</p>
+          }
+        </div>
+
+        <div class="card p-6">
+          <h4 class="font-semibold mb-4">Items</h4>
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="table-th">Item</th>
+                <th class="table-th">Qty</th>
+                <th class="table-th">Serial No.</th>
+                <th class="table-th">Condition</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of d.items; track item.id ?? $index) {
+                <tr class="table-row">
+                  <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
+                  <td class="table-td">{{ item.quantity }}</td>
+                  <td class="table-td">{{ item.serial_number || '—' }}</td>
+                  <td class="table-td">{{ item.condition_out || 'Good' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div class="card p-6">
+          <h4 class="font-semibold mb-4">Actions</h4>
+          <div class="flex flex-col gap-2">
+            @if (d.status === 'SCHEDULED' && canManage()) {
+              <a [routerLink]="['/logistics/deliveries', d.id, 'edit']" class="btn-secondary w-full text-center">Edit Order</a>
+            }
+            @if (d.status === 'SCHEDULED' && canStart()) {
+              <button type="button" class="btn-primary w-full" (click)="startTrip()">Start Trip</button>
+            }
+            @if (d.status === 'IN_TRANSIT' && canDeliver()) {
+              <button type="button" class="btn-primary w-full" (click)="openDeliverModal()">Mark Delivered</button>
+              <button type="button" class="btn-secondary w-full !text-red-600" (click)="markFailed()">Mark Failed</button>
+            }
+            @if ((d.status === 'SCHEDULED' || d.status === 'IN_TRANSIT') && canManage()) {
+              <button type="button" class="btn-secondary w-full !text-red-600" (click)="cancelDelivery()">Cancel</button>
+            }
+            @if (d.status === 'DELIVERED') {
+              <a routerLink="/logistics/delivery-notes" class="btn-secondary w-full text-center">View Delivery Notes</a>
+            }
+            @if (d.trip_status === 'DELIVERED' && d.logistics_review_status === 'PENDING' && canManage()) {
+              <button type="button" class="btn-primary w-full" (click)="reviewDelivery(true)">Approve Delivery</button>
+              <button type="button" class="btn-secondary w-full !text-red-600" (click)="reviewDelivery(false, 'Delivery exception — review required')">Reject / Exception</button>
+            }
+          </div>
+        </div>
+
+        <div class="card p-6 text-sm text-gray-600">
+          <p class="text-xs text-gray-500 mb-1">Last updated</p>
+          <p>{{ formatDateTime(d.updated_at) }}</p>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+
+<app-modal [open]="showDeliverModal()" title="Confirm Delivery" (close)="showDeliverModal.set(false)">
+  <form [formGroup]="deliverForm" class="space-y-4">
+    <div>
+      <label class="input-label">Received By (Signed By) *</label>
+      <input formControlName="signed_by" class="input-field" placeholder="Customer representative name" />
+    </div>
+    <div>
+      <label class="input-label">Customer Feedback</label>
+      <textarea formControlName="customer_feedback" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Condition Notes</label>
+      <textarea formControlName="condition_notes" rows="2" class="input-field resize-none" placeholder="Any damage or discrepancies"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showDeliverModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingDeliver()" (click)="submitDelivered()">
+      Confirm Delivery
+    </button>
+  </div>
+</app-modal>

@@ -1,0 +1,248 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Leave Management" subtitle="Requests, balances, and calendar">
+    @if (canApply()) {
+      <button type="button" class="btn-primary" (click)="openApply()">Apply Leave</button>
+    }
+  </app-page-header>
+
+  <div class="flex flex-wrap gap-1 p-1 bg-gray-100 rounded-xl mb-6">
+    @for (tab of [
+      { id: 'requests', label: 'Requests' },
+      { id: 'balances', label: 'Balances' },
+      { id: 'calendar', label: 'Calendar' }
+    ]; track tab.id) {
+      <button
+        type="button"
+        class="px-3 py-2 rounded-lg text-sm font-medium transition-all"
+        [class]="activeTab() === tab.id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+        (click)="setTab($any(tab.id))"
+      >
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  @if (activeTab() === 'requests') {
+    <div class="card p-4 mb-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="input-label">Status</label>
+          <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); loadRequests()">
+            <option value="">All</option>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Department</label>
+          <select class="input-field" [ngModel]="departmentFilter()" (ngModelChange)="departmentFilter.set($event); loadRequests()">
+            <option value="">All Departments</option>
+            @for (d of departments(); track d.id) {
+              <option [value]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <app-table-skeleton [cols]="7" />
+    } @else if (!requests().length) {
+      <div class="card"><app-empty-state title="No leave requests" message="No requests match your filters." /></div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Leave Type</th>
+              <th class="table-th">Period</th>
+              <th class="table-th">Days</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Submitted</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (req of requests(); track req.id) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <div class="font-medium">{{ req.employee_name }}</div>
+                  <div class="text-xs text-gray-500">{{ req.department_name }}</div>
+                </td>
+                <td class="table-td">{{ req.leave_type_name }}</td>
+                <td class="table-td">{{ formatDate(req.start_date) }} — {{ formatDate(req.end_date) }}</td>
+                <td class="table-td">{{ req.days_requested }}</td>
+                <td class="table-td"><app-status-badge [status]="req.status" /></td>
+                <td class="table-td">{{ formatDate(req.created_at) }}</td>
+                <td class="table-td">
+                  @if (canApprove() && req.status === 'PENDING') {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="openApprove(req)">Approve</button>
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="openReject(req)">Reject</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  @if (activeTab() === 'balances') {
+    @if (loading()) {
+      <app-table-skeleton [cols]="6" />
+    } @else if (!balances().length) {
+      <div class="card"><app-empty-state title="No balance data" message="No leave balances available." /></div>
+    } @else {
+      <div class="space-y-4">
+        @for (emp of balances(); track emp.employee_id) {
+          <div class="card p-4">
+            <h4 class="font-semibold text-gray-900 mb-1">{{ emp.employee_name }}</h4>
+            <p class="text-sm text-gray-500 mb-3">{{ emp.department_name }}</p>
+            <div class="table-container">
+              <table class="w-full">
+                <thead>
+                  <tr>
+                    <th class="table-th">Leave Type</th>
+                    <th class="table-th">Entitled</th>
+                    <th class="table-th">Used</th>
+                    <th class="table-th">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (bal of emp.balances; track bal.leave_type_id) {
+                    <tr class="table-row">
+                      <td class="table-td">{{ bal.leave_type_name }}</td>
+                      <td class="table-td">{{ bal.days_entitled }}</td>
+                      <td class="table-td">{{ bal.days_used }}</td>
+                      <td class="table-td font-semibold" [class.text-red-600]="bal.days_remaining === 0">{{ bal.days_remaining }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  @if (activeTab() === 'calendar') {
+    <div class="card p-4 mb-4">
+      <div class="grid grid-cols-2 gap-3 max-w-md">
+        <div>
+          <label class="input-label">Month</label>
+          <select class="input-field" [ngModel]="calendarMonth()" (ngModelChange)="calendarMonth.set(+$event); loadCalendar()">
+            @for (m of months; track $index) {
+              <option [value]="$index + 1">{{ m }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Year</label>
+          <input type="number" class="input-field" [ngModel]="calendarYear()" (ngModelChange)="calendarYear.set(+$event); loadCalendar()" />
+        </div>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <app-table-skeleton [cols]="4" />
+    } @else if (!calendar().length) {
+      <div class="card"><app-empty-state title="No leave scheduled" message="No approved leave for this month." /></div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Leave Type</th>
+              <th class="table-th">Start</th>
+              <th class="table-th">End</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of calendar(); track entry.employee_name + entry.start_date) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ entry.employee_name }}</td>
+                <td class="table-td">
+                  <span class="badge badge-confirmed">{{ entry.leave_type }}</span>
+                </td>
+                <td class="table-td">{{ formatDate(entry.start_date) }}</td>
+                <td class="table-td">{{ formatDate(entry.end_date) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+
+<app-modal [open]="showApply()" title="Apply for Leave" size="lg" (close)="showApply.set(false)">
+  <form [formGroup]="applyForm" class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+      <label class="input-label">Employee *</label>
+      <select formControlName="employee" class="input-field">
+        <option [ngValue]="null">Select employee</option>
+        @for (e of employees(); track e.id) {
+          <option [ngValue]="e.id">{{ e.full_name }}</option>
+        }
+      </select>
+    </div>
+    <div class="col-span-2">
+      <label class="input-label">Leave Type *</label>
+      <select formControlName="leave_type" class="input-field">
+        <option [ngValue]="null">Select type</option>
+        @for (lt of leaveTypes(); track lt.id) {
+          <option [ngValue]="lt.id">{{ lt.name }} ({{ lt.days_entitled }} days)</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Start Date *</label>
+      <input type="date" formControlName="start_date" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">End Date *</label>
+      <input type="date" formControlName="end_date" class="input-field" />
+    </div>
+    <div class="col-span-2">
+      <label class="input-label">Reason *</label>
+      <textarea formControlName="reason" class="input-field" rows="3"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showApply.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitApply()">Submit Request</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showApprove()" title="Approve Leave" (close)="showApprove.set(false)">
+  @if (selectedRequest(); as req) {
+    <p class="text-sm text-gray-600 mb-4">
+      Approve <strong>{{ req.days_requested }} day(s)</strong> of {{ req.leave_type_name }} for
+      <strong>{{ req.employee_name }}</strong>?
+    </p>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showApprove.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="confirmApprove()">Approve</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showReject()" title="Reject Leave" (close)="showReject.set(false)">
+  @if (selectedRequest(); as req) {
+    <p class="text-sm text-gray-600 mb-4">Reject leave request for <strong>{{ req.employee_name }}</strong></p>
+  }
+  <form [formGroup]="rejectForm">
+    <label class="input-label">Rejection Reason *</label>
+    <textarea formControlName="reason" class="input-field" rows="3"></textarea>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showReject.set(false)">Cancel</button>
+    <button type="button" class="btn-primary !bg-red-600" [disabled]="saving()" (click)="confirmReject()">Reject</button>
+  </div>
+</app-modal>

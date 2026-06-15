@@ -1,0 +1,26 @@
+<div class="app-shell">
+  @if (layout.mobileSidebarOpen()) {
+    <div
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-30 md:hidden"
+      (click)="layout.closeMobileSidebar()"
+      aria-hidden="true"
+    ></div>
+  }
+
+  <app-sidebar
+    [collapsed]="layout.sidebarCollapsed()"
+    [mobileOpen]="layout.mobileSidebarOpen()"
+  />
+
+  <div
+    class="app-main-column transition-all duration-300 ease-in-out"
+    [class.md:ml-[4.25rem]]="layout.sidebarCollapsed()"
+    [class.lg:ml-[17rem]]="!layout.sidebarCollapsed()"
+  >
+    <app-navbar />
+    <main class="app-content">
+      <router-outlet />
+    </main>
+    <app-app-footer />
+  </div>
+</div>

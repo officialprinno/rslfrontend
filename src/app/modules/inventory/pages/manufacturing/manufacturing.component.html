@@ -1,0 +1,111 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Manufacturing Inventory">
+    <div class="flex gap-2">
+      <a routerLink="/production/bom" class="btn-secondary">Bill of Materials</a>
+      <a routerLink="/production/work-orders" class="btn-primary">Work Orders</a>
+    </div>
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="5" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else {
+    <div class="space-y-8">
+      <section>
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Raw Materials</h2>
+        @if (!rawMaterials().length) {
+          <div class="card"><app-empty-state title="No raw materials" message="Register raw material items to track production inputs." /></div>
+        } @else {
+          <div class="table-container overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Code</th>
+                  <th class="table-th">Name</th>
+                  <th class="table-th">Category</th>
+                  <th class="table-th">UoM</th>
+                  <th class="table-th">Unit Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of rawMaterials(); track item.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono text-sm">{{ item.code }}</td>
+                    <td class="table-td font-medium">{{ item.name }}</td>
+                    <td class="table-td">{{ item.category_name }}</td>
+                    <td class="table-td">{{ item.unit_of_measure }}</td>
+                    <td class="table-td">{{ formatCurrency(item.unit_cost) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Work in Progress (WIP)</h2>
+        @if (!wip().length) {
+          <div class="card"><app-empty-state title="No WIP items" message="WIP items appear during active production runs." /></div>
+        } @else {
+          <div class="table-container overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Code</th>
+                  <th class="table-th">Name</th>
+                  <th class="table-th">Category</th>
+                  <th class="table-th">UoM</th>
+                  <th class="table-th">Unit Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of wip(); track item.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono text-sm">{{ item.code }}</td>
+                    <td class="table-td font-medium">{{ item.name }}</td>
+                    <td class="table-td">{{ item.category_name }}</td>
+                    <td class="table-td">{{ item.unit_of_measure }}</td>
+                    <td class="table-td">{{ formatCurrency(item.unit_cost) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      <section>
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Finished Goods</h2>
+        @if (!finishedGoods().length) {
+          <div class="card"><app-empty-state title="No finished goods" message="Register finished goods items produced by manufacturing." /></div>
+        } @else {
+          <div class="table-container overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Code</th>
+                  <th class="table-th">Name</th>
+                  <th class="table-th">Category</th>
+                  <th class="table-th">UoM</th>
+                  <th class="table-th">Selling Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of finishedGoods(); track item.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono text-sm">{{ item.code }}</td>
+                    <td class="table-td font-medium">{{ item.name }}</td>
+                    <td class="table-td">{{ item.category_name }}</td>
+                    <td class="table-td">{{ item.unit_of_measure }}</td>
+                    <td class="table-td">{{ formatCurrency(item.selling_price) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </div>
+  }
+</div>

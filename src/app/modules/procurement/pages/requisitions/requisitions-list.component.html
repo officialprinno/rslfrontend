@@ -1,0 +1,142 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Purchase Requisitions" subtitle="Internal purchase requests">
+    @if (canAdd()) {
+      <a routerLink="/procurement/requisitions/new" class="btn-primary">New Requisition</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="input-label">Search PR Number</label>
+        <input type="text" class="input-field" [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1); load()" />
+      </div>
+      <div class="w-40">
+        <label class="input-label">Department</label>
+        <select class="input-field" [ngModel]="deptFilter()" (ngModelChange)="deptFilter.set($event ? +$event : ''); page.set(1); load()">
+          <option value="">All</option>
+          @for (d of deptList(); track d.id) { <option [value]="d.id">{{ d.name }}</option> }
+        </select>
+      </div>
+      <div class="w-32">
+        <label class="input-label">Priority</label>
+        <select class="input-field" [ngModel]="priorityFilter()" (ngModelChange)="priorityFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (p of priorities; track p.value) { <option [value]="p.value">{{ p.label }}</option> }
+        </select>
+      </div>
+      <div class="w-32">
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          <option value="DRAFT">Draft</option>
+          <option value="PENDING">Pending</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+      </div>
+      <div class="w-36"><label class="input-label">From</label><input type="date" class="input-field" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event); load()" /></div>
+      <div class="w-36"><label class="input-label">To</label><input type="date" class="input-field" [ngModel]="dateAfter()" (ngModelChange)="dateAfter.set($event); load()" /></div>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export</button>
+    </div>
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="9" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!requisitions().length) {
+    <div class="card"><app-empty-state title="No requisitions" message="Create a purchase requisition to request items." actionLabel="New Requisition" (actionClick)="router.navigate(['/procurement/requisitions/new'])" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">PR Number</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Priority</th>
+            <th class="table-th">Items</th>
+            <th class="table-th">Est. Value</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Requested By</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (pr of requisitions(); track pr.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ pr.pr_number }}</td>
+              <td class="table-td">{{ pr.department_name }}</td>
+              <td class="table-td"><app-priority-badge [priority]="pr.priority" /></td>
+              <td class="table-td">{{ pr.items.length }}</td>
+              <td class="table-td">{{ formatCurrency(pr.total_estimated) }}</td>
+              <td class="table-td"><app-status-badge [status]="pr.status" /></td>
+              <td class="table-td">{{ pr.requested_by_name }}</td>
+              <td class="table-td text-xs">{{ formatDateTime(pr.created_at) }}</td>
+              <td class="table-td">
+                <div class="flex gap-1 flex-wrap">
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(pr)">View</button>
+                  @if (pr.status === 'DRAFT') {
+                    <a [routerLink]="['/procurement/requisitions', pr.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="submit(pr)">Submit</button>
+                  }
+                  @if (canDelete() && pr.status === 'DRAFT') {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="deletePr(pr)">Delete</button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showView()" [title]="viewing()?.pr_number ?? 'Requisition'" size="xl" (close)="showView.set(false)">
+  @if (viewing(); as v) {
+    <app-workflow-stepper [steps]="prSteps" [activeIndex]="workflowIndex(v.status)" />
+    <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+      <div><span class="text-gray-500">Department</span><p class="font-medium">{{ v.department_name }}</p></div>
+      <div><span class="text-gray-500">Priority</span><p><app-priority-badge [priority]="v.priority" /></p></div>
+      <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="v.status" /></p></div>
+      <div><span class="text-gray-500">Total</span><p class="font-semibold">{{ formatCurrency(v.total_estimated) }}</p></div>
+    </div>
+    @if (v.rejection_reason) {
+      <div class="p-3 bg-red-50 text-red-700 rounded-lg mb-4 text-sm">Rejected: {{ v.rejection_reason }}</div>
+    }
+    <table class="w-full text-sm mb-4">
+      <thead><tr><th class="table-th">Item</th><th class="table-th">Qty</th><th class="table-th">Unit Est.</th><th class="table-th">Total</th></tr></thead>
+      <tbody>
+        @for (item of v.items; track item.id) {
+          <tr class="table-row">
+            <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
+            <td class="table-td">{{ item.quantity_requested }}</td>
+            <td class="table-td">{{ formatCurrency(item.unit_cost_estimate) }}</td>
+            <td class="table-td">{{ formatCurrency(item.total_estimate) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    @if (v.approved_by_name) {
+      <p class="text-xs text-gray-500">Approved by {{ v.approved_by_name }} on {{ formatDateTime(v.approved_at) }}</p>
+    }
+  }
+  <div modalFooter>
+    @if (viewing(); as v) {
+      @if (v.status === 'DRAFT') {
+        <a [routerLink]="['/procurement/requisitions', v.id, 'edit']" class="btn-secondary">Edit</a>
+        <button type="button" class="btn-primary" (click)="submit(v)">Submit</button>
+      }
+      @if (v.status === 'PENDING' && canApprove()) {
+        <button type="button" class="btn-primary" (click)="approve(v)">Approve</button>
+        <button type="button" class="btn-secondary !text-red-600" (click)="reject(v)">Reject</button>
+      }
+      @if (v.status === 'APPROVED') {
+        <button type="button" class="btn-primary" (click)="createRfq(v)">Create RFQ</button>
+      }
+    }
+    <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+  </div>
+</app-modal>

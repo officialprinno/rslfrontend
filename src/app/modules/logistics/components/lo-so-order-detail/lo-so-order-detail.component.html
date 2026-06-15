@@ -1,0 +1,115 @@
+<div class="card p-6 mb-4 space-y-6">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h4 class="font-semibold text-[#1B3A6B]">{{ order().so_number }}</h4>
+      <p class="text-sm text-gray-500">{{ order().customer_name }}</p>
+    </div>
+    <app-status-badge [status]="order().status" />
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+    <div><span class="text-gray-500 block text-xs">Delivery Date</span><p class="font-medium">{{ formatDate(order().delivery_date) }}</p></div>
+    <div><span class="text-gray-500 block text-xs">Warehouse</span><p>{{ order().warehouse_name || '—' }}</p></div>
+    <div><span class="text-gray-500 block text-xs">Delivery Method</span><p>{{ order().delivery_method || '—' }}</p></div>
+    <div><span class="text-gray-500 block text-xs">Payment</span><p><app-status-badge [status]="order().payment_status ?? 'UNPAID'" /></p></div>
+    <div><span class="text-gray-500 block text-xs">Inventory</span><p><app-status-badge [status]="order().inventory_status ?? 'NONE'" /></p></div>
+    <div><span class="text-gray-500 block text-xs">LPO</span><p>{{ order().lpo_number || '—' }}</p></div>
+    <div><span class="text-gray-500 block text-xs">Created By</span><p>{{ order().created_by_name || '—' }}</p></div>
+    <div><span class="text-gray-500 block text-xs">Currency</span><p>{{ order().currency_code || 'TZS' }}</p></div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="p-4 bg-gray-50 rounded-xl text-sm">
+      <h5 class="font-semibold text-[#1B3A6B] mb-3">Destination & Customer</h5>
+      <div class="space-y-2">
+        <div><span class="text-gray-500">Delivery Location</span><p class="font-medium">{{ destination() }}</p></div>
+        @if (order().delivery_address && order().delivery_address !== destination()) {
+          <div><span class="text-gray-500">Address on File</span><p>{{ order().delivery_address }}</p></div>
+        }
+        <div><span class="text-gray-500">Contact</span><p>{{ order().customer_contact || '—' }}</p></div>
+        <div><span class="text-gray-500">Phone</span><p>{{ order().customer_phone || '—' }}</p></div>
+        <div><span class="text-gray-500">Email</span><p>{{ order().customer_email || '—' }}</p></div>
+      </div>
+    </div>
+
+    <div class="p-4 bg-blue-50 rounded-xl text-sm">
+      <h5 class="font-semibold text-[#1B3A6B] mb-3">Delivery & Fleet</h5>
+      @if (fleet(); as f) {
+        <div class="space-y-2">
+          @if (f.doNumber) {
+            <div><span class="text-gray-500">Delivery Order</span><p class="font-medium">{{ f.doNumber }} @if (f.doStatus) { · <app-status-badge [status]="f.doStatus" /> }</p></div>
+          }
+          <div><span class="text-gray-500">Vehicle</span><p class="font-medium">{{ f.vehicle || '—' }}</p>@if (f.vehicleDetail) { <p class="text-xs text-gray-600">{{ f.vehicleDetail }}</p> }</div>
+          @if (f.vehicleStatus) {
+            <div><span class="text-gray-500">Vehicle Status</span><p><app-status-badge [status]="f.vehicleStatus" /></p></div>
+          }
+          <div><span class="text-gray-500">Driver</span><p class="font-medium">{{ f.driver || '—' }}</p></div>
+          @if (f.driverLicense) {
+            <div><span class="text-gray-500">License</span><p>{{ f.driverLicense }}</p></div>
+          }
+          @if (f.driverPhone) {
+            <div><span class="text-gray-500">Driver Phone</span><p>{{ f.driverPhone }}</p></div>
+          }
+          @if (f.tracking) {
+            <div><span class="text-gray-500">Tracking #</span><p>{{ f.tracking }}</p></div>
+          }
+          @if (f.departed) {
+            <div><span class="text-gray-500">Departed</span><p>{{ formatDateTime(f.departed) }}</p></div>
+          }
+          @if (order().delivery_order?.origin_warehouse_name) {
+            <div><span class="text-gray-500">Origin</span><p>{{ order().delivery_order!.origin_warehouse_name }}</p></div>
+          }
+          @if (order().delivery_order?.distance_km) {
+            <div><span class="text-gray-500">Distance</span><p>{{ order().delivery_order!.distance_km }} km</p></div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <div>
+    <h5 class="font-semibold text-[#1B3A6B] mb-3">Order Items</h5>
+    <table class="w-full text-sm">
+      <thead>
+        <tr>
+          <th class="table-th">Item</th>
+          <th class="table-th">Qty Ordered</th>
+          <th class="table-th">Qty Delivered</th>
+          <th class="table-th">Unit Price</th>
+          <th class="table-th">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of order().items; track item.id) {
+          <tr class="table-row">
+            <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
+            <td class="table-td">{{ item.quantity_ordered }}</td>
+            <td class="table-td">{{ item.quantity_delivered ?? 0 }}</td>
+            <td class="table-td">{{ formatMoney(item.unit_price, order().currency_code) }}</td>
+            <td class="table-td font-medium">{{ formatMoney(item.total_price, order().currency_code) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div class="text-right text-sm space-y-1 border-t pt-4">
+    <p>Subtotal: {{ formatMoney(order().subtotal, order().currency_code) }}</p>
+    @if (order().delivery_cost) {
+      <p>Delivery Cost: {{ formatMoney(order().delivery_cost, order().currency_code) }}</p>
+    }
+    @if (order().tax_amount) {
+      <p>Tax: {{ formatMoney(order().tax_amount, order().currency_code) }}</p>
+    }
+    <p class="text-lg font-bold text-[#1B3A6B]">
+      Grand Total: {{ formatMoney((order().total_amount ?? 0) + (order().delivery_cost ?? 0), order().currency_code) }}
+    </p>
+  </div>
+
+  @if (order().notes) {
+    <div class="text-sm pt-2 border-t"><span class="text-gray-500">Notes:</span> {{ order().notes }}</div>
+  }
+  @if (order().delivery_order?.notes) {
+    <div class="text-sm"><span class="text-gray-500">Delivery Notes:</span> {{ order().delivery_order!.notes }}</div>
+  }
+</div>

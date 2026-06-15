@@ -1,0 +1,104 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Department Requests">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openNew()">New Request</button>
+    }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!requests().length) {
+    <div class="card"><app-empty-state title="No department requests" message="Departments can request stock from the warehouse." [actionLabel]="canAdd() ? 'New Request' : ''" (actionClick)="openNew()" /></div>
+  } @else {
+    <div class="table-container">
+      <div class="flex justify-end px-4 pt-3">
+        <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Request #</th>
+              <th class="table-th">Date</th>
+              <th class="table-th">Department</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Items</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Requested By</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (req of requests(); track req.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-sm">{{ req.request_number }}</td>
+                <td class="table-td text-xs">{{ formatDateTime(req.created_at) }}</td>
+                <td class="table-td">{{ req.department }}</td>
+                <td class="table-td">{{ req.warehouse_name }}</td>
+                <td class="table-td text-sm">
+                  @for (line of req.lines; track line.id) {
+                    <div>{{ line.item_name }} × {{ formatNumber(line.quantity) }}</div>
+                  }
+                </td>
+                <td class="table-td"><app-status-badge [status]="req.status" /></td>
+                <td class="table-td text-sm">{{ req.requested_by_name }}</td>
+                <td class="table-td">
+                  @if (canApprove()) {
+                    <div class="flex gap-1 flex-wrap">
+                      @if (req.status === 'PENDING' || req.status === 'SUBMITTED') {
+                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="approve(req)">Approve</button>
+                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="reject(req)">Reject</button>
+                      }
+                      @if (req.status === 'APPROVED' || req.status === 'PARTIALLY_ISSUED') {
+                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-[#1B3A6B]" (click)="issue(req)">Issue Stock</button>
+                      }
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="New Department Request" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Department *</label>
+      <select formControlName="department" class="input-field">
+        @for (d of departments; track d.value) { <option [value]="d.value">{{ d.label }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Warehouse *</label>
+      <select formControlName="warehouse" class="input-field">
+        <option [ngValue]="null">Select warehouse</option>
+        @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Item *</label>
+      <app-searchable-select [options]="itemOptions()" [value]="form.controls.item.value" placeholder="Search items..." (valueChange)="form.controls.item.setValue($event != null ? +$event : null)" />
+    </div>
+    <div>
+      <label class="input-label">Quantity *</label>
+      <input type="number" formControlName="quantity" min="0.0001" step="0.01" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Create Request
+    </button>
+  </div>
+</app-modal>

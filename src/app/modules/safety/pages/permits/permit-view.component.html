@@ -1,0 +1,381 @@
+<div class="page-container permit-print-area">
+
+  <app-safety-nav class="print:hidden" />
+
+  @if (loading()) {
+
+    <app-table-skeleton [cols]="4" />
+
+  } @else if (!permit()) {
+
+    <app-error-state title="Permit not found" message="The requested work permit could not be loaded." />
+
+  } @else if (permit(); as p) {
+
+    <app-page-header [title]="p.permit_number" [subtitle]="permitTypeLabel(p.permit_type) + ' Permit'">
+
+      <button type="button" class="btn-ghost print:hidden" (click)="print()">Print</button>
+
+      @if (canEdit() && p.status === 'PENDING') {
+
+        <a [routerLink]="['/safety/permits', p.id, 'edit']" class="btn-secondary print:hidden">Edit</a>
+
+      }
+
+      @if (canApprove() && p.status === 'PENDING') {
+
+        <button
+
+          type="button"
+
+          class="btn-primary print:hidden"
+
+          [disabled]="actionLoading()"
+
+          (click)="approve()"
+
+        >
+
+          Approve
+
+        </button>
+
+      }
+
+      @if (canApprove() && (p.status === 'APPROVED' || p.status === 'ACTIVE') && p.extension_count < 2) {
+
+        <button type="button" class="btn-secondary print:hidden" (click)="openExtend()">Extend</button>
+
+      }
+
+      @if (canApprove() && p.status !== 'CANCELLED' && p.status !== 'EXPIRED') {
+
+        <button
+
+          type="button"
+
+          class="btn-ghost !text-red-600 print:hidden"
+
+          [disabled]="actionLoading()"
+
+          (click)="cancelPermit()"
+
+        >
+
+          Cancel
+
+        </button>
+
+      }
+
+    </app-page-header>
+
+
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <div class="lg:col-span-2 space-y-6">
+
+        <div class="card p-6">
+
+          <div class="flex flex-wrap items-center gap-2 mb-4">
+
+            <span class="badge" [class]="typeColor(p.permit_type)">{{ permitTypeLabel(p.permit_type) }}</span>
+
+            <span class="badge" [class]="statusColor(p.status)">{{ p.status }}</span>
+
+            <span
+
+              class="badge"
+
+              [class]="p.risk_level === 'HIGH' ? 'badge-red' : p.risk_level === 'MEDIUM' ? 'badge-orange' : 'badge-green'"
+
+            >
+
+              {{ p.risk_level }} Risk
+
+            </span>
+
+          </div>
+
+          <h2 class="section-title mb-4">Work Details</h2>
+
+          <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+            <div>
+
+              <dt class="text-gray-500">Location</dt>
+
+              <dd class="font-medium">{{ p.location }}</dd>
+
+            </div>
+
+            <div>
+
+              <dt class="text-gray-500">Department</dt>
+
+              <dd class="font-medium">{{ p.department_name || '—' }}</dd>
+
+            </div>
+
+            <div>
+
+              <dt class="text-gray-500">Valid From</dt>
+
+              <dd class="font-medium">{{ formatDateTime(p.valid_from) }}</dd>
+
+            </div>
+
+            <div>
+
+              <dt class="text-gray-500">Valid Until</dt>
+
+              <dd class="font-medium">{{ formatDateTime(p.valid_until) }}</dd>
+
+            </div>
+
+            <div class="sm:col-span-2">
+
+              <dt class="text-gray-500">Work Description</dt>
+
+              <dd class="font-medium mt-1">{{ p.work_description }}</dd>
+
+            </div>
+
+            @if (p.equipment_tools) {
+
+              <div class="sm:col-span-2">
+
+                <dt class="text-gray-500">Equipment / Tools</dt>
+
+                <dd class="font-medium mt-1">{{ p.equipment_tools }}</dd>
+
+              </div>
+
+            }
+
+          </dl>
+
+        </div>
+
+
+
+        <div class="card p-6">
+
+          <h2 class="section-title mb-4">Hazard Assessment</h2>
+
+          <div class="mb-4">
+
+            <p class="text-sm text-gray-500 mb-2">Identified Hazards</p>
+
+            @if (p.hazards.length) {
+
+              <div class="flex flex-wrap gap-2">
+
+                @for (h of p.hazards; track h) {
+
+                  <span class="badge badge-orange">{{ h }}</span>
+
+                }
+
+              </div>
+
+            } @else {
+
+              <p class="text-sm text-gray-400">None recorded</p>
+
+            }
+
+          </div>
+
+          <div>
+
+            <p class="text-sm text-gray-500 mb-1">Control Measures</p>
+
+            <p class="text-sm">{{ p.control_measures }}</p>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="card p-6">
+
+          <h2 class="section-title mb-4">Safety Checklist</h2>
+
+          @if (p.safety_checklist.length) {
+
+            <ul class="space-y-2">
+
+              @for (item of p.safety_checklist; track item.item) {
+
+                <li class="flex items-center gap-2 text-sm">
+
+                  <span
+
+                    class="w-5 h-5 rounded flex items-center justify-center text-xs"
+
+                    [class]="item.checked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'"
+
+                  >
+
+                    {{ item.checked ? '✓' : '—' }}
+
+                  </span>
+
+                  {{ item.item }}
+
+                </li>
+
+              }
+
+            </ul>
+
+          } @else {
+
+            <p class="text-sm text-gray-400">No checklist items</p>
+
+          }
+
+        </div>
+
+      </div>
+
+
+
+      <div class="space-y-6">
+
+        <div class="card p-6">
+
+          <h2 class="section-title mb-4">Workers</h2>
+
+          <ul class="space-y-2">
+
+            @for (w of p.workers; track w.id + w.name) {
+
+              <li class="text-sm flex justify-between">
+
+                <span class="font-medium">{{ w.name }}</span>
+
+                <span class="text-gray-500 font-mono text-xs">{{ w.id }}</span>
+
+              </li>
+
+            }
+
+          </ul>
+
+        </div>
+
+
+
+        <div class="card p-6">
+
+          <h2 class="section-title mb-4">Approval</h2>
+
+          <dl class="space-y-3 text-sm">
+
+            <div>
+
+              <dt class="text-gray-500">Issued By</dt>
+
+              <dd class="font-medium">{{ p.issued_by_name }}</dd>
+
+            </div>
+
+            <div>
+
+              <dt class="text-gray-500">Approved By</dt>
+
+              <dd class="font-medium">{{ p.approved_by_name || '—' }}</dd>
+
+            </div>
+
+            <div>
+
+              <dt class="text-gray-500">Approved At</dt>
+
+              <dd class="font-medium">{{ p.approved_at ? formatDateTime(p.approved_at) : '—' }}</dd>
+
+            </div>
+
+            <div>
+
+              <dt class="text-gray-500">Extensions Used</dt>
+
+              <dd class="font-medium">{{ p.extension_count }} / 2</dd>
+
+            </div>
+
+            @if (p.rejection_reason) {
+
+              <div>
+
+                <dt class="text-gray-500">Rejection Reason</dt>
+
+                <dd class="font-medium text-red-600">{{ p.rejection_reason }}</dd>
+
+              </div>
+
+            }
+
+          </dl>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  }
+
+</div>
+
+
+
+<app-modal
+
+  [open]="showExtend()"
+
+  title="Extend Permit"
+
+  (close)="showExtend.set(false)"
+
+>
+
+  <div>
+
+    <label class="input-label">New Valid Until</label>
+
+    <input
+
+      type="datetime-local"
+
+      class="input-field"
+
+      [ngModel]="extendUntil()"
+
+      (ngModelChange)="extendUntil.set($event)"
+
+    />
+
+    <p class="text-xs text-gray-500 mt-2">Maximum 2 extensions allowed per permit.</p>
+
+  </div>
+
+  <div modalFooter class="flex gap-2 justify-end">
+
+    <button type="button" class="btn-ghost" (click)="showExtend.set(false)">Cancel</button>
+
+    <button type="button" class="btn-primary" [disabled]="!extendUntil()" (click)="confirmExtend()">
+
+      Extend Permit
+
+    </button>
+
+  </div>
+
+</app-modal>
+
+

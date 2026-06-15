@@ -1,0 +1,122 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+  <app-page-header title="Permissions" subtitle="Module and action grants per role">
+    <button type="button" class="btn-secondary" (click)="openAdd()">Add Permission</button>
+    <a routerLink="/settings/admin" class="btn-secondary">Admin Home</a>
+  </app-page-header>
+
+  <div class="card p-4 mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div>
+      <label class="input-label">Role</label>
+      <select
+        class="input-field"
+        [ngModel]="roleFilter()"
+        (ngModelChange)="roleFilter.set($event); onFilterChange()"
+      >
+        <option value="">All roles</option>
+        @for (r of roles(); track r.id) {
+          <option [ngValue]="r.id">{{ r.name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Module</label>
+      <select
+        class="input-field"
+        [ngModel]="moduleFilter()"
+        (ngModelChange)="moduleFilter.set($event); onFilterChange()"
+      >
+        <option value="">All modules</option>
+        @for (m of modules; track m) {
+          <option [value]="m">{{ m }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [rows]="10" [cols]="4" />
+  } @else if (!rows().length) {
+    <app-empty-state title="No permissions found" message="Adjust filters or add a permission." />
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Role</th>
+            <th class="table-th">Module</th>
+            <th class="table-th">Action</th>
+            <th class="table-th text-right">Remove</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of rows(); track p.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ roleName(p.role) }}</td>
+              <td class="table-td capitalize">{{ p.module.replace('_', ' ') }}</td>
+              <td class="table-td capitalize">{{ p.action }}</td>
+              <td class="table-td text-right">
+                <button type="button" class="btn-ghost !text-xs text-red-600" (click)="remove(p)">
+                  Remove
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="100"
+      (pageChange)="onPageChange($event)"
+    />
+  }
+</div>
+
+<app-modal [open]="showAdd()" title="Add Permission" size="md" (close)="showAdd.set(false)">
+  <div class="space-y-4">
+    <div>
+      <label class="input-label">Role *</label>
+      <select
+        class="input-field"
+        [ngModel]="newPermission().role"
+        (ngModelChange)="newPermission.update((p) => ({ ...p, role: $event }))"
+      >
+        <option [ngValue]="''">Select role</option>
+        @for (r of roles(); track r.id) {
+          <option [ngValue]="r.id">{{ r.name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Module</label>
+      <select
+        class="input-field"
+        [ngModel]="newPermission().module"
+        (ngModelChange)="newPermission.update((p) => ({ ...p, module: $event }))"
+      >
+        @for (m of modules; track m) {
+          <option [value]="m">{{ m }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Action</label>
+      <select
+        class="input-field"
+        [ngModel]="newPermission().action"
+        (ngModelChange)="newPermission.update((p) => ({ ...p, action: $event }))"
+      >
+        @for (a of actions; track a) {
+          <option [value]="a">{{ a }}</option>
+        }
+      </select>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showAdd.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitAdd()">Add</button>
+  </div>
+</app-modal>

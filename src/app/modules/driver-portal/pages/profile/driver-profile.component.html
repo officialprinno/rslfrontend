@@ -1,0 +1,34 @@
+<div class="page-container max-w-3xl mx-auto">
+  <app-driver-portal-nav />
+  <app-page-header title="Driver Profile" subtitle="Your account and performance" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (profile(); as p) {
+    <div class="card p-6 mb-6">
+      <h3 class="font-bold text-lg text-[#1B3A6B] mb-4">{{ p.full_name }}</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+        <div><span class="text-gray-500 block">Driver ID</span><strong>{{ p.id }}</strong></div>
+        <div><span class="text-gray-500 block">Employee #</span>{{ p.employee_number || '—' }}</div>
+        <div><span class="text-gray-500 block">Phone</span>{{ p.phone || '—' }}</div>
+        <div><span class="text-gray-500 block">Email</span>{{ p.email }}</div>
+        <div><span class="text-gray-500 block">Department</span>{{ p.department }}</div>
+        <div><span class="text-gray-500 block">Availability</span><app-status-badge [status]="p.availability_status" /></div>
+        <div><span class="text-gray-500 block">License</span>{{ p.license_number }} ({{ p.license_class }})</div>
+        <div><span class="text-gray-500 block">License Expiry</span>{{ formatDate(p.license_expiry) }}</div>
+        <div><span class="text-gray-500 block">Medical Expiry</span>{{ formatDate(p.medical_expiry) }}</div>
+        <div><span class="text-gray-500 block">Assigned Vehicle</span>{{ p.assigned_vehicle_registration || 'None' }}</div>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="font-semibold mb-4">Performance</h3>
+      <div class="grid grid-cols-2 gap-4 text-sm">
+        <div class="card-stat"><p class="card-stat__value">{{ p.performance.total_trips }}</p><p class="card-stat__label">Trips (month)</p></div>
+        <div class="card-stat"><p class="card-stat__value">{{ p.performance.on_time_percent }}%</p><p class="card-stat__label">On-Time</p></div>
+        <div class="card-stat"><p class="card-stat__value">{{ p.performance.completed_returns }}</p><p class="card-stat__label">Completed Returns</p></div>
+        <div class="card-stat"><p class="card-stat__value">{{ p.performance.avg_trip_hours }}h</p><p class="card-stat__label">Avg Trip Duration</p></div>
+      </div>
+    </div>
+  }
+</div>

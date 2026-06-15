@@ -1,0 +1,202 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header title="Machines" subtitle="Production equipment and status">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Machine</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[200px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Code or name..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-40">
+        <label class="input-label">Type</label>
+        <select class="input-field" [ngModel]="typeFilter()" (ngModelChange)="typeFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (t of machineTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (s of machineStatuses; track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-32">
+        <label class="input-label">Active</label>
+        <select class="input-field" [ngModel]="activeFilter()" (ngModelChange)="activeFilter.set($event); page.set(1); load()">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+      @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+        <div class="card animate-pulse h-56"></div>
+      }
+    </div>
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!machines().length) {
+    <div class="card">
+      <app-empty-state
+        title="No machines"
+        message="Register production machines to track utilization."
+        [actionLabel]="canAdd() ? 'Add Machine' : ''"
+        (actionClick)="openAdd()"
+      />
+    </div>
+  } @else {
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-4">
+      @for (m of machines(); track m.id) {
+        <div class="card border-l-4 hover:shadow-lg transition-shadow" [class]="statusBorder[m.status]">
+          <div class="flex items-start justify-between mb-3">
+            <div>
+              <h3 class="font-bold text-gray-900">{{ m.machine_code }}</h3>
+              <p class="text-sm text-gray-500 mt-0.5">{{ m.name }}</p>
+            </div>
+            <app-status-badge [status]="m.status" [label]="statusLabel()(m.status)" />
+          </div>
+          <div class="space-y-2 text-sm mb-4">
+            <div class="flex justify-between"><span class="text-gray-500">Type</span><span>{{ typeLabel()(m.machine_type) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Hours (Month)</span><span>{{ m.hours_this_month | number:'1.1-1' }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Utilization</span><span>{{ m.utilization_rate | number:'1.0-0' }}%</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Next Service</span><span>{{ formatDate(m.next_service_date) }}</span></div>
+            @if (m.current_wo) {
+              <div class="flex justify-between">
+                <span class="text-gray-500">Current WO</span>
+                <a [routerLink]="['/production/work-orders', m.current_wo.id, 'view']" class="text-[#1B3A6B] hover:underline text-xs">
+                  {{ m.current_wo.wo_number }}
+                </a>
+              </div>
+            }
+          </div>
+          <div class="flex flex-wrap gap-1">
+            <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="viewDetail(m)">View</button>
+            @if (canAdd()) {
+              <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(m)">Edit</button>
+            }
+            @if (canBreakdown() && m.status === 'ACTIVE') {
+              <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="openBreakdown(m)">Report Breakdown</button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+    <app-pagination
+      [page]="page()"
+      [pageSize]="pageSize()"
+      [total]="total()"
+      (pageChange)="page.set($event); load()"
+      (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+    />
+  }
+</div>
+
+<app-modal [open]="showForm()" [title]="editing() ? 'Edit Machine' : 'Add Machine'" size="lg" (close)="showForm.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Machine Code</label>
+        <input type="text" formControlName="machine_code" class="input-field" placeholder="Auto-generated if blank" />
+      </div>
+      <div>
+        <label class="input-label">Name *</label>
+        <input type="text" formControlName="name" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Type *</label>
+        <select formControlName="machine_type" class="input-field">
+          @for (t of machineTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Status *</label>
+        <select formControlName="status" class="input-field">
+          @for (s of machineStatuses; track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Purchase Date</label>
+        <input type="date" formControlName="purchase_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Last Service</label>
+        <input type="date" formControlName="last_service_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Next Service</label>
+        <input type="date" formControlName="next_service_date" class="input-field" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="input-label">Notes</label>
+        <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+      </div>
+      <div class="md:col-span-2">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" formControlName="is_active" class="login-checkbox" />
+          <span class="text-sm">Active</span>
+        </label>
+      </div>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showBreakdown()" title="Report Breakdown" size="md" (close)="showBreakdown.set(false)">
+  @if (breakdownMachine(); as m) {
+    <p class="text-sm text-gray-500 mb-4">
+      Machine: <span class="font-medium text-gray-900">{{ m.machine_code }} — {{ m.name }}</span>
+    </p>
+  }
+  <form [formGroup]="breakdownForm" class="space-y-4">
+    <div>
+      <label class="input-label">Breakdown Description *</label>
+      <textarea formControlName="notes" rows="3" class="input-field resize-none" placeholder="Describe the issue..."></textarea>
+    </div>
+    <div>
+      <label class="input-label">Photo (optional)</label>
+      <input
+        type="file"
+        accept="image/*"
+        class="input-field !py-2"
+        (change)="onBreakdownPhotoSelected($event)"
+      />
+      <p class="text-xs text-gray-500 mt-1">JPEG or PNG, max 10 MB</p>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showBreakdown.set(false)">Cancel</button>
+    <button type="button" class="btn-primary !bg-red-600" [disabled]="saving()" (click)="submitBreakdown()">
+      Report Breakdown
+    </button>
+  </div>
+</app-modal>

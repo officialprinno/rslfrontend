@@ -1,0 +1,152 @@
+<div class="page-container">
+  <app-safety-nav />
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (!training()) {
+    <app-empty-state title="Training not found" message="The requested training session could not be loaded." />
+  } @else if (training(); as t) {
+    <app-page-header
+      [title]="t.training_name"
+      [subtitle]="trainingTypeLabel(t.training_type) + ' · ' + formatDateTime(t.scheduled_date)"
+    >
+      <a routerLink="/safety/training" class="btn-ghost">Back to List</a>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">
+        {{ saving() ? 'Saving…' : 'Save Attendance' }}
+      </button>
+    </app-page-header>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="card-stat">
+        <p class="card-stat__value">{{ rows().length }}</p>
+        <p class="card-stat__label">Registered</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-green-700">{{ attendedCount() }}</p>
+        <p class="card-stat__label">Attended</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value">{{ t.completion_rate }}%</p>
+        <p class="card-stat__label">Completion Rate</p>
+      </div>
+    </div>
+
+    <div class="card p-4 mb-4">
+      <div class="flex flex-wrap gap-3 items-end justify-between">
+        <div class="flex-1 min-w-[180px]">
+          <label class="input-label">Search Attendees</label>
+          <input
+            type="text"
+            class="input-field"
+            placeholder="Employee name..."
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event)"
+          />
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn-secondary !text-xs" (click)="markAllPresent()">
+            Mark Selected Present ({{ selectedCount() }})
+          </button>
+          <button type="button" class="btn-secondary !text-xs" (click)="markAllAbsent()">
+            Mark Selected Absent
+          </button>
+          <button type="button" class="btn-ghost !text-xs" (click)="issueCertificatesSelected()">
+            Issue Certificates
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-3 items-end mt-4 pt-4 border-t border-gray-100">
+        <div class="flex-1 min-w-[200px]">
+          <label class="input-label">Add Employee</label>
+          <select
+            class="input-field"
+            [ngModel]="addEmployeeId()"
+            (ngModelChange)="addEmployeeId.set($event ? +$event : '')"
+          >
+            <option value="">Select employee</option>
+            @for (emp of employees(); track emp.id) {
+              <option [value]="emp.id">{{ emp.full_name }} — {{ emp.department_name }}</option>
+            }
+          </select>
+        </div>
+        <button type="button" class="btn-secondary !text-xs" (click)="addAttendee()">Add to List</button>
+      </div>
+    </div>
+
+    @if (!filteredRows().length) {
+      <div class="card">
+        <app-empty-state
+          title="No attendees"
+          message="Add employees to the attendance list using the dropdown above."
+        />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th w-10">
+                <input
+                  type="checkbox"
+                  [checked]="allFilteredSelected()"
+                  (change)="toggleSelectAll($any($event.target).checked)"
+                />
+              </th>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Department</th>
+              <th class="table-th text-center">Attended</th>
+              <th class="table-th text-center">Certificate</th>
+              <th class="table-th">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredRows(); track row.employee) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <input
+                    type="checkbox"
+                    [checked]="row.selected"
+                    (change)="toggleSelected(row.employee)"
+                  />
+                </td>
+                <td class="table-td font-medium">{{ row.employee_name }}</td>
+                <td class="table-td">{{ row.department_name }}</td>
+                <td class="table-td text-center">
+                  <button
+                    type="button"
+                    role="switch"
+                    class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                    [class]="row.attended ? 'bg-green-500' : 'bg-gray-200'"
+                    (click)="toggleAttended(row.employee)"
+                    [attr.aria-checked]="row.attended"
+                  >
+                    <span
+                      class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                      [class]="row.attended ? 'translate-x-6' : 'translate-x-1'"
+                    ></span>
+                  </button>
+                </td>
+                <td class="table-td text-center">
+                  @if (row.certificate_issued) {
+                    <span class="badge badge-green">Issued</span>
+                  } @else {
+                    <span class="text-gray-400 text-xs">—</span>
+                  }
+                </td>
+                <td class="table-td">
+                  <input
+                    type="text"
+                    class="input-field !py-1 !text-xs"
+                    [ngModel]="row.notes"
+                    (ngModelChange)="updateNotes(row.employee, $event)"
+                    placeholder="Optional notes"
+                  />
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>

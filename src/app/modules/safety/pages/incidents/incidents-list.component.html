@@ -1,0 +1,188 @@
+<div class="page-container">
+  <app-safety-nav />
+  <app-page-header
+    title="Incident Management"
+    subtitle="Report and track all safety incidents"
+  >
+    @if (canReport()) {
+      <a routerLink="/safety/incidents/new" class="btn-primary">Report Incident</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Incident no., description, location..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-44">
+        <label class="input-label">Incident Type</label>
+        <select
+          class="input-field"
+          [ngModel]="typeFilter()"
+          (ngModelChange)="typeFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All Types</option>
+          @for (t of incidentTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Severity</label>
+        <select
+          class="input-field"
+          [ngModel]="severityFilter()"
+          (ngModelChange)="severityFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All</option>
+          @for (s of severities; track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select
+          class="input-field"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All</option>
+          @for (st of statusOptions; track st.value) {
+            <option [value]="st.value">{{ st.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-40">
+        <label class="input-label">Location</label>
+        <select
+          class="input-field"
+          [ngModel]="locationFilter()"
+          (ngModelChange)="locationFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All Locations</option>
+          @for (loc of locations; track loc) {
+            <option [value]="loc">{{ loc }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">From</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateFrom()"
+          (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-36">
+        <label class="input-label">To</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateTo()"
+          (ngModelChange)="dateTo.set($event); page.set(1); load()"
+        />
+      </div>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="10" />
+  } @else if (!incidents().length) {
+    <div class="card">
+      <app-empty-state
+        title="No incidents found"
+        message="Report a new incident or adjust your filters."
+        [actionLabel]="canReport() ? 'Report Incident' : ''"
+        (actionClick)="router.navigate(['/safety/incidents/new'])"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Incident No.</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Severity</th>
+            <th class="table-th">Date Occurred</th>
+            <th class="table-th">Location</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Injured Person</th>
+            <th class="table-th">Reported By</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Days Open</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (inc of incidents(); track inc.id) {
+            <tr class="table-row">
+              <td class="table-td font-mono text-xs font-medium">{{ inc.incident_number }}</td>
+              <td class="table-td">
+                <span class="badge" [class]="typeColor(inc.incident_type)">
+                  {{ incidentTypeLabel(inc.incident_type) }}
+                </span>
+              </td>
+              <td class="table-td">
+                <span class="badge" [class]="severityColor(inc.severity)">{{ inc.severity }}</span>
+              </td>
+              <td class="table-td text-sm whitespace-nowrap">{{ formatDateTime(inc.date_occurred) }}</td>
+              <td class="table-td">{{ inc.location }}</td>
+              <td class="table-td">{{ inc.department_name || '—' }}</td>
+              <td class="table-td">{{ inc.injured_person_name || '—' }}</td>
+              <td class="table-td">{{ inc.reported_by_name }}</td>
+              <td class="table-td">
+                <span class="badge" [class]="statusColor(inc.status)">{{ inc.status }}</span>
+              </td>
+              <td class="table-td text-center">{{ inc.days_open }}</td>
+              <td class="table-td">
+                <div class="flex items-center gap-1 flex-wrap">
+                  <a
+                    [routerLink]="['/safety/incidents', inc.id, 'view']"
+                    class="btn-ghost !text-xs !px-2"
+                  >View</a>
+                  @if (inc.status === 'DRAFT') {
+                    <a
+                      [routerLink]="['/safety/incidents', inc.id, 'edit']"
+                      class="btn-ghost !text-xs !px-2"
+                    >Edit</a>
+                  }
+                  @if (canInvestigate() && inc.status === 'OPEN') {
+                    <button
+                      type="button"
+                      class="btn-ghost !text-xs !px-2"
+                      (click)="startInvestigation(inc)"
+                    >Investigate</button>
+                  }
+                  @if (canClose() && inc.status === 'INVESTIGATING') {
+                    <button
+                      type="button"
+                      class="btn-ghost !text-xs !px-2"
+                      (click)="goToClose(inc)"
+                    >Close</button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="15"
+      (pageChange)="page.set($event); load()"
+    />
+  }
+</div>

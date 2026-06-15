@@ -1,0 +1,64 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Stock Alerts">
+    @if (unreadCount() > 0) {
+      <span class="sidebar-badge !text-xs">{{ unreadCount() }} unread</span>
+    }
+  </app-page-header>
+
+  <div class="card !p-4 mb-4 flex gap-3">
+    <select class="input-field !w-auto" [ngModel]="filterRead()" (ngModelChange)="filterRead.set($event); load()">
+      <option value="all">All Alerts</option>
+      <option value="unread">Unread Only</option>
+    </select>
+    <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!alerts().length) {
+    <div class="card"><app-empty-state title="No alerts" message="You're all caught up — no stock alerts at this time." /></div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Date</th>
+              <th class="table-th">Alert Type</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Current Qty</th>
+              <th class="table-th">Reorder Level</th>
+              <th class="table-th">Message</th>
+              <th class="table-th">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (alert of alerts(); track alert.id) {
+              <tr class="table-row" [class.bg-yellow-50]="!alert.is_read">
+                <td class="table-td text-xs whitespace-nowrap">{{ formatDateTime(alert.created_at) }}</td>
+                <td class="table-td"><app-alert-type-badge [type]="alert.alert_type" /></td>
+                <td class="table-td">
+                  <span class="font-mono text-xs text-[#1B3A6B]">{{ alert.item_code }}</span>
+                  <span class="block">{{ alert.item_name }}</span>
+                </td>
+                <td class="table-td">{{ alert.warehouse_name }}</td>
+                <td class="table-td font-semibold">{{ formatNumber(stockInfo(alert).qty) }}</td>
+                <td class="table-td">{{ formatNumber(stockInfo(alert).reorder) }}</td>
+                <td class="table-td text-sm text-gray-600 max-w-xs">{{ alert.message }}</td>
+                <td class="table-td">
+                  @if (!alert.is_read) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="markRead(alert)">Mark as Read</button>
+                  } @else {
+                    <span class="text-xs text-gray-400">Read</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,72 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header [title]="editId() ? 'Edit Purchase Order' : 'New Purchase Order'">
+    <a routerLink="/procurement/purchase-orders" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">PO Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Supplier *</label>
+          <app-searchable-select [options]="supplierOptions()" [value]="form.controls.supplier.value" (valueChange)="form.patchValue({ supplier: typeof $event === 'number' ? $event : null })" />
+        </div>
+        <div><label class="input-label">Order Date</label><input type="date" formControlName="order_date" class="input-field" /></div>
+        <div><label class="input-label">Expected Delivery</label><input type="date" formControlName="expected_delivery" class="input-field" /></div>
+        <div>
+          <label class="input-label">Currency</label>
+          <select formControlName="currency" class="input-field">
+            @for (c of currencies(); track c.id) { <option [ngValue]="c.id">{{ c.code }}</option> }
+          </select>
+        </div>
+        <div><label class="input-label">Exchange Rate</label><input type="number" formControlName="exchange_rate" step="0.0001" class="input-field" /></div>
+        <div>
+          <label class="input-label">Payment Terms</label>
+          <select formControlName="payment_terms" class="input-field">
+            @for (t of paymentTerms; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Notes / Terms</label>
+          <textarea formControlName="notes" rows="3" class="input-field resize-none"></textarea>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" formControlName="apply_vat" id="vat" />
+          <label for="vat" class="text-sm">Apply 18% VAT</label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between mb-3">
+        <h4 class="font-semibold">Items</h4>
+        <button type="button" class="btn-ghost !text-xs" (click)="addLine()">+ Add Item</button>
+      </div>
+      <div formArrayName="lineItems" class="space-y-2">
+        @for (line of lineItems().controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-xl">
+            <div class="col-span-4">
+              <app-searchable-select [options]="itemOptions()" [value]="line.value.item" (valueChange)="onItemSelect(i, $event)" />
+            </div>
+            <div class="col-span-2"><input type="number" formControlName="quantity_ordered" class="input-field" placeholder="Qty" /></div>
+            <div class="col-span-2"><input type="number" formControlName="unit_price" class="input-field" placeholder="Price" /></div>
+            <div class="col-span-2"><input type="number" formControlName="discount_percent" class="input-field" placeholder="Disc %" /></div>
+            <div class="col-span-1 font-semibold text-sm">{{ formatCurrency(lineTotal(i)) }}</div>
+            <div class="col-span-1"><button type="button" class="btn-ghost !text-red-600" (click)="removeLine(i)">×</button></div>
+          </div>
+        }
+      </div>
+      <div class="mt-4 text-right space-y-1 text-sm">
+        <p>Subtotal: <strong>{{ formatCurrency(subtotal()) }}</strong></p>
+        <p>VAT (18%): <strong>{{ formatCurrency(taxAmount()) }}</strong></p>
+        <p class="text-lg">Grand Total: <strong class="text-[#1B3A6B]">{{ formatCurrency(grandTotal()) }}</strong></p>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t pt-4">
+      <button type="button" class="btn-secondary" [disabled]="saving()" (click)="saveDraft()">Save Draft</button>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="submit()">Submit for Approval</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,79 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+    <app-page-header
+      title="Stock Reservations"
+      subtitle="Reserved stock awaiting issue or dispatch confirmation"
+    />
+    <app-procurement-badge />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (!rows().length) {
+    <app-empty-state
+      title="No active reservations"
+      message="Reserved stock will appear here when orders or department requests hold inventory."
+    />
+  } @else {
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="card p-4 border-l-4 border-l-amber-500">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Dispatch Queue</p>
+        <p class="text-2xl font-bold text-amber-700 mt-1">{{ totalReserved() | number:'1.0-2' }}</p>
+        <p class="text-xs text-gray-500 mt-1">Units reserved awaiting issue / dispatch</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Reserved SKUs</p>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ skuCount() }}</p>
+        <p class="text-xs text-gray-500 mt-1">Items with active reservations</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Warehouses</p>
+        <p class="text-2xl font-bold text-gray-900 mt-1">{{ warehouseCount() }}</p>
+        <p class="text-xs text-gray-500 mt-1">Locations holding reserved stock</p>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Item</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th text-right">On Hand</th>
+              <th class="table-th text-right">Reserved</th>
+              <th class="table-th text-right">Available</th>
+              @if (canManage()) {
+                <th class="table-th text-right">Actions</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <p class="font-medium">{{ row.item_code }}</p>
+                  <p class="text-xs text-gray-500">{{ row.item_name }}</p>
+                </td>
+                <td class="table-td">{{ row.warehouse_name }}</td>
+                <td class="table-td text-right">{{ row.quantity_on_hand | number:'1.0-2' }}</td>
+                <td class="table-td text-right font-semibold text-amber-700">
+                  {{ row.quantity_reserved | number:'1.0-2' }}
+                </td>
+                <td class="table-td text-right">{{ row.quantity_available | number:'1.0-2' }}</td>
+                @if (canManage()) {
+                  <td class="table-td text-right">
+                    <button type="button" class="btn-ghost !text-xs" (click)="release(row)">
+                      Release
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

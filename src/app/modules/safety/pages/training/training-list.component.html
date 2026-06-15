@@ -1,0 +1,196 @@
+<div class="page-container">
+  <app-safety-nav />
+  <app-page-header title="Safety Training" subtitle="Schedule sessions and track completion">
+    @if (canSchedule()) {
+      <button type="button" class="btn-primary" (click)="openSchedule()">Schedule Training</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Training name, trainer..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-44">
+        <label class="input-label">Training Type</label>
+        <select
+          class="input-field"
+          [ngModel]="typeFilter()"
+          (ngModelChange)="typeFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All Types</option>
+          @for (t of trainingTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select
+          class="input-field"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All</option>
+          @for (st of statusOptions; track st.value) {
+            <option [value]="st.value">{{ st.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">From</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateFrom()"
+          (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-36">
+        <label class="input-label">To</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateTo()"
+          (ngModelChange)="dateTo.set($event); page.set(1); load()"
+        />
+      </div>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!trainings().length) {
+    <div class="card">
+      <app-empty-state
+        title="No training sessions found"
+        message="Schedule a new training session or adjust your filters."
+        [actionLabel]="canSchedule() ? 'Schedule Training' : ''"
+        (actionClick)="openSchedule()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Training Name</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Trainer</th>
+            <th class="table-th">Scheduled</th>
+            <th class="table-th">Duration</th>
+            <th class="table-th">Attendees</th>
+            <th class="table-th">Completion</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of trainings(); track t.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ t.training_name }}</td>
+              <td class="table-td">
+                <span class="badge" [class]="typeColor(t.training_type)">
+                  {{ trainingTypeLabel(t.training_type) }}
+                </span>
+              </td>
+              <td class="table-td">{{ t.trainer }}</td>
+              <td class="table-td text-sm whitespace-nowrap">{{ formatDateTime(t.scheduled_date) }}</td>
+              <td class="table-td">{{ t.duration_hours }}h</td>
+              <td class="table-td">{{ t.attendees_count }} / {{ t.max_attendees }}</td>
+              <td class="table-td">{{ t.completion_rate }}%</td>
+              <td class="table-td">
+                <span class="badge" [class]="t.status === 'COMPLETED' ? 'badge-green' : t.status === 'CANCELLED' ? 'badge-red' : 'badge-blue'">
+                  {{ t.status }}
+                </span>
+              </td>
+              <td class="table-td">
+                <a [routerLink]="['/safety/training', t.id, 'attendance']" class="btn-ghost !text-xs !px-2">
+                  Attendance
+                </a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="15"
+      (pageChange)="page.set($event); load()"
+    />
+  }
+</div>
+
+<app-modal
+  [open]="showSchedule()"
+  title="Schedule Training"
+  size="xl"
+  (close)="showSchedule.set(false)"
+>
+  <form [formGroup]="scheduleForm" class="space-y-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="sm:col-span-2">
+        <label class="input-label">Training Name *</label>
+        <input type="text" class="input-field" formControlName="training_name" />
+      </div>
+      <div>
+        <label class="input-label">Training Type *</label>
+        <select class="input-field" formControlName="training_type">
+          @for (t of trainingTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Trainer *</label>
+        <input type="text" class="input-field" formControlName="trainer" />
+      </div>
+      <div>
+        <label class="input-label">Scheduled Date *</label>
+        <input type="datetime-local" class="input-field" formControlName="scheduled_date" />
+      </div>
+      <div>
+        <label class="input-label">Duration (hours) *</label>
+        <input type="number" class="input-field" formControlName="duration_hours" step="0.5" min="0.5" />
+      </div>
+      <div>
+        <label class="input-label">Location</label>
+        <select class="input-field" formControlName="location">
+          <option value="">— Select —</option>
+          @for (loc of locations; track loc) {
+            <option [value]="loc">{{ loc }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Max Attendees *</label>
+        <input type="number" class="input-field" formControlName="max_attendees" min="1" />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="input-label">Description</label>
+        <textarea class="input-field" formControlName="description" rows="2"></textarea>
+      </div>
+      <div class="sm:col-span-2">
+        <label class="input-label">Materials / Notes</label>
+        <textarea class="input-field" formControlName="materials_notes" rows="2"></textarea>
+      </div>
+    </div>
+  </form>
+  <div modalFooter class="flex gap-2 justify-end">
+    <button type="button" class="btn-ghost" (click)="showSchedule.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitSchedule()">
+      {{ saving() ? 'Scheduling…' : 'Schedule' }}
+    </button>
+  </div>
+</app-modal>
+

@@ -1,0 +1,106 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Physical Stock Take">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openNew()">New Stock Take</button>
+    }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="7" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!stockTakes().length) {
+    <div class="card"><app-empty-state title="No stock takes" message="Record physical counts and reconcile variances with system stock." [actionLabel]="canAdd() ? 'New Stock Take' : ''" (actionClick)="openNew()" /></div>
+  } @else {
+    <div class="table-container">
+      <div class="flex justify-end px-4 pt-3">
+        <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Take #</th>
+              <th class="table-th">Date</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Lines</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Conducted By</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (take of stockTakes(); track take.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-sm">{{ take.take_number }}</td>
+                <td class="table-td text-xs">{{ formatDateTime(take.created_at) }}</td>
+                <td class="table-td">{{ take.warehouse_name }}</td>
+                <td class="table-td text-sm">
+                  @for (line of take.lines; track line.id) {
+                    <div>{{ line.item_name }}: sys {{ formatNumber(line.system_quantity) }} / phys {{ formatNumber(line.physical_quantity) }}</div>
+                  }
+                </td>
+                <td class="table-td"><app-status-badge [status]="take.status" /></td>
+                <td class="table-td text-sm">{{ take.conducted_by_name }}</td>
+                <td class="table-td">
+                  @if (take.status === 'PENDING' && canApprove()) {
+                    <div class="flex gap-1">
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="approve(take)">Approve</button>
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="reject(take)">Reject</button>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="New Stock Take" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Warehouse *</label>
+      <select formControlName="warehouse" class="input-field" (change)="onItemOrWarehouseChange()">
+        <option [ngValue]="null">Select warehouse</option>
+        @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Item *</label>
+      <app-searchable-select
+        [options]="itemOptions()"
+        [value]="form.controls.item.value"
+        placeholder="Search items..."
+        (valueChange)="form.controls.item.setValue($event != null ? +$event : null); onItemOrWarehouseChange()"
+      />
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">System Quantity</label>
+        <input type="number" formControlName="system_quantity" step="0.01" class="input-field" readonly />
+      </div>
+      <div>
+        <label class="input-label">Physical Quantity *</label>
+        <input type="number" formControlName="physical_quantity" step="0.01" class="input-field" />
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Variance Reason</label>
+      <textarea formControlName="reason" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Submit Stock Take
+    </button>
+  </div>
+</app-modal>

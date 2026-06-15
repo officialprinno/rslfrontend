@@ -1,0 +1,61 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Bank Reconciliation" subtitle="Match bank statements to ledger entries" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!reconciliations().length) {
+    <div class="card">
+      <app-empty-state
+        title="No reconciliations"
+        message="Start a reconciliation from a bank account to match statement lines."
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Bank Account</th>
+            <th class="table-th">Period</th>
+            <th class="table-th">Opening</th>
+            <th class="table-th">Closing</th>
+            <th class="table-th">Difference</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of reconciliations(); track r.id) {
+            <tr class="table-row">
+              <td class="table-td">
+                <div class="font-medium">{{ r.bank_account_name }}</div>
+                <div class="text-xs text-gray-500">{{ r.bank_account_number }}</div>
+              </td>
+              <td class="table-td">{{ r.period_label }}</td>
+              <td class="table-td">{{ formatAccountingAmount(r.opening_balance) }}</td>
+              <td class="table-td">{{ formatAccountingAmount(r.closing_balance) }}</td>
+              <td class="table-td" [class.text-red-600]="hasDifference(r.summary.difference)">
+                {{ formatAccountingAmount(r.summary.difference) }}
+              </td>
+              <td class="table-td">
+                <app-status-badge [status]="r.status === 'COMPLETED' ? 'COMPLETED' : 'DRAFT'" [label]="statusLabel(r.status)" />
+              </td>
+              <td class="table-td">
+                <a [routerLink]="['/finance/reconciliation', r.id]" class="btn-ghost !px-2 !py-1 !text-xs inline-block">
+                  {{ r.status === 'COMPLETED' ? 'View' : 'Reconcile' }}
+                </a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

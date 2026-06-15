@@ -1,0 +1,51 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+
+  @if (loading()) {
+    <p class="text-sm text-gray-500">Loading role…</p>
+  } @else if (role(); as r) {
+    <app-page-header
+      [title]="r.name"
+      [subtitle]="(r.department_name ?? 'Cross-department role') + ' · ' + permissionCount() + ' permissions'"
+    >
+      <a routerLink="/settings/roles" class="btn-secondary">Back to Roles</a>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="savePermissions()">
+        @if (saving()) { <span class="spinner spinner-sm"></span> }
+        Save Permissions
+      </button>
+    </app-page-header>
+
+    <div class="card p-6 overflow-x-auto">
+      <p class="text-sm text-gray-500 mb-4">
+        Toggle module actions for this role. Users assigned this role inherit these permissions (merged with other assignments).
+      </p>
+      <table class="w-full text-sm border-collapse min-w-[720px]">
+        <thead>
+          <tr>
+            <th class="table-th text-left">Module</th>
+            @for (action of permissionActions; track action) {
+              <th class="table-th text-center capitalize">{{ action }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (mod of permissionModules; track mod) {
+            <tr class="table-row">
+              <td class="table-td font-medium capitalize">{{ mod.replace('_', ' ') }}</td>
+              @for (action of permissionActions; track action) {
+                <td class="table-td text-center">
+                  <input
+                    type="checkbox"
+                    class="rounded border-gray-300"
+                    [checked]="matrix()[mod]?.[action]"
+                    (change)="toggle(mod, action)"
+                  />
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

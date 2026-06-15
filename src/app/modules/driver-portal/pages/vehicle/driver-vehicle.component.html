@@ -1,0 +1,33 @@
+<div class="page-container max-w-3xl mx-auto">
+  <app-driver-portal-nav />
+  <app-page-header title="Vehicle Status" subtitle="Report condition and view assigned vehicle" />
+
+  @if (dashboard()?.current_vehicle; as v) {
+    <div class="card p-6 mb-6 border-l-4 border-l-[#1B3A6B]">
+      <p class="text-2xl font-bold">{{ v.registration_number }}</p>
+      <p class="text-gray-600">{{ v.make }} {{ v.model }}</p>
+      <p class="text-sm mt-2">Status: <app-status-badge [status]="v.status" /></p>
+      <p class="text-sm text-gray-500">Odometer: {{ v.odometer_reading | number }} km</p>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="font-semibold mb-4">Update Vehicle Condition</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="input-label">Condition *</label>
+          <select class="input-field" [(ngModel)]="condition">
+            @for (c of conditions; track c.value) {
+              <option [value]="c.value">{{ c.label }}</option>
+            }
+          </select>
+          <p class="text-xs text-amber-700 mt-1">Breakdown or maintenance issues notify Logistics automatically.</p>
+        </div>
+        <div><label class="input-label">Odometer (km)</label><input type="number" class="input-field" [(ngModel)]="odometer" min="0" /></div>
+        <div><label class="input-label">Notes</label><textarea class="input-field resize-none" rows="3" [(ngModel)]="notes"></textarea></div>
+        <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="submit()">Submit Report</button>
+      </div>
+    </div>
+  } @else {
+    <div class="card p-8 text-center text-gray-500">No vehicle currently assigned to you.</div>
+  }
+</div>

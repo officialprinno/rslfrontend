@@ -1,0 +1,153 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    [title]="editId() ? 'Edit Journal Entry' : 'New Journal Entry'"
+    subtitle="Record debits and credits — must balance before posting"
+  >
+    <a routerLink="/finance/journal-entries" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">Entry Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label class="input-label">Date *</label>
+          <input type="date" formControlName="date" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Reference Type *</label>
+          <select formControlName="reference_type" class="input-field">
+            @for (ref of referenceTypes; track ref.value) {
+              <option [value]="ref.value">{{ ref.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Reference ID</label>
+          <input type="text" formControlName="reference_id" class="input-field" placeholder="Optional reference" />
+        </div>
+        <div>
+          <label class="input-label">Currency *</label>
+          <select formControlName="currency" class="input-field">
+            <option [ngValue]="null">Select currency</option>
+            @for (cur of currencies(); track cur.id) {
+              <option [ngValue]="cur.id">{{ cur.code }} — {{ cur.name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Exchange Rate *</label>
+          <input type="number" formControlName="exchange_rate" step="0.0001" min="0.0001" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Status</label>
+          <input type="text" class="input-field bg-gray-50" [value]="jeStatus()" readonly />
+        </div>
+        <div class="md:col-span-3">
+          <label class="input-label">Description *</label>
+          <textarea formControlName="description" rows="2" class="input-field resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between items-center mb-3">
+        <h4 class="font-semibold">Journal Lines</h4>
+        <button type="button" class="btn-ghost !text-xs" (click)="addLine()">+ Add Line</button>
+      </div>
+      <div formArrayName="lines" class="space-y-3">
+        @for (line of lines().controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="p-4 bg-gray-50 rounded-xl border border-gray-100">
+            <div class="grid grid-cols-12 gap-3 items-end">
+              <div class="col-span-12 md:col-span-4">
+                <label class="input-label">Account *</label>
+                <app-searchable-select
+                  [options]="accountOptions()"
+                  [value]="line.value.account"
+                  placeholder="Search account..."
+                  (valueChange)="onAccountSelect(i, $event)"
+                />
+              </div>
+              <div class="col-span-12 md:col-span-3">
+                <label class="input-label">Description</label>
+                <input type="text" formControlName="description" class="input-field" />
+              </div>
+              <div class="col-span-6 md:col-span-2">
+                <label class="input-label">Department</label>
+                <app-searchable-select
+                  [options]="departmentOptions()"
+                  [value]="line.value.department"
+                  placeholder="Optional..."
+                  (valueChange)="onDepartmentSelect(i, $event)"
+                />
+              </div>
+              <div class="col-span-3 md:col-span-1">
+                <label class="input-label">Debit</label>
+                <input
+                  type="number"
+                  formControlName="debit_amount"
+                  step="0.01"
+                  min="0"
+                  class="input-field"
+                  (input)="onDebitChange(i)"
+                />
+              </div>
+              <div class="col-span-3 md:col-span-1">
+                <label class="input-label">Credit</label>
+                <input
+                  type="number"
+                  formControlName="credit_amount"
+                  step="0.01"
+                  min="0"
+                  class="input-field"
+                  (input)="onCreditChange(i)"
+                />
+              </div>
+              <div class="col-span-12 md:col-span-1 flex justify-end">
+                <button type="button" class="btn-ghost !text-red-600 mt-6" (click)="removeLine(i)">×</button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="border-t pt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="text-sm space-y-2">
+        <div class="flex gap-6">
+          <p>
+            Total Debit:
+            <strong class="text-[#1B3A6B]">{{ formatAccountingAmount(totalDebit()) }}</strong>
+          </p>
+          <p>
+            Total Credit:
+            <strong class="text-[#1B3A6B]">{{ formatAccountingAmount(totalCredit()) }}</strong>
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          @if (isBalanced()) {
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+              ✓ Balanced
+            </span>
+          } @else {
+            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              Out of balance: {{ formatAccountingAmount(balanceDifference()) }}
+            </span>
+          }
+          <span class="text-gray-500">{{ lines().length }} line(s)</span>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button type="button" class="btn-secondary" [disabled]="saving() || !canSave()" (click)="saveDraft()">
+          @if (saving()) { <span class="spinner spinner-sm"></span> }
+          Save Draft
+        </button>
+        <button type="button" class="btn-primary" [disabled]="saving() || !canPost() || !isBalanced()" (click)="saveAndPost()">
+          @if (saving()) { <span class="spinner spinner-sm"></span> }
+          Save &amp; Post
+        </button>
+      </div>
+    </div>
+  </form>
+</div>

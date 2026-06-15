@@ -1,0 +1,160 @@
+<div class="page-container">
+  <app-safety-nav />
+  <app-page-header title="Work Permits" subtitle="Manage hot work, confined space, and other permits">
+    @if (canCreate()) {
+      <a routerLink="/safety/permits/new" class="btn-primary">New Permit</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="input-label">Search</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="Permit no., description, location..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-44">
+        <label class="input-label">Permit Type</label>
+        <select
+          class="input-field"
+          [ngModel]="typeFilter()"
+          (ngModelChange)="typeFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All Types</option>
+          @for (t of permitTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select
+          class="input-field"
+          [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All</option>
+          @for (st of statusOptions; track st.value) {
+            <option [value]="st.value">{{ st.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-40">
+        <label class="input-label">Location</label>
+        <select
+          class="input-field"
+          [ngModel]="locationFilter()"
+          (ngModelChange)="locationFilter.set($event); page.set(1); load()"
+        >
+          <option value="">All Locations</option>
+          @for (loc of locations; track loc) {
+            <option [value]="loc">{{ loc }}</option>
+          }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">From</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateFrom()"
+          (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+        />
+      </div>
+      <div class="w-36">
+        <label class="input-label">To</label>
+        <input
+          type="date"
+          class="input-field"
+          [ngModel]="dateTo()"
+          (ngModelChange)="dateTo.set($event); page.set(1); load()"
+        />
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-600 pb-2">
+        <input
+          type="checkbox"
+          [ngModel]="activeOnly()"
+          (ngModelChange)="activeOnly.set($event); page.set(1); load()"
+        />
+        Active only
+      </label>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="9" />
+  } @else if (!permits().length) {
+    <div class="card">
+      <app-empty-state
+        title="No permits found"
+        message="Create a new work permit or adjust your filters."
+        [actionLabel]="canCreate() ? 'New Permit' : ''"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Permit No.</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Work Description</th>
+            <th class="table-th">Location</th>
+            <th class="table-th">Valid From</th>
+            <th class="table-th">Valid Until</th>
+            <th class="table-th">Risk</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (permit of permits(); track permit.id) {
+            <tr class="table-row">
+              <td class="table-td font-mono text-xs font-medium">{{ permit.permit_number }}</td>
+              <td class="table-td">
+                <span class="badge" [class]="typeColor(permit.permit_type)">
+                  {{ permitTypeLabel(permit.permit_type) }}
+                </span>
+              </td>
+              <td class="table-td max-w-[200px] truncate" [title]="permit.work_description">
+                {{ permit.work_description }}
+              </td>
+              <td class="table-td">{{ permit.location }}</td>
+              <td class="table-td text-sm whitespace-nowrap">{{ formatDateTime(permit.valid_from) }}</td>
+              <td class="table-td text-sm whitespace-nowrap">{{ formatDateTime(permit.valid_until) }}</td>
+              <td class="table-td">
+                <span class="badge" [class]="permit.risk_level === 'HIGH' ? 'badge-red' : permit.risk_level === 'MEDIUM' ? 'badge-orange' : 'badge-green'">
+                  {{ permit.risk_level }}
+                </span>
+              </td>
+              <td class="table-td">
+                <span class="badge" [class]="statusColor(permit.status)">{{ permit.status }}</span>
+              </td>
+              <td class="table-td">
+                <div class="flex items-center gap-1">
+                  <a [routerLink]="['/safety/permits', permit.id, 'view']" class="btn-ghost !text-xs !px-2">View</a>
+                  @if (permit.status === 'PENDING') {
+                    <a [routerLink]="['/safety/permits', permit.id, 'edit']" class="btn-ghost !text-xs !px-2">Edit</a>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="15"
+      (pageChange)="page.set($event); load()"
+    />
+  }
+</div>
+

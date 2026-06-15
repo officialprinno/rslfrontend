@@ -1,0 +1,120 @@
+<app-page-header title="Security Dashboard" subtitle="Main Office & Stein factory — live gate operations" />
+
+<app-security-nav />
+
+<app-location-tabs
+  [tabs]="locationTabs()"
+  [selected]="selectedLocation()"
+  (selectedChange)="onLocationChange($event)"
+/>
+
+@if (loading()) {
+  <app-table-skeleton [rows]="4" />
+} @else if (error()) {
+  <app-error-state message="Failed to load security dashboard" (retry)="load()" />
+} @else if (data(); as d) {
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+    <div class="stat-card">
+      <p class="stat-label">👥 Visitors On Site</p>
+      <p class="stat-value">{{ d.visitors_on_site }}</p>
+      <p class="stat-split">🏢 Main: {{ d.visitors_main }} | 🏭 Stein: {{ d.visitors_stein }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">🚗 Vehicles On Premises</p>
+      <p class="stat-value">{{ d.vehicles_on_premises }}</p>
+      <p class="stat-split">🏢 Main: {{ d.vehicles_main }} | 🏭 Stein: {{ d.vehicles_stein }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">👮 Officers On Duty</p>
+      <p class="stat-value">{{ d.officers_on_duty }}</p>
+      <p class="stat-split">🏢 Main: {{ d.officers_main }} | 🏭 Stein: {{ d.officers_stein }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">⚠️ Incidents Today</p>
+      <p class="stat-value">{{ d.incidents_today }}</p>
+      <p class="stat-split">🏢 Main: {{ d.incidents_main }} | 🏭 Stein: {{ d.incidents_stein }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">🔄 In Transit</p>
+      <p class="stat-value text-[#8B5CF6]">{{ d.in_transit_count }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="stat-label">🚫 Access Violations (Month)</p>
+      <p class="stat-value">{{ d.access_violations_month }}</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="card">
+      <h3 class="section-title mb-3">Live Activity</h3>
+      <div class="space-y-2 max-h-80 overflow-y-auto">
+        @for (ev of d.live_activity; track ev.id) {
+          <div
+            class="activity-row"
+            [class.loc-main-border]="ev.location_name.includes('Main')"
+            [class.loc-stein-border]="ev.location_name.includes('Stein')"
+          >
+            <span class="text-xs font-semibold">{{ ev.location_name }}</span>
+            <span class="text-xs text-gray-400">{{ formatDateTime(ev.time) }}</span>
+            <span class="text-sm">{{ ev.person_name }} — {{ ev.description }}</span>
+          </div>
+        } @empty {
+          <p class="text-sm text-gray-400">No recent activity</p>
+        }
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title mb-3">Currently In Transit</h3>
+      @if (d.in_transit.length) {
+        <table class="data-table w-full text-sm">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Route</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of d.in_transit; track m.id) {
+              <tr>
+                <td>{{ m.employee_name || m.movement_number }}</td>
+                <td>{{ m.from_location_name }} → {{ m.to_location_name }}</td>
+                <td>
+                  <span [class]="m.status === 'OVERDUE' ? 'badge-red' : 'badge-blue'">{{ m.status }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="text-sm text-gray-400">No movements in transit</p>
+      }
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    @for (shift of d.shift_status; track shift.location_id) {
+      <div class="card" [style.borderLeft]="'4px solid ' + (shift.location_name.includes('Stein') ? '#F0A500' : '#1B3A6B')">
+        <h4 class="font-semibold">{{ shift.location_name.includes('Stein') ? '🏭' : '🏢' }} {{ shift.location_name }}</h4>
+        <p class="text-sm text-gray-600 mt-1">Current: {{ shift.current_shift }} shift</p>
+        <p class="text-sm">Officers: {{ shift.officers_count }} · Supervisor: {{ shift.supervisor_name }}</p>
+        @if (shift.is_understaffed) {
+          <p class="text-xs text-red-600 mt-2">⚠️ Understaffed</p>
+        }
+      </div>
+    }
+  </div>
+
+  @if (d.alerts.length) {
+    <div class="card border-l-4 border-red-500">
+      <h3 class="section-title mb-3">Security Alerts</h3>
+      @for (a of d.alerts; track a.reference_id) {
+        <div class="text-sm py-2 border-b border-gray-50 last:border-0">
+          <span class="badge-red text-xs mr-2">{{ a.severity }}</span>
+          {{ a.message }}
+        </div>
+      }
+    </div>
+  }
+}

@@ -1,0 +1,60 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+  <app-page-header title="Roles" subtitle="Department and system roles with permission sets">
+    <a routerLink="/settings/admin" class="btn-secondary">Admin Home</a>
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-col sm:flex-row gap-3">
+    <input
+      type="search"
+      class="input-field flex-1"
+      placeholder="Search roles…"
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+      (keyup.enter)="onSearch()"
+    />
+    <button type="button" class="btn-primary" (click)="onSearch()">Search</button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [rows]="8" [cols]="5" />
+  } @else if (!rows().length) {
+    <app-empty-state title="No roles found" message="Try adjusting your search." />
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Role</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Permissions</th>
+            <th class="table-th">Status</th>
+            <th class="table-th text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (role of rows(); track role.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ role.name }}</td>
+              <td class="table-td text-gray-600">{{ role.department_name ?? 'Cross-department' }}</td>
+              <td class="table-td">{{ permissionCount(role) }}</td>
+              <td class="table-td">
+                <app-status-badge [status]="role.is_active ? 'ACTIVE' : 'INACTIVE'" />
+              </td>
+              <td class="table-td text-right">
+                <a [routerLink]="['/settings/roles', role.id]" class="btn-ghost !text-xs">Manage</a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="50"
+      (pageChange)="onPageChange($event)"
+    />
+  }
+</div>

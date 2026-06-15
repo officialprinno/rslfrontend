@@ -1,0 +1,96 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Department Approvals" subtitle="Review and approve internal consumption requests">
+    <button type="button" class="btn-primary" (click)="bulkApprove()">Bulk Approve Selected</button>
+  </app-page-header>
+
+  <div class="card p-4 mb-6">
+    <label class="block text-sm text-gray-600 mb-1">Approval comment (optional)</label>
+    <input type="text" class="input w-full" [ngModel]="comment()" (ngModelChange)="comment.set($event)" />
+  </div>
+
+  @if (urgent().length) {
+    <div class="mb-6">
+      <h3 class="font-semibold text-red-700 mb-3">Urgent Queue</h3>
+      <div class="grid gap-3">
+        @for (req of urgent(); track req.id) {
+          <div class="card p-4 border-l-4 border-red-500">
+            <div class="flex justify-between items-start gap-3">
+              <div>
+                <p class="font-medium">{{ req.request_number }} · {{ req.requested_by_name }}</p>
+                <p class="text-sm text-gray-600">{{ req.purpose }}</p>
+              </div>
+              <button type="button" class="btn-primary text-sm" (click)="approveOne(req)">Approve</button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load approval queue" (retry)="load()" />
+  } @else if (!queue().length) {
+    <app-empty-state title="No pending approvals" message="Submitted requests will appear here." />
+  } @else {
+    <div class="card overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 border-b bg-gray-50">
+            <th class="p-3 w-10"></th>
+            <th class="p-3">Request</th>
+            <th class="p-3">Requester</th>
+            <th class="p-3">Department</th>
+            <th class="p-3">Priority</th>
+            <th class="p-3">Needed By</th>
+            <th class="p-3">Items</th>
+            <th class="p-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (req of queue(); track req.id) {
+            <tr class="border-b border-gray-50 hover:bg-gray-50/50">
+              <td class="p-3">
+                <input
+                  type="checkbox"
+                  [checked]="selected().has(req.id)"
+                  (change)="toggle(req.id, $any($event.target).checked)"
+                />
+              </td>
+              <td class="p-3 font-medium">{{ req.request_number }}</td>
+              <td class="p-3">{{ req.requested_by_name }}</td>
+              <td class="p-3">{{ req.department }}</td>
+              <td class="p-3"><app-status-badge [status]="req.priority ?? 'MEDIUM'" /></td>
+              <td class="p-3">{{ req.needed_by_date ?? '—' }}</td>
+              <td class="p-3">
+                @for (line of req.lines; track line.id) {
+                  <div>{{ line.item_code }} × {{ formatNumber(line.requested_qty ?? line.quantity) }}</div>
+                }
+              </td>
+              <td class="p-3 whitespace-nowrap">
+                <button type="button" class="text-[#2E6DB4] mr-3" (click)="approveOne(req)">Approve</button>
+                <button type="button" class="text-red-600" (click)="reject(req)">Reject</button>
+              </td>
+            </tr>
+            @if (activeRejectId() === req.id) {
+              <tr>
+                <td colspan="8" class="p-3 bg-red-50">
+                  <input
+                    class="input w-full mb-2"
+                    placeholder="Rejection reason"
+                    [ngModel]="rejectReason()"
+                    (ngModelChange)="rejectReason.set($event)"
+                  />
+                  <button type="button" class="btn-secondary text-sm mr-2" (click)="activeRejectId.set(null)">Cancel</button>
+                  <button type="button" class="btn-primary text-sm bg-red-600" (click)="confirmReject(req)">Confirm Reject</button>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

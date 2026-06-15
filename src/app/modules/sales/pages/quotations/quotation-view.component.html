@@ -1,0 +1,115 @@
+<div class="page-container">
+  <app-sales-nav />
+  @if (quotation(); as q) {
+    <app-page-header [title]="q.quotation_number" [subtitle]="q.customer_name">
+      <button type="button" class="btn-ghost" (click)="printQuotation()">Print</button>
+      <button type="button" class="btn-primary" (click)="exportPdf()">Export PDF</button>
+      <a routerLink="/sales/quotations" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="quotationSteps" [activeIndex]="workflowIndex(q.status)" />
+
+    <div id="quotation-print-area" class="card p-6 mb-6">
+      <div class="border-b border-gray-200 pb-4 mb-6">
+        <div class="flex justify-between items-start">
+          <div>
+            <h1 class="text-xl font-bold text-[#1B3A6B]">{{ company.name }}</h1>
+            <p class="text-sm text-gray-500">{{ company.address }}</p>
+            <p class="text-sm text-gray-500">TIN: {{ company.tin }} | VAT: {{ company.vat }}</p>
+          </div>
+          <div class="text-right">
+            <h2 class="text-lg font-bold text-[#1B3A6B]">QUOTATION</h2>
+            <p class="text-sm font-medium">{{ q.quotation_number }}</p>
+            <p class="text-sm text-gray-500">Date: {{ formatDate(q.created_at) }}</p>
+            <p class="text-sm text-gray-500">Valid Until: {{ formatDate(q.valid_until) }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-6 mb-6 text-sm">
+        <div>
+          <h4 class="font-semibold text-gray-700 mb-2">Bill To</h4>
+          <p class="font-medium">{{ q.customer_name }}</p>
+          <p class="text-gray-500">Mine: {{ q.mine_name }}</p>
+        </div>
+        <div class="text-right">
+          <p><span class="text-gray-500">Status:</span> <app-status-badge [status]="q.status" /></p>
+          <p><span class="text-gray-500">Currency:</span> {{ q.currency_code }}</p>
+          <p><span class="text-gray-500">Prepared By:</span> {{ q.created_by_name }}</p>
+        </div>
+      </div>
+
+      <table class="w-full text-sm mb-4">
+        <thead>
+          <tr>
+            <th class="table-th">#</th>
+            <th class="table-th">Item</th>
+            <th class="table-th">Qty</th>
+            <th class="table-th">Unit Price</th>
+            <th class="table-th">Disc%</th>
+            <th class="table-th">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of q.items; track item.id ?? $index; let i = $index) {
+            <tr class="table-row">
+              <td class="table-td">{{ i + 1 }}</td>
+              <td class="table-td">{{ item.item_code }} — {{ item.item_name ?? item.description }}</td>
+              <td class="table-td">{{ item.quantity }}</td>
+              <td class="table-td">{{ formatCurrency(item.unit_price, q.currency_code) }}</td>
+              <td class="table-td">{{ item.discount_percent }}%</td>
+              <td class="table-td font-semibold">{{ formatCurrency(item.total_price ?? 0, q.currency_code) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <div class="text-right text-sm space-y-1 mb-6">
+        <p>Subtotal: {{ formatCurrency(q.subtotal, q.currency_code) }}</p>
+        @if (q.discount_amount) {
+          <p>Discount: {{ formatCurrency(q.discount_amount, q.currency_code) }}</p>
+        }
+        <p>VAT: {{ formatCurrency(q.tax_amount, q.currency_code) }}</p>
+        @if (q.delivery_cost) {
+          <p>Delivery Cost: {{ formatCurrency(q.delivery_cost, q.currency_code) }}</p>
+        }
+        <p class="text-lg font-bold text-[#1B3A6B]">Grand Total: {{ formatCurrency(q.total_amount, q.currency_code) }}</p>
+      </div>
+
+      @if (q.terms_conditions || q.notes) {
+        <div class="text-sm border-t pt-4">
+          <h4 class="font-semibold mb-2">Terms & Conditions</h4>
+          <p class="text-gray-600 whitespace-pre-line">{{ q.terms_conditions || q.notes }}</p>
+        </div>
+      }
+    </div>
+
+    <p class="text-xs text-gray-500 mb-4">Created {{ formatDateTime(q.created_at) }}</p>
+
+    <div class="flex gap-2 flex-wrap">
+      @if (q.status === 'DRAFT' && canManage()) {
+        <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-secondary">Edit</a>
+        <button type="button" class="btn-primary" (click)="send()">Send to Customer</button>
+        @if (canDelete()) {
+          <button type="button" class="btn-secondary !text-red-600" (click)="deleteQuotation()">Delete</button>
+        }
+      }
+      @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canManage() && !q.has_sales_order) {
+        <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-secondary">Edit</a>
+        @if (canDelete()) {
+          <button type="button" class="btn-secondary !text-red-600" (click)="deleteQuotation()">Delete</button>
+        }
+      }
+      @if (q.status === 'SENT' && canManage()) {
+        <button type="button" class="btn-primary" (click)="accept()">Mark Accepted</button>
+        <button type="button" class="btn-secondary !text-red-600" (click)="reject()">Mark Rejected</button>
+      }
+      @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canConvert()) {
+        <button type="button" class="btn-primary" (click)="convert()">Convert to Sales Order</button>
+      }
+      @if (q.status === 'REJECTED' || q.status === 'EXPIRED') {
+        <button type="button" class="btn-secondary" (click)="duplicate()">Duplicate</button>
+      }
+    </div>
+  }
+</div>

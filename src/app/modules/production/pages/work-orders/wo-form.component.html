@@ -1,0 +1,141 @@
+<div class="page-container">
+  <app-production-nav />
+  <app-page-header [title]="editId() ? 'Edit Work Order' : 'New Work Order'">
+    <a routerLink="/production/work-orders" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="space-y-6">
+    <div class="card p-6">
+      <h4 class="text-sm font-semibold text-gray-900 mb-4">Work Order Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Product *</label>
+          <select formControlName="product" class="input-field">
+            <option [ngValue]="null">Select product</option>
+            @for (p of products(); track p.id) {
+              <option [ngValue]="p.id">{{ p.name }} ({{ p.item_code }})</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Linked Sales Order</label>
+          <select formControlName="sales_order" class="input-field">
+            <option [ngValue]="null">None (optional)</option>
+            @for (so of salesOrders(); track so.id) {
+              <option [ngValue]="so.id">{{ so.so_number }} — {{ so.customer_name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Machine</label>
+          <select formControlName="machine" class="input-field">
+            <option [ngValue]="null">Select machine (optional)</option>
+            @for (m of machines(); track m.id) {
+              <option [ngValue]="m.id">{{ m.machine_code }} — {{ m.name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Quantity Planned *</label>
+          <input type="number" formControlName="quantity_planned" class="input-field" min="1" />
+        </div>
+        <div>
+          <label class="input-label">Planned Start *</label>
+          <input type="datetime-local" formControlName="planned_start" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Planned End *</label>
+          <input type="datetime-local" formControlName="planned_end" class="input-field" />
+        </div>
+        <div>
+          <label class="input-label">Shift *</label>
+          <select formControlName="shift" class="input-field">
+            @for (s of shifts; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Operator *</label>
+          <select formControlName="operator" class="input-field">
+            <option [ngValue]="null">Select operator</option>
+            @for (op of operators(); track op.id) {
+              <option [ngValue]="op.id">{{ op.full_name }}</option>
+            }
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Notes</label>
+          <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+        </div>
+      </div>
+
+      @if (selectedProduct(); as prod) {
+        <div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm">
+          <p><span class="text-gray-500">Active BOM:</span> {{ prod.active_bom_version || '—' }}</p>
+          <p><span class="text-gray-500">Standard Output:</span> {{ prod.standard_output }} {{ prod.unit_of_measure }}</p>
+        </div>
+      }
+    </div>
+
+    @if (hasMaterialShortage()) {
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <p class="font-semibold mb-1">Material shortage warning</p>
+        <p>One or more materials have insufficient stock for the planned quantity. Review requirements below before proceeding.</p>
+      </div>
+    }
+
+    <div class="card p-6">
+      <h4 class="text-sm font-semibold text-gray-900 mb-4">Material Requirements</h4>
+      @if (loadingMaterials()) {
+        <p class="text-sm text-gray-500">Checking material availability...</p>
+      } @else if (!materialReqs().length) {
+        <p class="text-sm text-gray-500">Select a product and quantity to view material requirements.</p>
+      } @else {
+        <div class="table-container">
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="table-th">Material</th>
+                <th class="table-th">Required</th>
+                <th class="table-th">Available</th>
+                <th class="table-th">Shortage</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of materialReqs(); track m.item_id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ m.item_code }} — {{ m.item_name }}</td>
+                  <td class="table-td">{{ m.required_quantity }}</td>
+                  <td class="table-td">{{ m.available_stock }}</td>
+                  <td class="table-td" [class]="m.is_sufficient ? '' : 'text-red-600 font-medium'">
+                    {{ m.shortage || '—' }}
+                  </td>
+                  <td class="table-td">
+                    <span
+                      class="font-medium"
+                      [class]="m.is_sufficient ? materialStatusColor['SUFFICIENT'] : materialStatusColor['INSUFFICIENT']"
+                    >
+                      {{ m.is_sufficient ? 'Sufficient' : 'Insufficient' }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <div class="flex gap-2">
+      <button type="button" class="btn-secondary" (click)="saveDraft()" [disabled]="saving()">
+        @if (saving()) { <span class="spinner spinner-sm"></span> }
+        Save Draft
+      </button>
+      <button type="button" class="btn-primary" (click)="submitForApproval()" [disabled]="saving()">
+        Submit for Approval
+      </button>
+    </div>
+  </form>
+</div>

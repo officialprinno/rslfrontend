@@ -1,0 +1,275 @@
+<div class="page-container">
+  <app-safety-nav />
+  <app-page-header
+    title="Safety Reports"
+    subtitle="Generate and export HSE compliance reports"
+    [hasActions]="false"
+  />
+
+  <div class="card p-4 mb-6 bg-blue-50 border border-blue-100">
+    <p class="text-sm font-medium text-[#1B3A6B]">LTIFR Formula</p>
+    <p class="text-sm text-gray-700 mt-1 font-mono">{{ ltifrFormula }}</p>
+    <p class="text-xs text-gray-500 mt-1">
+      Lost Time Injury Frequency Rate — used in Incident Summary and LTIFR Benchmark reports.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
+    @for (card of reportCards; track card.id) {
+      <div class="card p-5 flex flex-col gap-4">
+        <div>
+          <h2 class="section-title">{{ card.title }}</h2>
+          <p class="text-sm text-gray-500 mt-1">{{ card.description }}</p>
+        </div>
+
+        @if (card.periodType === 'range') {
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">From</label>
+              <input type="date" class="input-field" [(ngModel)]="dateFrom" />
+            </div>
+            <div>
+              <label class="input-label">To</label>
+              <input type="date" class="input-field" [(ngModel)]="dateTo" />
+            </div>
+          </div>
+        }
+
+        @if (card.periodType === 'month') {
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">Month</label>
+              <select class="input-field" [(ngModel)]="reportMonth">
+                @for (m of months; track m.value) {
+                  <option [ngValue]="m.value">{{ m.label }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="input-label">Year</label>
+              <input type="number" class="input-field" [(ngModel)]="reportYear" />
+            </div>
+          </div>
+        }
+
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <button
+            type="button"
+            class="btn-primary !text-xs"
+            [disabled]="!canView()"
+            (click)="generateReport(card.id)"
+          >
+            Generate
+          </button>
+          <button
+            type="button"
+            class="btn-secondary !text-xs"
+            [disabled]="!canView()"
+            (click)="exportReport(card.id)"
+          >
+            Export
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="5" />
+  } @else if (error()) {
+    <app-error-state title="Unable to generate report" />
+  } @else if (activeReport(); as reportId) {
+    @if ((reportId === 'incidents' || reportId === 'ltifr') && incidentReport(); as report) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">
+            {{ reportId === 'ltifr' ? 'LTIFR Benchmark' : 'Incident Summary' }}
+          </h2>
+          <p class="text-sm text-gray-500 mt-0.5">
+            {{ formatDate(report.period_from) }} — {{ formatDate(report.period_to) }}
+          </p>
+        </div>
+        <div class="p-6">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="card-stat">
+              <p class="card-stat__value">{{ report.total }}</p>
+              <p class="card-stat__label">Total Incidents</p>
+            </div>
+            <div class="card-stat">
+              <p class="card-stat__value text-[#1B3A6B]">{{ report.ltifr }}</p>
+              <p class="card-stat__label">LTIFR</p>
+            </div>
+            <div class="card-stat !items-start">
+              <p class="text-xs text-gray-500 font-mono">{{ ltifrFormula }}</p>
+              <p class="card-stat__label mt-2">Formula</p>
+            </div>
+          </div>
+
+          @if (report.by_type.length) {
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">By Type</h3>
+            <table class="w-full mb-6">
+              <thead>
+                <tr>
+                  <th class="table-th">Type</th>
+                  <th class="table-th text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of report.by_type; track row.incident_type) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ incidentTypeLabel(row.incident_type) }}</td>
+                    <td class="table-td text-right font-medium">{{ row.count }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @if (report.by_severity.length) {
+            <h3 class="text-sm font-semibold text-gray-700 mb-3">By Severity</h3>
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Severity</th>
+                  <th class="table-th text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of report.by_severity; track row.severity) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ row.severity }}</td>
+                    <td class="table-td text-right font-medium">{{ row.count }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'inspections' && inspectionReport(); as report) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Inspection Compliance</h2>
+          <p class="text-sm text-gray-500 mt-0.5">{{ report.total }} completed inspections</p>
+        </div>
+        <div class="overflow-x-auto">
+          @if (report.by_area.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Area</th>
+                  <th class="table-th text-right">Completed</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of report.by_area; track row.area) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ row.area }}</td>
+                    <td class="table-td text-right font-medium">{{ row.pass_count }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No completed inspections found.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'monthly-hse' && hseReport(); as report) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Monthly HSE Dashboard</h2>
+          <p class="text-sm text-gray-500 mt-0.5">{{ report.month }}/{{ report.year }}</p>
+        </div>
+        <div class="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="card-stat">
+            <p class="card-stat__value text-[#1B3A6B]">{{ report.safety_score }}</p>
+            <p class="card-stat__label">Safety Score</p>
+          </div>
+          <div class="card-stat">
+            <p class="card-stat__value">{{ report.days_without_incident }}</p>
+            <p class="card-stat__label">Days Without Incident</p>
+          </div>
+          <div class="card-stat">
+            <p class="card-stat__value">{{ report.open_incidents }}</p>
+            <p class="card-stat__label">Open Incidents</p>
+          </div>
+          <div class="card-stat">
+            <p class="card-stat__value">{{ report.pending_inspections }}</p>
+            <p class="card-stat__label">Pending Inspections</p>
+          </div>
+          <div class="card-stat">
+            <p class="card-stat__value">{{ report.active_permits }}</p>
+            <p class="card-stat__label">Active Permits</p>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'permits' && permitReport().length) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Work Permit Register</h2>
+          <p class="text-sm text-gray-500 mt-0.5">{{ permitReport().length }} permits</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Permit No.</th>
+                <th class="table-th">Type</th>
+                <th class="table-th">Location</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of permitReport(); track p.id) {
+                <tr class="table-row">
+                  <td class="table-td font-mono text-xs">{{ p.permit_number }}</td>
+                  <td class="table-td">{{ permitTypeLabel(p.permit_type) }}</td>
+                  <td class="table-td">{{ p.location }}</td>
+                  <td class="table-td">{{ p.status }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'training' && trainingReport().length) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Training Compliance</h2>
+          <p class="text-sm text-gray-500 mt-0.5">{{ trainingReport().length }} sessions</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Training</th>
+                <th class="table-th">Type</th>
+                <th class="table-th text-right">Completion %</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (t of trainingReport(); track t.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ t.training_name }}</td>
+                  <td class="table-td">{{ trainingTypeLabel(t.training_type) }}</td>
+                  <td class="table-td text-right">{{ t.completion_rate }}%</td>
+                  <td class="table-td">{{ t.status }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+</div>

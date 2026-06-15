@@ -1,0 +1,174 @@
+<div class="page-container">
+  <app-production-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load machine" (retry)="loadMachine()" />
+  } @else if (machine(); as m) {
+    <app-page-header [title]="m.machine_code" [subtitle]="m.name">
+      <a routerLink="/production/machines" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+          [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          (click)="setTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    @if (activeTab() === 'overview') {
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Hours This Month</p>
+          <p class="text-2xl font-bold text-[#1B3A6B]">{{ m.hours_this_month | number:'1.1-1' }}</p>
+        </div>
+        <div class="card p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Utilization Rate</p>
+          <p class="text-2xl font-bold text-[#1B3A6B]">{{ m.utilization_rate | number:'1.0-0' }}%</p>
+        </div>
+        <div class="card p-5">
+          <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Status</p>
+          <p class="mt-1"><app-status-badge [status]="m.status" [label]="statusLabel(m.status)" /></p>
+        </div>
+      </div>
+
+      <div class="card p-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div><span class="text-gray-500">Type</span><p class="font-medium">{{ typeLabel(m.machine_type) }}</p></div>
+          <div><span class="text-gray-500">Purchase Date</span><p>{{ formatDate(m.purchase_date) }}</p></div>
+          <div><span class="text-gray-500">Last Service</span><p>{{ formatDate(m.last_service_date) }}</p></div>
+          <div><span class="text-gray-500">Next Service</span><p>{{ formatDate(m.next_service_date) }}</p></div>
+          <div><span class="text-gray-500">Active</span><p>{{ m.is_active ? 'Yes' : 'No' }}</p></div>
+          @if (m.current_wo) {
+            <div>
+              <span class="text-gray-500">Current WO</span>
+              <p>
+                <a [routerLink]="['/production/work-orders', m.current_wo.id, 'view']" class="text-[#1B3A6B] hover:underline">
+                  {{ m.current_wo.wo_number }}
+                </a>
+              </p>
+            </div>
+          }
+        </div>
+        @if (m.notes) {
+          <div class="mt-4 pt-4 border-t text-sm">
+            <span class="text-gray-500">Notes:</span> {{ m.notes }}
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'usage') {
+      @if (historyLoading()) {
+        <app-table-skeleton [cols]="6" />
+      } @else if (historyError()) {
+        <app-error-state title="Unable to load usage history" (retry)="loadHistory()" />
+      } @else if (history()?.usage?.length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Work Order</th>
+                <th class="table-th">Operator</th>
+                <th class="table-th">Start</th>
+                <th class="table-th">End</th>
+                <th class="table-th">Hours</th>
+                <th class="table-th">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (u of history()!.usage; track u.id) {
+                <tr class="table-row">
+                  <td class="table-td">
+                    <a [routerLink]="['/production/work-orders', u.wo_id, 'view']" class="text-[#1B3A6B] hover:underline">
+                      {{ u.wo_number }}
+                    </a>
+                  </td>
+                  <td class="table-td">{{ u.operator_name }}</td>
+                  <td class="table-td">{{ formatDateTime(u.start_time) }}</td>
+                  <td class="table-td">{{ formatDateTime(u.end_time) }}</td>
+                  <td class="table-td font-medium">{{ u.hours_used }}</td>
+                  <td class="table-td text-sm text-gray-500">{{ u.notes || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card">
+          <app-empty-state title="No usage history" message="Machine usage will appear here once logged." />
+        </div>
+      }
+    }
+
+    @if (activeTab() === 'service') {
+      @if (historyLoading()) {
+        <app-table-skeleton [cols]="4" />
+      } @else if (historyError()) {
+        <app-error-state title="Unable to load service history" (retry)="loadHistory()" />
+      } @else if (history()?.services?.length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Service Date</th>
+                <th class="table-th">Description</th>
+                <th class="table-th">Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of history()!.services; track s.id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ formatDate(s.service_date) }}</td>
+                  <td class="table-td">{{ s.description }}</td>
+                  <td class="table-td font-medium">{{ formatCurrency(s.cost) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card">
+          <app-empty-state title="No service history" message="Service records will appear here once logged." />
+        </div>
+      }
+    }
+
+    @if (activeTab() === 'breakdowns') {
+      @if (historyLoading()) {
+        <app-table-skeleton [cols]="5" />
+      } @else if (historyError()) {
+        <app-error-state title="Unable to load breakdown history" (retry)="loadHistory()" />
+      } @else if (history()?.breakdowns?.length) {
+        <div class="space-y-4">
+          @for (b of history()!.breakdowns!; track b.id) {
+            <div class="card p-5">
+              <div class="flex flex-wrap justify-between gap-2 mb-2">
+                <p class="font-medium text-gray-900">{{ formatDateTime(b.created_at) }}</p>
+                <p class="text-sm text-gray-500">Reported by {{ b.reported_by_name }}</p>
+              </div>
+              <p class="text-sm text-gray-700 mb-3">{{ b.notes }}</p>
+              @if (b.work_order) {
+                <p class="text-sm text-gray-500 mb-3">Work order: {{ b.work_order }}</p>
+              }
+              @if (b.photo_url) {
+                <img [src]="b.photo_url" alt="Breakdown photo" class="max-h-48 rounded-lg border" />
+              }
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="card">
+          <app-empty-state title="No breakdown records" message="Reported breakdowns will appear here." />
+        </div>
+      }
+    }
+  }
+</div>

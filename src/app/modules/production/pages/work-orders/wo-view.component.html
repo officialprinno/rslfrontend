@@ -1,0 +1,444 @@
+<div class="page-container">
+  <app-production-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load work order" (retry)="load()" />
+  } @else if (workOrder(); as wo) {
+    <app-page-header [title]="wo.wo_number" [subtitle]="wo.product_name">
+      <button type="button" class="btn-secondary" (click)="exportPdf()">Export PDF</button>
+      <a routerLink="/production/work-orders" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <app-workflow-stepper [steps]="stepsFor(wo)" [activeIndex]="workflowIndex(wo.status, !!wo.execution_workflow)" />
+
+    <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+          [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          (click)="setTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    @if (activeTab() === 'details') {
+      <div class="card p-6 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
+          <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="wo.status" [label]="wo.status.replace('_', ' ')" /></p></div>
+          <div><span class="text-gray-500">Shift</span><p class="font-medium">{{ shiftLabel(wo.shift) }}</p></div>
+          <div><span class="text-gray-500">Operator</span><p>{{ wo.operator_name }}</p></div>
+          <div><span class="text-gray-500">BOM Version</span><p>{{ wo.bom_version }}</p></div>
+          <div><span class="text-gray-500">Qty Planned</span><p class="font-medium">{{ wo.quantity_planned }}</p></div>
+          <div><span class="text-gray-500">Qty Produced</span><p>{{ wo.quantity_produced }}</p></div>
+          <div><span class="text-gray-500">Qty Rejected</span><p>{{ wo.quantity_rejected }}</p></div>
+          <div><span class="text-gray-500">Rejection Rate</span><p>{{ wo.rejection_rate }}%</p></div>
+          <div><span class="text-gray-500">Planned Start</span><p>{{ formatDateTime(wo.planned_start) }}</p></div>
+          <div><span class="text-gray-500">Planned End</span><p>{{ formatDateTime(wo.planned_end) }}</p></div>
+          @if (wo.actual_start) {
+            <div><span class="text-gray-500">Actual Start</span><p>{{ formatDateTime(wo.actual_start) }}</p></div>
+          }
+          @if (wo.actual_end) {
+            <div><span class="text-gray-500">Actual End</span><p>{{ formatDateTime(wo.actual_end) }}</p></div>
+          }
+          @if (wo.so_number) {
+            <div><span class="text-gray-500">Sales Order</span><p>{{ wo.so_number }}</p></div>
+          }
+          <div><span class="text-gray-500">Created By</span><p>{{ wo.created_by_name }}</p></div>
+          @if (wo.approved_by_name) {
+            <div><span class="text-gray-500">Approved By</span><p>{{ wo.approved_by_name }}</p></div>
+          }
+        </div>
+
+        <div class="mb-4">
+          <div class="flex items-center justify-between text-sm mb-1">
+            <span class="text-gray-500">Progress</span>
+            <span class="font-medium">{{ wo.progress_percent }}%</span>
+          </div>
+          <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              class="h-full rounded-full bg-[#1B3A6B] transition-all"
+              [style.width.%]="wo.progress_percent"
+            ></div>
+          </div>
+        </div>
+
+        @if (wo.material_requirements?.length) {
+          <h4 class="font-semibold text-sm mb-3 mt-6">Material Requirements</h4>
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="table-th">Material</th>
+                <th class="table-th">Required</th>
+                <th class="table-th">Available</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of wo.material_requirements; track m.item_id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ m.item_name }}</td>
+                  <td class="table-td">{{ m.required_quantity }}</td>
+                  <td class="table-td">{{ m.available_stock }}</td>
+                  <td class="table-td">
+                    <span [class]="m.is_sufficient ? materialStatusColor['SUFFICIENT'] : materialStatusColor['INSUFFICIENT']">
+                      {{ m.is_sufficient ? 'Sufficient' : 'Insufficient' }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+
+        @if (wo.notes) {
+          <div class="mt-4 pt-4 border-t text-sm">
+            <span class="text-gray-500">Notes:</span> {{ wo.notes }}
+          </div>
+        }
+      </div>
+
+      <div class="flex gap-2 flex-wrap">
+        @if (wo.status === 'DRAFT' && canManage()) {
+          <a [routerLink]="['/production/work-orders', wo.id, 'edit']" class="btn-secondary">Edit</a>
+          <button type="button" class="btn-primary" (click)="submitWo()">Submit</button>
+        }
+        @if (wo.status === 'DRAFT' && canApprove()) {
+          <button type="button" class="btn-primary" (click)="approveWo()">Approve</button>
+        }
+        @if (wo.execution_workflow && wo.status === 'APPROVED' && canAssign()) {
+          <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="assignOperator()">
+            Assign Operator
+          </button>
+        }
+        @if (wo.execution_workflow && wo.can_operator_start && canOperate()) {
+          <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="operatorStart()">
+            Start Work
+          </button>
+        }
+        @if (wo.execution_workflow && wo.status === 'IN_PROGRESS' && canOperate()) {
+          <button type="button" class="btn-secondary" (click)="showPauseModal.set(true)">Pause Work</button>
+          <button type="button" class="btn-secondary" (click)="showProgressModal.set(true)">Record Progress</button>
+          <button type="button" class="btn-secondary" (click)="recordBomConsumption()">Record Materials</button>
+          <button type="button" class="btn-primary" (click)="showSubmitModal.set(true)">Submit Completion</button>
+        }
+        @if (wo.execution_workflow && wo.status === 'PAUSED' && canOperate()) {
+          <button type="button" class="btn-primary" (click)="resumeProduction()">Resume Work</button>
+        }
+        @if (wo.execution_workflow && wo.status === 'COMPLETED_PENDING' && canApproveProduction()) {
+          <button type="button" class="btn-primary" (click)="approveProduction()">Approve Production</button>
+        }
+        @if (wo.execution_workflow && wo.status === 'WAITING_STORE' && canStoreReceipt()) {
+          <button type="button" class="btn-primary" (click)="showStoreReceiptModal.set(true)">
+            Receive Finished Goods
+          </button>
+        }
+        @if (!wo.execution_workflow && wo.status === 'APPROVED' && wo.can_start && canStart()) {
+          <button type="button" class="btn-primary" (click)="openStartModal()">Start Production</button>
+        }
+        @if (!wo.execution_workflow && wo.status === 'IN_PROGRESS' && canStart()) {
+          <button type="button" class="btn-primary" (click)="openCompleteModal()">Complete WO</button>
+        }
+        @if (wo.status !== 'COMPLETED' && wo.status !== 'CLOSED' && wo.status !== 'CANCELLED' && canManage()) {
+          <button type="button" class="btn-secondary !text-red-600" (click)="cancelWo()">Cancel</button>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'timeline') {
+      @if (wo.execution_events?.length) {
+        <div class="card p-5 space-y-4">
+          @for (ev of wo.execution_events; track ev.id) {
+            <div class="flex gap-3 border-l-2 border-[#1B3A6B]/30 pl-4">
+              <div class="flex-1">
+                <p class="font-medium text-sm">{{ executionActionLabels[ev.action] || ev.action }}</p>
+                <p class="text-xs text-gray-500">
+                  {{ ev.user_name || 'System' }} · {{ formatDateTime(ev.created_at) }}
+                </p>
+                @if (ev.old_status && ev.new_status) {
+                  <p class="text-xs text-gray-600 mt-1">{{ ev.old_status }} → {{ ev.new_status }}</p>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No execution events recorded yet.</div>
+      }
+    }
+
+    @if (activeTab() === 'output') {
+      @if (wo.output_records?.length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Batch</th>
+                <th class="table-th">Date</th>
+                <th class="table-th">Shift</th>
+                <th class="table-th">Produced</th>
+                <th class="table-th">Rejected</th>
+                <th class="table-th">QC Result</th>
+                <th class="table-th">Operator</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rec of wo.output_records; track rec.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ rec.batch_number }}</td>
+                  <td class="table-td">{{ formatDate(rec.date) }}</td>
+                  <td class="table-td">{{ shiftLabel(rec.shift) }}</td>
+                  <td class="table-td">{{ rec.quantity_produced }}</td>
+                  <td class="table-td">{{ rec.quantity_rejected }}</td>
+                  <td class="table-td">
+                    @if (rec.qc_result) {
+                      <app-status-badge [status]="rec.qc_result === 'PASS' ? 'APPROVED' : 'REJECTED'" [label]="rec.qc_result" />
+                    } @else {
+                      <span class="text-gray-400">Pending</span>
+                    }
+                  </td>
+                  <td class="table-td text-sm">{{ rec.operator_name }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No output records for this work order.</div>
+      }
+    }
+
+    @if (activeTab() === 'materials') {
+      @if (wo.pending_materials?.length) {
+        <div class="table-container mb-4">
+          <h3 class="px-4 pt-4 text-sm font-semibold text-gray-700">Pending Consumption (not yet posted)</h3>
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Material</th>
+                <th class="table-th">Consumed</th>
+                <th class="table-th">Waste</th>
+                <th class="table-th">Posted</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (pm of wo.pending_materials; track pm.id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ pm.item_code }} — {{ pm.item_name }}</td>
+                  <td class="table-td">{{ pm.quantity_consumed }}</td>
+                  <td class="table-td">{{ pm.waste_quantity }}</td>
+                  <td class="table-td">{{ pm.posted ? 'Yes' : 'No' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      @if (wo.material_issues?.length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Material</th>
+                <th class="table-th">Qty Issued</th>
+                <th class="table-th">Qty Returned</th>
+                <th class="table-th">Wastage</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (mi of wo.material_issues; track mi.id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ mi.item_code }} — {{ mi.item_name }}</td>
+                  <td class="table-td">{{ mi.quantity_issued }}</td>
+                  <td class="table-td">{{ mi.quantity_returned }}</td>
+                  <td class="table-td">{{ mi.wastage }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">
+          @if (wo.materials_issued) {
+            Materials have been issued. Detailed issue records are not available.
+          } @else {
+            No materials issued yet. Start production to issue materials.
+          }
+        </div>
+      }
+    }
+
+    @if (activeTab() === 'usage') {
+      @if (wo.machine_usage?.length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Machine</th>
+                <th class="table-th">Operator</th>
+                <th class="table-th">Start</th>
+                <th class="table-th">End</th>
+                <th class="table-th">Hours</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (u of wo.machine_usage; track u.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ u.machine_name }}</td>
+                  <td class="table-td">{{ u.operator_name }}</td>
+                  <td class="table-td">{{ formatDateTime(u.start_time) }}</td>
+                  <td class="table-td">{{ formatDateTime(u.end_time) }}</td>
+                  <td class="table-td">{{ u.hours_used }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No machine usage logged for this work order.</div>
+      }
+    }
+  }
+</div>
+
+<app-modal [open]="showStartModal()" title="Start Production" size="lg" (close)="showStartModal.set(false)">
+  @if (workOrder(); as wo) {
+    <p class="text-sm text-gray-600 mb-4">
+      Starting production will issue materials from inventory. Confirm you have reviewed the material list below.
+    </p>
+    <table class="w-full text-sm mb-4">
+      <thead>
+        <tr>
+          <th class="table-th">Material</th>
+          <th class="table-th">Required</th>
+          <th class="table-th">Available</th>
+          <th class="table-th">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (m of wo.material_requirements; track m.item_id) {
+          <tr class="table-row">
+            <td class="table-td">{{ m.item_name }}</td>
+            <td class="table-td">{{ m.required_quantity }}</td>
+            <td class="table-td">{{ m.available_stock }}</td>
+            <td class="table-td">
+              <span [class]="m.is_sufficient ? materialStatusColor['SUFFICIENT'] : materialStatusColor['INSUFFICIENT']">
+                {{ m.is_sufficient ? 'OK' : 'SHORT' }}
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showStartModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="confirmStartProduction()">
+      @if (actionLoading()) { <span class="spinner spinner-sm"></span> }
+      Start Production
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showCompleteModal()" title="Complete Work Order" size="md" (close)="showCompleteModal.set(false)">
+  @if (workOrder(); as wo) {
+    <p class="text-sm text-gray-600 mb-2">
+      Mark <span class="font-semibold">{{ wo.wo_number }}</span> as completed?
+    </p>
+    <div class="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+      <p>Produced: <span class="font-medium">{{ wo.quantity_produced }}</span> / {{ wo.quantity_planned }}</p>
+      <p>Rejected: <span class="font-medium">{{ wo.quantity_rejected }}</span></p>
+      <p>Rejection rate: <span class="font-medium">{{ wo.rejection_rate }}%</span></p>
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showCompleteModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="confirmComplete()">
+      @if (actionLoading()) { <span class="spinner spinner-sm"></span> }
+      Complete Work Order
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showPauseModal()" title="Pause Production" size="md" (close)="showPauseModal.set(false)">
+  <label class="input-label">Reason for pause</label>
+  <textarea class="input-field w-full" rows="3" [ngModel]="pauseReason()" (ngModelChange)="pauseReason.set($event)"></textarea>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showPauseModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="confirmPause()">Pause</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showProgressModal()" title="Record Progress" size="md" (close)="showProgressModal.set(false)">
+  <div class="space-y-3">
+    <div>
+      <label class="input-label">Current Output</label>
+      <input type="number" class="input-field w-full" [ngModel]="progressQty()" (ngModelChange)="progressQty.set(+$event)" />
+    </div>
+    <div>
+      <label class="input-label">Defective Quantity</label>
+      <input type="number" class="input-field w-full" [ngModel]="progressDefects()" (ngModelChange)="progressDefects.set(+$event)" />
+    </div>
+    <div>
+      <label class="input-label">Machine Notes</label>
+      <textarea class="input-field w-full" rows="2" [ngModel]="progressNotes()" (ngModelChange)="progressNotes.set($event)"></textarea>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showProgressModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="confirmProgress()">Save</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showSubmitModal()" title="Submit Completion" size="md" (close)="showSubmitModal.set(false)">
+  <div class="space-y-3">
+    <div>
+      <label class="input-label">Produced Quantity</label>
+      <input type="number" class="input-field w-full" [ngModel]="submitQty()" (ngModelChange)="submitQty.set(+$event)" />
+    </div>
+    <div>
+      <label class="input-label">Defects</label>
+      <input type="number" class="input-field w-full" [ngModel]="submitDefects()" (ngModelChange)="submitDefects.set(+$event)" />
+    </div>
+    <div>
+      <label class="input-label">Completion Notes</label>
+      <textarea class="input-field w-full" rows="2" [ngModel]="submitNotes()" (ngModelChange)="submitNotes.set($event)"></textarea>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showSubmitModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="actionLoading()" (click)="confirmSubmitCompletion()">Submit</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showStoreReceiptModal()" title="Receive Finished Goods" size="md" (close)="showStoreReceiptModal.set(false)">
+  <div class="space-y-3">
+    <div>
+      <label class="input-label">Warehouse</label>
+      <select class="input-field w-full" [ngModel]="receiptWarehouse()" (ngModelChange)="receiptWarehouse.set(+$event || null)">
+        <option [ngValue]="null">Select warehouse</option>
+        @for (wh of warehouses(); track wh.id) {
+          <option [ngValue]="wh.id">{{ wh.name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Received Quantity</label>
+      <input type="number" class="input-field w-full" [ngModel]="receiptQty()" (ngModelChange)="receiptQty.set(+$event)" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea class="input-field w-full" rows="2" [ngModel]="receiptNotes()" (ngModelChange)="receiptNotes.set($event)"></textarea>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showStoreReceiptModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="actionLoading() || !receiptWarehouse()" (click)="confirmStoreReceipt()">
+      Confirm Receipt
+    </button>
+  </div>
+</app-modal>

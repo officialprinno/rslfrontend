@@ -1,0 +1,184 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Vehicle Maintenance">
+    @if (canSchedule()) {
+      <button type="button" class="btn-primary" (click)="openSchedule()">Schedule Maintenance</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search vehicle, description..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-40"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      <option value="SCHEDULED">Scheduled</option>
+      <option value="IN_PROGRESS">In Progress</option>
+      <option value="COMPLETED">Completed</option>
+    </select>
+    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+      <input
+        type="checkbox"
+        [ngModel]="upcomingOnly()"
+        (ngModelChange)="upcomingOnly.set($event); page.set(1); load()"
+      />
+      Upcoming (7 days)
+    </label>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!records().length) {
+    <div class="card">
+      <app-empty-state
+        title="No maintenance records"
+        message="Schedule service, repair, or inspection for your fleet."
+        actionLabel="Schedule Maintenance"
+        (actionClick)="openSchedule()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Vehicle</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Description</th>
+            <th class="table-th">Service Date</th>
+            <th class="table-th">Cost</th>
+            <th class="table-th">Next Service</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of records(); track r.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ r.vehicle_registration }}</td>
+              <td class="table-td">{{ r.maintenance_type }}</td>
+              <td class="table-td max-w-[200px] truncate">{{ r.description }}</td>
+              <td class="table-td">{{ formatDate(r.service_date) }}</td>
+              <td class="table-td">{{ formatCurrency(r.cost) }}</td>
+              <td class="table-td">{{ formatDate(r.next_service_date) }}</td>
+              <td class="table-td"><app-status-badge [status]="r.status" /></td>
+              <td class="table-td">
+                @if (r.status !== 'COMPLETED' && canSchedule()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="openComplete(r)">
+                    Complete
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showSchedule()" title="Schedule Maintenance" size="lg" (close)="showSchedule.set(false)">
+  <form [formGroup]="scheduleForm" class="space-y-4">
+    <div>
+      <label class="input-label">Vehicle *</label>
+      <select formControlName="vehicle" class="input-field">
+        <option [ngValue]="null">Select vehicle</option>
+        @for (v of vehicles(); track v.id) {
+          <option [ngValue]="v.id">{{ v.registration_number }} — {{ v.make }} {{ v.model }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Type *</label>
+      <select formControlName="maintenance_type" class="input-field">
+        @for (t of maintenanceTypes; track t.value) {
+          <option [value]="t.value">{{ t.label }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Description *</label>
+      <textarea formControlName="description" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Service Date *</label>
+        <input type="date" formControlName="service_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Estimated Cost</label>
+        <input type="number" formControlName="cost" min="0" class="input-field" />
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Next Service Date</label>
+        <input type="date" formControlName="next_service_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Performed By</label>
+        <input formControlName="performed_by" class="input-field" />
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showSchedule.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitSchedule()">Schedule</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showComplete()" title="Complete Maintenance" size="lg" (close)="showComplete.set(false)">
+  @if (completing(); as rec) {
+    <p class="text-sm text-gray-600 mb-4">{{ rec.vehicle_registration }} — {{ rec.description }}</p>
+  }
+  <form [formGroup]="completeForm" class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Service Date *</label>
+        <input type="date" formControlName="service_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Actual Cost *</label>
+        <input type="number" formControlName="cost" min="0" class="input-field" />
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Next Service Date</label>
+      <input type="date" formControlName="next_service_date" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Work Done</label>
+      <textarea formControlName="work_done" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Parts Replaced</label>
+      <textarea formControlName="parts_replaced" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Odometer Reading</label>
+      <input type="number" formControlName="odometer_reading" min="0" class="input-field" />
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showComplete.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitComplete()">Complete</button>
+  </div>
+</app-modal>

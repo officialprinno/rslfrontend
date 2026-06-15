@@ -1,0 +1,281 @@
+<div class="page-container">
+  <app-hr-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load employee" (retry)="load()" />
+  } @else if (employee(); as emp) {
+    <app-page-header [title]="emp.full_name" [subtitle]="emp.employee_number + ' · ' + emp.job_title">
+      @if (canActivate() && (!emp.is_active || emp.status !== 'ACTIVE')) {
+        <button type="button" class="btn-primary" (click)="activateEmployee()">Activate Employee</button>
+      }
+      @if (canEdit()) {
+        <a [routerLink]="['/hr/employees', emp.id, 'edit']" class="btn-secondary">Edit</a>
+      }
+      <a routerLink="/hr/employees" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+          [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          (click)="setTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    @if (activeTab() === 'profile') {
+      <div class="card p-6 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="emp.status" /></p></div>
+          <div><span class="text-gray-500">Department</span><p class="font-medium">{{ emp.department_name }}</p></div>
+          <div><span class="text-gray-500">Employment Type</span><p>{{ employmentTypeLabel(emp.employment_type) }}</p></div>
+          <div><span class="text-gray-500">Reports To</span><p>{{ emp.reports_to_name || '—' }}</p></div>
+          <div><span class="text-gray-500">Phone</span><p>{{ emp.phone || '—' }}</p></div>
+          <div><span class="text-gray-500">Work Email</span><p>{{ emp.work_email || '—' }}</p></div>
+          <div><span class="text-gray-500">National ID</span><p>{{ emp.national_id || '—' }}</p></div>
+          <div><span class="text-gray-500">Date of Birth</span><p>{{ formatDate(emp.date_of_birth) }}</p></div>
+          <div><span class="text-gray-500">Contract Start</span><p>{{ formatDate(emp.contract_start) }}</p></div>
+          <div><span class="text-gray-500">Contract End</span><p>{{ formatDate(emp.contract_end) }}</p></div>
+          <div><span class="text-gray-500">Basic Salary</span><p class="font-medium">{{ displaySalary(emp.basic_salary, emp.currency_code) }}</p></div>
+          <div><span class="text-gray-500">Payment Frequency</span><p>{{ emp.payment_frequency }}</p></div>
+          <div><span class="text-gray-500">TIN</span><p>{{ emp.tin_number || '—' }}</p></div>
+          <div><span class="text-gray-500">NSSF</span><p>{{ emp.nssf_number || '—' }}</p></div>
+          <div><span class="text-gray-500">NHIF</span><p>{{ emp.nhif_number || '—' }}</p></div>
+          <div><span class="text-gray-500">PAYE</span><p>{{ emp.paye_applicable ? 'Applicable' : 'Exempt' }}</p></div>
+        </div>
+        @if (emp.address) {
+          <div class="mt-4 pt-4 border-t text-sm">
+            <span class="text-gray-500">Address:</span> {{ emp.address }}{{ emp.city ? ', ' + emp.city : '' }}
+          </div>
+        }
+        @if (emp.emergency_contact_name) {
+          <div class="mt-4 pt-4 border-t text-sm">
+            <h4 class="font-semibold mb-2">Emergency Contact</h4>
+            <p>{{ emp.emergency_contact_name }} ({{ emp.emergency_contact_relationship }}) — {{ emp.emergency_contact_phone }}</p>
+          </div>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'attendance') {
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="section-title">Attendance Calendar</h4>
+          <div class="flex items-center gap-2">
+            <button type="button" class="btn-ghost !px-2" (click)="prevMonth()">‹</button>
+            <span class="text-sm font-medium min-w-[140px] text-center">{{ monthLabel() }}</span>
+            <button type="button" class="btn-ghost !px-2" (click)="nextMonth()">›</button>
+          </div>
+        </div>
+        <div class="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-2">
+          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+        </div>
+        <div class="grid grid-cols-7 gap-1">
+          @for (cell of calendarDays(); track $index) {
+            @if (cell.inMonth) {
+              <div
+                class="aspect-square flex flex-col items-center justify-center rounded-lg text-xs border"
+                [class]="cell.status ? attendanceCalendarClasses[cell.status] : 'bg-gray-50 border-gray-100 text-gray-400'"
+              >
+                <span class="font-medium">{{ cell.day }}</span>
+                @if (cell.status) {
+                  <span class="text-[9px] mt-0.5">{{ cell.status.charAt(0) }}</span>
+                }
+              </div>
+            } @else {
+              <div class="aspect-square"></div>
+            }
+          }
+        </div>
+        <div class="flex flex-wrap gap-3 mt-4 text-xs text-gray-500">
+          @for (key of attendanceLegend; track key) {
+            <span class="flex items-center gap-1">
+              <span class="w-3 h-3 rounded border" [class]="attendanceCalendarClasses[key]"></span>
+              {{ key }}
+            </span>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'leave') {
+      @if (emp.leave_balances.length) {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          @for (bal of emp.leave_balances; track bal.leave_type_id) {
+            <div class="card p-4">
+              <p class="text-sm font-semibold text-gray-900">{{ bal.leave_type_name }}</p>
+              <p class="text-2xl font-bold text-[#1B3A6B] mt-1">{{ bal.days_remaining }}</p>
+              <p class="text-xs text-gray-500">of {{ bal.days_entitled }} days remaining</p>
+            </div>
+          }
+        </div>
+      }
+      @if (leaveRequests().length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Leave Type</th>
+                <th class="table-th">Start</th>
+                <th class="table-th">End</th>
+                <th class="table-th">Days</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (lr of leaveRequests(); track lr.id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ lr.leave_type_name }}</td>
+                  <td class="table-td">{{ formatDate(lr.start_date) }}</td>
+                  <td class="table-td">{{ formatDate(lr.end_date) }}</td>
+                  <td class="table-td">{{ lr.days_requested }}</td>
+                  <td class="table-td"><app-status-badge [status]="lr.status" /></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No leave requests on record.</div>
+      }
+    }
+
+    @if (activeTab() === 'payroll') {
+      @if (payslips().length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Period</th>
+                <th class="table-th">Gross</th>
+                <th class="table-th">Deductions</th>
+                <th class="table-th">Net Pay</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ps of payslips(); track ps.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ ps.period_display }}</td>
+                  <td class="table-td">{{ displaySalary(ps.gross_salary, emp.currency_code) }}</td>
+                  <td class="table-td">{{ displaySalary(ps.total_deductions, emp.currency_code) }}</td>
+                  <td class="table-td font-medium">{{ displaySalary(ps.net_salary, emp.currency_code) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No payroll history available.</div>
+      }
+    }
+
+    @if (activeTab() === 'appraisals') {
+      @if (appraisals().length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Period</th>
+                <th class="table-th">Reviewer</th>
+                <th class="table-th">Score</th>
+                <th class="table-th">Rating</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ap of appraisals(); track ap.id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ ap.period_label || ap.period }}</td>
+                  <td class="table-td">{{ ap.reviewer_name || '—' }}</td>
+                  <td class="table-td">{{ ap.score ?? '—' }}</td>
+                  <td class="table-td">{{ ap.rating || '—' }}</td>
+                  <td class="table-td"><app-status-badge [status]="ap.status" /></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No appraisals on record.</div>
+      }
+    }
+
+    @if (activeTab() === 'documents') {
+      @if (emp.documents.length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Document</th>
+                <th class="table-th">Type</th>
+                <th class="table-th">Expiry</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (doc of emp.documents; track doc.id) {
+                <tr class="table-row">
+                  <td class="table-td">
+                    @if (doc.file_url) {
+                      <a [href]="doc.file_url" target="_blank" class="text-[#1B3A6B] hover:underline">{{ doc.name }}</a>
+                    } @else {
+                      {{ doc.name }}
+                    }
+                  </td>
+                  <td class="table-td">{{ doc.doc_type }}</td>
+                  <td class="table-td">{{ formatDate(doc.expiry_date) }}</td>
+                  <td class="table-td">
+                    @if (doc.is_expired) {
+                      <app-status-badge status="REJECTED" label="Expired" />
+                    } @else {
+                      <app-status-badge status="APPROVED" label="Valid" />
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No documents uploaded.</div>
+      }
+    }
+
+    @if (activeTab() === 'disciplinary') {
+      @if (disciplinary().length) {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Date</th>
+                <th class="table-th">Type</th>
+                <th class="table-th">Description</th>
+                <th class="table-th">Action</th>
+                <th class="table-th">Issued By</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rec of disciplinary(); track rec.id) {
+                <tr class="table-row">
+                  <td class="table-td">{{ formatDate(rec.incident_date) }}</td>
+                  <td class="table-td">{{ rec.record_type }}</td>
+                  <td class="table-td max-w-[240px] truncate">{{ rec.description }}</td>
+                  <td class="table-td">{{ rec.action_taken || '—' }}</td>
+                  <td class="table-td text-sm">{{ rec.issued_by_name }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card p-8 text-center text-gray-500 text-sm">No disciplinary records.</div>
+      }
+    }
+  }
+</div>

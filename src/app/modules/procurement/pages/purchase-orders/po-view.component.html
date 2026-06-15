@@ -1,0 +1,77 @@
+<div class="page-container">
+  <app-procurement-nav />
+  @if (po(); as p) {
+    <app-page-header [title]="p.po_number" [subtitle]="p.supplier_name">
+      <button type="button" class="btn-ghost" (click)="printPo()">Print</button>
+      <button type="button" class="btn-primary" (click)="exportPdf()">Export PDF</button>
+      <a routerLink="/procurement/purchase-orders" class="btn-secondary">Back</a>
+    </app-page-header>
+    <app-workflow-stepper [steps]="poSteps" [activeIndex]="workflowIndex(p.status)" />
+
+    <div id="po-print-area" class="card p-6 mb-6">
+      <div class="hidden print:block mb-4">
+        <h1 class="text-xl font-bold text-[#1B3A6B]">Rock Solutions Limited</h1>
+        <p class="text-sm text-gray-500">Purchase Order — {{ p.po_number }}</p>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
+        <div><span class="text-gray-500">Order Date</span><p class="font-medium">{{ formatDate(p.order_date) }}</p></div>
+        <div><span class="text-gray-500">Expected Delivery</span><p>{{ formatDate(p.expected_delivery) }}</p></div>
+        <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="p.status" /></p></div>
+        <div><span class="text-gray-500">Payment Terms</span><p>{{ p.payment_terms }}</p></div>
+      </div>
+      <table class="w-full text-sm mb-4">
+        <thead><tr><th class="table-th">Item</th><th class="table-th">Qty</th><th class="table-th">Unit Price</th><th class="table-th">Disc%</th><th class="table-th">Total</th></tr></thead>
+        <tbody>
+          @for (item of p.items; track item.id) {
+            <tr class="table-row">
+              <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
+              <td class="table-td">{{ item.quantity_ordered }}</td>
+              <td class="table-td">{{ formatCurrency(item.unit_price, p.currency_code) }}</td>
+              <td class="table-td">{{ item.discount_percent }}%</td>
+              <td class="table-td font-semibold">{{ formatCurrency(item.total_price, p.currency_code) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="text-right text-sm space-y-1">
+        <p>Subtotal: {{ formatCurrency(p.subtotal, p.currency_code) }}</p>
+        <p>Tax: {{ formatCurrency(p.tax_amount, p.currency_code) }}</p>
+        <p class="text-lg font-bold">Total: {{ formatCurrency(p.total_amount, p.currency_code) }}</p>
+      </div>
+    </div>
+
+    @if (p.grn_history?.length) {
+      <div class="card p-6 mb-6">
+        <h4 class="font-semibold mb-3">GRN History</h4>
+        @for (g of p.grn_history; track g.id) {
+          <div class="flex justify-between text-sm py-2 border-b">
+            <span>{{ g.grn_number }}</span>
+            <span>{{ formatDate(g.received_date) }}</span>
+            <app-status-badge [status]="g.status" />
+          </div>
+        }
+      </div>
+    }
+
+    @if (p.approved_by_name) {
+      <p class="text-xs text-gray-500 mb-4">Approved by {{ p.approved_by_name }} on {{ formatDateTime(p.approved_at) }}</p>
+    }
+
+    <div class="flex gap-2 flex-wrap">
+      @if (p.status === 'DRAFT' && canManage()) {
+        <a [routerLink]="['/procurement/purchase-orders', p.id, 'edit']" class="btn-secondary">Edit</a>
+      }
+      @if (p.status === 'PENDING' && canApprove()) {
+        <button type="button" class="btn-primary" (click)="approve()">Approve</button>
+        <button type="button" class="btn-secondary !text-red-600" (click)="reject()">Reject</button>
+      }
+      @if (p.status === 'APPROVED' && canManage()) {
+        <button type="button" class="btn-primary" (click)="send()">Send to Supplier</button>
+        <a routerLink="/procurement/grn/new" [queryParams]="{ po: p.id }" class="btn-secondary">Create GRN</a>
+      }
+      @if (p.status === 'SENT') {
+        <a routerLink="/procurement/grn/new" [queryParams]="{ po: p.id }" class="btn-primary">Create GRN</a>
+      }
+    </div>
+  }
+</div>

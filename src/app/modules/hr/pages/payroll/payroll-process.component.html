@@ -1,0 +1,170 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header
+    [title]="isNew() ? 'New Payroll' : 'Process Payroll'"
+    [subtitle]="payroll()?.period_display ?? 'Configure and process monthly payroll'"
+  >
+    <a routerLink="/hr/payroll" class="btn-secondary">Back to List</a>
+  </app-page-header>
+
+  <div class="card p-4 mb-6">
+    <div class="flex flex-wrap gap-2">
+      @for (label of steps; track label; let i = $index) {
+        <button
+          type="button"
+          class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          [class]="step() === i ? 'bg-[#1B3A6B] text-white' : step() > i ? 'bg-green-50 text-green-800' : 'bg-gray-100 text-gray-500'"
+          [disabled]="(i > 0 && !payroll()) || (i === 0 && !isNew())"
+          (click)="goToStep(i)"
+        >
+          <span class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+            [class]="step() === i ? 'bg-white text-[#1B3A6B]' : 'bg-white/80'">
+            {{ i + 1 }}
+          </span>
+          {{ label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (step() === 0) {
+    <div class="card p-6 max-w-xl">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Payroll Setup</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Month</label>
+          <select class="input-field" [ngModel]="periodMonth()" (ngModelChange)="periodMonth.set(+$event)">
+            @for (m of months; track $index) {
+              <option [value]="$index + 1">{{ m }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Year</label>
+          <input type="number" class="input-field" [ngModel]="periodYear()" (ngModelChange)="periodYear.set(+$event)" />
+        </div>
+        <div class="col-span-2">
+          <label class="input-label">Department (optional)</label>
+          <select class="input-field" [ngModel]="department()" (ngModelChange)="department.set($event)">
+            <option [ngValue]="null">All Departments</option>
+            @for (d of departments(); track d.id) {
+              <option [ngValue]="d.id">{{ d.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      @if (canProcess()) {
+        <button type="button" class="btn-primary mt-6" [disabled]="saving()" (click)="generatePayroll()">
+          Generate Payroll
+        </button>
+      }
+    </div>
+  } @else if (step() === 1) {
+    @if (payroll(); as p) {
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="card-stat">
+          <p class="card-stat__value">{{ p.total_employees }}</p>
+          <p class="card-stat__label">Employees</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value">{{ canViewAmounts() ? formatHrAmount(p.total_gross) : '••••••' }}</p>
+          <p class="card-stat__label">Total Gross</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value">{{ canViewAmounts() ? formatHrAmount(p.total_net) : '••••••' }}</p>
+          <p class="card-stat__label">Total Net</p>
+        </div>
+      </div>
+
+      @if (attendanceCheck(); as check) {
+        <div class="mb-4 p-3 rounded-lg border text-sm"
+          [class]="check.complete ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'">
+          Attendance: {{ check.verified }} / {{ check.total }} employees verified
+          @if (!check.complete) { — incomplete attendance may affect payroll accuracy }
+        </div>
+      }
+
+      @if (!p.items.length) {
+        <div class="card"><app-empty-state title="No payroll items" message="This payroll has no employee items." /></div>
+      } @else {
+        <div class="table-container mb-6">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Employee</th>
+                <th class="table-th">Basic</th>
+                <th class="table-th">Allowances</th>
+                <th class="table-th">Gross</th>
+                <th class="table-th">Deductions</th>
+                <th class="table-th">Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (item of p.items; track item.id) {
+                <tr class="table-row">
+                  <td class="table-td">
+                    <div class="font-medium">{{ item.employee_name }}</div>
+                    <div class="text-xs text-gray-500">{{ item.department_name }}</div>
+                  </td>
+                  <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.basic_salary) : '••••••' }}</td>
+                  <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.total_allowances) : '••••••' }}</td>
+                  <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.gross_salary) : '••••••' }}</td>
+                  <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.total_deductions) : '••••••' }}</td>
+                  <td class="table-td font-semibold">{{ canViewAmounts() ? formatHrAmount(item.net_salary) : '••••••' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="flex gap-3">
+        @if (canProcess() && p.status === 'DRAFT') {
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitForReview()">Submit to Finance</button>
+        }
+        <button type="button" class="btn-secondary" (click)="goToStep(2)">Continue to Approve</button>
+      </div>
+    }
+  } @else if (step() === 2) {
+    @if (payroll(); as p) {
+      <div class="card p-6 max-w-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">{{ p.payroll_number }}</h3>
+          <app-status-badge [status]="p.status" />
+        </div>
+        <dl class="grid grid-cols-2 gap-3 text-sm mb-6">
+          <div><dt class="text-gray-500">Period</dt><dd class="font-medium">{{ p.period_display }}</dd></div>
+          <div><dt class="text-gray-500">Department</dt><dd class="font-medium">{{ p.department_name ?? 'All' }}</dd></div>
+          <div><dt class="text-gray-500">Employees</dt><dd class="font-medium">{{ p.total_employees }}</dd></div>
+          <div><dt class="text-gray-500">Net Payable</dt><dd class="font-semibold text-[#1B3A6B]">{{ canViewAmounts() ? formatHrAmount(p.total_net) : '••••••' }}</dd></div>
+          @if (p.processed_by_name) {
+            <div><dt class="text-gray-500">Processed By</dt><dd>{{ p.processed_by_name }}</dd></div>
+          }
+          @if (p.approved_by_name) {
+            <div><dt class="text-gray-500">Approved By</dt><dd>{{ p.approved_by_name }}</dd></div>
+          }
+        </dl>
+
+        @if (p.status === 'REVIEWED' && !canApprove()) {
+          <div class="mb-4 p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900 text-sm">
+            Awaiting Finance approval. HR will be notified once Finance approves this payroll.
+          </div>
+        }
+
+        <div class="flex flex-wrap gap-3">
+          @if (canApprove() && p.status === 'REVIEWED') {
+            <button type="button" class="btn-primary" [disabled]="saving()" (click)="approvePayroll()">Approve Payroll</button>
+          }
+          @if (canMarkPaid() && p.status === 'APPROVED') {
+            <button type="button" class="btn-primary" [disabled]="saving()" (click)="markPaid()">Mark as Paid</button>
+          }
+          @if (p.status === 'PAID') {
+            <a routerLink="/hr/payslips" class="btn-secondary">View Payslips</a>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

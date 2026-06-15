@@ -1,0 +1,100 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Customer Invoices">
+    @if (canAdd()) {
+      <a routerLink="/sales/invoices/new" class="btn-primary">New Invoice</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search invoice number..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-44"
+      [ngModel]="customerFilter()"
+      (ngModelChange)="customerFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Customers</option>
+      @for (c of customers(); track c.id) {
+        <option [value]="c.id">{{ c.name }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-36"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st }}</option>
+      }
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="9" />
+  } @else if (!invoices().length) {
+    <div class="card">
+      <app-empty-state
+        title="No invoices"
+        message="Create invoices from confirmed sales orders."
+        actionLabel="New Invoice"
+        (actionClick)="null"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Invoice #</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">SO Number</th>
+            <th class="table-th">Invoice Date</th>
+            <th class="table-th">Due Date</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Balance</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (inv of invoices(); track inv.id) {
+            <tr class="table-row" [class]="rowClass(inv)">
+              <td class="table-td font-medium">{{ inv.invoice_number }}</td>
+              <td class="table-td">{{ inv.customer_name }}</td>
+              <td class="table-td">{{ inv.so_number || '—' }}</td>
+              <td class="table-td">{{ formatDate(inv.invoice_date) }}</td>
+              <td class="table-td" [class.text-red-600]="isOverdue(inv)" [class.font-semibold]="isOverdue(inv)">
+                {{ formatDate(inv.due_date) }}
+                @if (isOverdue(inv)) {
+                  <span class="ml-1 text-xs">(Overdue)</span>
+                }
+              </td>
+              <td class="table-td font-semibold">{{ formatCurrency(inv.total_amount, inv.currency_code) }}</td>
+              <td class="table-td">{{ formatCurrency(inv.balance, inv.currency_code) }}</td>
+              <td class="table-td"><app-status-badge [status]="inv.status" /></td>
+              <td class="table-td">
+                <a [routerLink]="['/sales/invoices', inv.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (inv.status === 'DRAFT') {
+                  <a [routerLink]="['/sales/invoices', inv.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

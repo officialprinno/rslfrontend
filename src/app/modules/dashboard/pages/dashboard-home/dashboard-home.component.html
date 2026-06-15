@@ -1,0 +1,315 @@
+<div class="page-container">
+  <!-- Hero welcome banner -->
+  <div class="hero-banner">
+    <div class="hero-banner__content flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+      <div>
+        <p class="text-sm font-medium text-white/70 mb-1">{{ greeting() }}</p>
+        <h1 class="text-2xl lg:text-3xl font-bold tracking-tight">{{ userName() }}</h1>
+        <p class="text-sm text-white/80 mt-2 max-w-lg">
+          @if (showMultiDept()) {
+            Unified operations overview across your departments — procurement, sales, logistics, and inventory.
+          } @else {
+            Here's your operations overview for Rock Solutions Limited — sales, inventory, and deliveries at a glance.
+          }
+        </p>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="date-chip !bg-white/10 !border-white/20 !text-white">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          {{ todayDate() }}
+        </span>
+        <a routerLink="/inventory" class="btn-accent !shadow-lg">View Inventory</a>
+      </div>
+    </div>
+  </div>
+
+  @if (showMultiDept()) {
+    @if (multiDeptData(); as md) {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        @if (md.procurement) {
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="section-title !mb-0">Procurement</h2>
+              <a routerLink="/procurement/purchase-orders" class="btn-ghost !text-xs">Open</a>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="p-3 rounded-lg bg-indigo-50">
+                <p class="text-2xl font-bold text-indigo-700">{{ md.procurement.pending_pos }}</p>
+                <p class="text-xs text-indigo-600 mt-1">Pending POs</p>
+              </div>
+              <div class="p-3 rounded-lg bg-indigo-50">
+                <p class="text-2xl font-bold text-indigo-700">{{ md.procurement.suppliers }}</p>
+                <p class="text-xs text-indigo-600 mt-1">Suppliers</p>
+              </div>
+              <div class="p-3 rounded-lg bg-indigo-50">
+                <p class="text-2xl font-bold text-indigo-700">{{ md.procurement.grns_today }}</p>
+                <p class="text-xs text-indigo-600 mt-1">GRNs Today</p>
+              </div>
+            </div>
+          </div>
+        }
+        @if (md.sales) {
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="section-title !mb-0">Sales</h2>
+              <a routerLink="/sales/orders" class="btn-ghost !text-xs">Open</a>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="p-3 rounded-lg bg-blue-50">
+                <p class="text-2xl font-bold text-blue-700">{{ md.sales.open_orders }}</p>
+                <p class="text-xs text-blue-600 mt-1">Open SOs</p>
+              </div>
+              <div class="p-3 rounded-lg bg-blue-50">
+                <p class="text-2xl font-bold text-blue-700">{{ md.sales.quotations }}</p>
+                <p class="text-xs text-blue-600 mt-1">Quotations</p>
+              </div>
+              <div class="p-3 rounded-lg bg-blue-50">
+                <p class="text-2xl font-bold text-blue-700">{{ md.sales.invoices }}</p>
+                <p class="text-xs text-blue-600 mt-1">Invoices</p>
+              </div>
+            </div>
+          </div>
+        }
+        @if (md.logistics) {
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="section-title !mb-0">Logistics</h2>
+              <a routerLink="/logistics/deliveries" class="btn-ghost !text-xs">Open</a>
+            </div>
+            <div class="grid grid-cols-3 gap-3 text-center">
+              <div class="p-3 rounded-lg bg-purple-50">
+                <p class="text-2xl font-bold text-purple-700">{{ md.logistics.active_dos }}</p>
+                <p class="text-xs text-purple-600 mt-1">Active DOs</p>
+              </div>
+              <div class="p-3 rounded-lg bg-purple-50">
+                <p class="text-2xl font-bold text-purple-700">{{ md.logistics.in_transit }}</p>
+                <p class="text-xs text-purple-600 mt-1">In Transit</p>
+              </div>
+              <div class="p-3 rounded-lg bg-purple-50">
+                <p class="text-2xl font-bold text-purple-700">{{ md.logistics.vehicles }}</p>
+                <p class="text-xs text-purple-600 mt-1">Vehicles</p>
+              </div>
+            </div>
+          </div>
+        }
+        @if (md.inventory) {
+          <div class="card p-5">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="section-title !mb-0">Inventory</h2>
+                @if (md.inventory.store_under) {
+                  <p class="text-xs text-gray-500 mt-1">Store under {{ md.inventory.store_under }}</p>
+                }
+              </div>
+              <a routerLink="/inventory/dashboard" class="btn-ghost !text-xs">Open</a>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
+              @if (md.inventory.health_score != null) {
+                <div class="p-3 rounded-lg bg-[#1B3A6B]/5 col-span-2 sm:col-span-1">
+                  <p class="text-2xl font-bold text-[#1B3A6B]">{{ md.inventory.health_score }}%</p>
+                  <p class="text-xs text-gray-600 mt-1">Health Score</p>
+                </div>
+              }
+              <div class="p-3 rounded-lg bg-emerald-50">
+                <p class="text-2xl font-bold text-emerald-700">{{ md.inventory.low_stock }}</p>
+                <p class="text-xs text-emerald-600 mt-1">Low Stock</p>
+              </div>
+              <div class="p-3 rounded-lg bg-emerald-50">
+                <p class="text-2xl font-bold text-emerald-700">{{ md.inventory.total_items }}</p>
+                <p class="text-xs text-emerald-600 mt-1">Total SKUs</p>
+              </div>
+              <div class="p-3 rounded-lg bg-emerald-50">
+                <p class="text-2xl font-bold text-emerald-700">{{ md.inventory.alerts }}</p>
+                <p class="text-xs text-emerald-600 mt-1">Alerts</p>
+              </div>
+              @if (md.inventory.pending_approvals != null) {
+                <div class="p-3 rounded-lg bg-orange-50">
+                  <p class="text-2xl font-bold text-orange-700">{{ md.inventory.pending_approvals }}</p>
+                  <p class="text-xs text-orange-600 mt-1">Pending Approvals</p>
+                </div>
+              }
+              @if (md.inventory.low_stock_queue != null) {
+                <div class="p-3 rounded-lg bg-red-50">
+                  <p class="text-2xl font-bold text-red-700">{{ md.inventory.low_stock_queue }}</p>
+                  <p class="text-xs text-red-600 mt-1">Reorder Queue</p>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    } @else if (multiDeptLoading()) {
+      <div class="card p-8 text-center text-gray-500 text-sm">Loading department overview…</div>
+    }
+  } @else {
+  <!-- Stats cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+    @for (stat of stats; track stat.label) {
+      <div class="card-stat">
+        <div class="flex items-start justify-between">
+          <div class="card-stat__icon">
+            <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="statIcon(stat)" />
+            </svg>
+          </div>
+          <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ stat.value }}</p>
+        <p class="card-stat__label">{{ stat.label }}</p>
+        <p [class]="stat.changePositive ? 'trend-positive' : 'trend-negative'">
+          @if (stat.changePositive) {
+            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+            </svg>
+          } @else {
+            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          }
+          {{ stat.change }}
+        </p>
+      </div>
+    }
+  </div>
+  }
+
+  @if (!showMultiDept() && salesData(); as sd) {
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      <div class="card p-5 xl:col-span-2">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title">Monthly Sales</h2>
+          <a routerLink="/sales/orders" class="btn-ghost !text-xs">View orders</a>
+        </div>
+        @if (sd.weekly_sales.length) {
+          <div class="flex items-end gap-3 h-40">
+            @for (w of sd.weekly_sales; track w.week) {
+              <div class="flex-1 flex flex-col items-center gap-1">
+                <div
+                  class="w-full bg-[#1B3A6B] rounded-t-md min-h-[4px] transition-all"
+                  [style.height.%]="(+w.total / maxWeeklyTotal()) * 100"
+                ></div>
+                <span class="text-[10px] text-gray-500 truncate w-full text-center">
+                  {{ w.week | slice:5:10 }}
+                </span>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">No sales data this month yet.</p>
+        }
+      </div>
+
+      <div class="space-y-4">
+        <div class="card p-5">
+          <h3 class="font-semibold text-gray-900 mb-3">Sales Alerts</h3>
+          <div class="space-y-3">
+            @if (sd.overdue_invoices_count > 0) {
+              <a routerLink="/sales/invoices" class="flex items-center gap-3 p-3 rounded-lg bg-red-50 text-red-800">
+                <span class="text-2xl font-bold">{{ sd.overdue_invoices_count }}</span>
+                <span class="text-sm">Overdue invoice(s)</span>
+              </a>
+            }
+            @if (sd.pending_so_approvals > 0) {
+              <a routerLink="/sales/orders" class="flex items-center gap-3 p-3 rounded-lg bg-amber-50 text-amber-800">
+                <span class="text-2xl font-bold">{{ sd.pending_so_approvals }}</span>
+                <span class="text-sm">Pending SO approval(s)</span>
+              </a>
+            }
+            <div class="p-3 rounded-lg bg-blue-50 text-blue-800">
+              <p class="text-sm font-medium">Quotation conversion</p>
+              <p class="text-2xl font-bold">{{ sd.quotation_conversion_rate }}%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @if (sd.top_customers.length) {
+      <div class="card p-5">
+        <h2 class="section-title mb-4">Top Customers (This Month)</h2>
+        <div class="space-y-2">
+          @for (c of sd.top_customers; track c.name; let i = $index) {
+            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+              <div class="flex items-center gap-3">
+                <span class="w-6 h-6 rounded-full bg-[#1B3A6B] text-white text-xs flex items-center justify-center font-bold">{{ i + 1 }}</span>
+                <span class="font-medium text-gray-900">{{ c.name }}</span>
+              </div>
+              <span class="font-semibold text-[#1B3A6B]">{{ formatCurrency(+c.revenue) }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Quick actions -->
+  <div>
+    <h2 class="section-title mb-4">Quick Actions</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      @for (action of quickActions; track action.label) {
+        <a [routerLink]="action.route" class="action-card group">
+          <div
+            class="action-card__icon"
+            [style.background]="action.color + '15'"
+            [style.color]="action.color"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="actionIcon(action)" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <p class="font-semibold text-gray-900 text-sm group-hover:text-[#1B3A6B] transition-colors">{{ action.label }}</p>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">{{ action.description }}</p>
+          </div>
+        </a>
+      }
+    </div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="table-container">
+    <div class="px-6 py-5 border-b border-gray-200 flex items-center justify-between">
+      <div>
+        <h2 class="section-title">Recent Activity</h2>
+        <p class="text-sm text-gray-500 mt-0.5">Latest transactions across all modules</p>
+      </div>
+      <a routerLink="/sales/orders" class="btn-ghost !text-xs !px-3 !py-1.5">View all</a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Module</th>
+            <th class="table-th">Reference</th>
+            <th class="table-th hidden md:table-cell">Description</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">Status</th>
+            <th class="table-th hidden sm:table-cell">Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of recentActivity; track row.id) {
+            <tr class="table-row">
+              <td class="table-td">
+                <span class="module-pill" [class]="modulePillClass(row.module)">{{ row.module }}</span>
+              </td>
+              <td class="table-td font-mono text-xs font-medium text-[#1B3A6B]">{{ row.reference }}</td>
+              <td class="table-td hidden md:table-cell max-w-xs truncate text-gray-600">{{ row.description }}</td>
+              <td class="table-td whitespace-nowrap font-medium">{{ row.amount }}</td>
+              <td class="table-td">
+                <app-status-badge [status]="row.status" [label]="row.status" />
+              </td>
+              <td class="table-td hidden sm:table-cell whitespace-nowrap text-gray-500 text-xs">
+                {{ row.date }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,180 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Logistics Dashboard" subtitle="Fleet operations and deliveries overview" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (data(); as d) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6">
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ d.active_deliveries }}</p>
+        <p class="card-stat__label">Active Deliveries</p>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ d.deliveries_today }}</p>
+        <p class="card-stat__label">Deliveries Today</p>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 17h8M8 17v-4m8 4v-4m-8 0h8M3 9h18l-2 8H5L3 9zm2-4h14l1 4H4l1-4z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ d.vehicles_available }}</p>
+        <p class="card-stat__label">Vehicles Available</p>
+      </div>
+      <div class="card-stat">
+        <div class="card-stat__icon">
+          <svg class="w-6 h-6 text-[#1B3A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <p class="card-stat__value">{{ d.pending_orders }}</p>
+        <p class="card-stat__label">Pending Orders</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 mb-6">
+      <div class="table-container xl:col-span-2">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 class="section-title">Live Deliveries</h2>
+            <p class="text-sm text-gray-500 mt-0.5">Currently active delivery orders</p>
+          </div>
+          <a routerLink="/logistics/deliveries" class="btn-ghost !text-xs">View all</a>
+        </div>
+        <div class="overflow-x-auto">
+          @if (d.live_deliveries.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">DO Number</th>
+                  <th class="table-th">Customer</th>
+                  <th class="table-th">Driver</th>
+                  <th class="table-th">Destination</th>
+                  <th class="table-th">Status</th>
+                  <th class="table-th">Scheduled</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of d.live_deliveries; track row.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono text-xs font-medium">
+                      <div class="flex items-center gap-2">
+                        @if (row.status === 'IN_TRANSIT') {
+                          <span class="relative flex h-2.5 w-2.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+                          </span>
+                        }
+                        <a [routerLink]="['/logistics/deliveries', row.id, 'view']" class="text-[#1B3A6B] hover:underline">{{ row.do_number }}</a>
+                      </div>
+                    </td>
+                    <td class="table-td">{{ row.customer_name }}</td>
+                    <td class="table-td">{{ row.driver_name || '—' }}</td>
+                    <td class="table-td max-w-[160px] truncate">{{ row.destination }}</td>
+                    <td class="table-td"><app-status-badge [status]="row.status" /></td>
+                    <td class="table-td text-xs text-gray-500 whitespace-nowrap">{{ formatDateTime(row.scheduled_date) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No live deliveries at the moment.</p>
+          }
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="section-title mb-4">Compliance Alerts</h2>
+        @if (d.compliance_alerts.length) {
+          <div class="space-y-3 max-h-80 overflow-y-auto">
+            @for (alert of d.compliance_alerts; track alert.name + alert.type) {
+              <div class="p-3 rounded-xl border" [class]="alertClass(alert)">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide opacity-80">{{ alertTypeLabel(alert.type) }}</p>
+                    <p class="font-medium mt-0.5">{{ alert.name }}</p>
+                    <p class="text-xs mt-1 opacity-80">Expires {{ alert.expiry_date | slice:0:10 }}</p>
+                  </div>
+                  <span class="text-lg font-bold shrink-0">
+                    @if (alert.severity === 'EXPIRED') {
+                      {{ alert.days_remaining | number:'1.0-0' }}d
+                    } @else {
+                      {{ alert.days_remaining }}d
+                    }
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">All vehicles and drivers are compliant.</p>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title">Weekly Deliveries</h2>
+          <a routerLink="/logistics/deliveries" class="btn-ghost !text-xs">View deliveries</a>
+        </div>
+        @if (d.weekly_deliveries.length) {
+          <div class="flex items-end gap-3 h-40">
+            @for (w of d.weekly_deliveries; track w.week) {
+              <div class="flex-1 flex flex-col items-center gap-1">
+                <span class="text-[10px] font-medium text-gray-600">{{ w.count }}</span>
+                <div
+                  class="w-full bg-[#1B3A6B] rounded-t-md min-h-[4px] transition-all"
+                  [style.height.%]="(w.count / maxWeeklyDeliveries()) * 100"
+                ></div>
+                <span class="text-[10px] text-gray-500 truncate w-full text-center">{{ w.week | slice:5:10 }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">No delivery data this month.</p>
+        }
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="section-title">Weekly Fuel Costs</h2>
+          <a routerLink="/logistics/fuel" class="btn-ghost !text-xs">View fuel</a>
+        </div>
+        @if (d.weekly_fuel_costs.length) {
+          <div class="flex items-end gap-3 h-40">
+            @for (w of d.weekly_fuel_costs; track w.week) {
+              <div class="flex-1 flex flex-col items-center gap-1">
+                <span class="text-[10px] font-medium text-amber-700">{{ formatCurrency(+w.total) }}</span>
+                <div class="w-full flex flex-col justify-end h-24">
+                  <div
+                    class="w-full bg-gradient-to-t from-amber-600 to-amber-400 rounded-t-md min-h-[4px] transition-all border-t-2 border-amber-700"
+                    [style.height.%]="(+w.total / maxWeeklyFuel()) * 100"
+                  ></div>
+                </div>
+                <span class="text-[10px] text-gray-500 truncate w-full text-center">{{ w.week | slice:5:10 }}</span>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">No fuel cost data this month.</p>
+        }
+      </div>
+    </div>
+  }
+</div>
+

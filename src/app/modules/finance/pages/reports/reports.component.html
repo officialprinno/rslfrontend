@@ -1,0 +1,329 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Financial Reports" subtitle="Generate and export statutory and management reports" [hasActions]="false" />
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
+    @for (card of reportCards; track card.id) {
+      <div class="card p-5 flex flex-col gap-4">
+        <div>
+          <h2 class="section-title">{{ card.title }}</h2>
+          <p class="text-sm text-gray-500 mt-1">{{ card.description }}</p>
+        </div>
+
+        @if (card.periodType === 'range') {
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="input-label">From</label>
+              <input type="date" class="input-field" [(ngModel)]="dateFrom" />
+            </div>
+            <div>
+              <label class="input-label">To</label>
+              <input type="date" class="input-field" [(ngModel)]="dateTo" />
+            </div>
+          </div>
+        }
+
+        @if (card.periodType === 'asOf') {
+          <div>
+            <label class="input-label">As of Date</label>
+            <input type="date" class="input-field" [(ngModel)]="asOfDate" />
+          </div>
+        }
+
+        @if (card.id === 'general-ledger') {
+          <div>
+            <label class="input-label">Account</label>
+            <select class="input-field" [(ngModel)]="selectedAccountId">
+              @for (account of accounts(); track account.id) {
+                <option [ngValue]="account.id">{{ account.account_code }} — {{ account.account_name }}</option>
+              }
+            </select>
+          </div>
+        }
+
+        <div class="flex flex-wrap gap-2 mt-auto">
+          <button type="button" class="btn-primary !text-xs" (click)="generateReport(card.id)">Generate</button>
+          @if (card.id === 'income-statement' || card.id === 'balance-sheet' || card.id === 'cash-flow' || card.id === 'general-ledger') {
+            <button type="button" class="btn-secondary !text-xs" (click)="exportPdf(card.id)">Export PDF</button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to generate report" />
+  } @else if (activeReport(); as reportId) {
+    @if (reportId === 'income-statement' && incomeStatement(); as report) {
+      <div id="income-statement-report" class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="section-title">Income Statement</h2>
+            <p class="text-sm text-gray-500 mt-0.5">
+              {{ formatDate(report.period_from) }} — {{ formatDate(report.period_to) }}
+            </p>
+          </div>
+          <button type="button" class="btn-secondary !text-xs" (click)="exportPdf('income-statement')">Export PDF</button>
+        </div>
+        <div class="p-6 space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Revenue</h3>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between"><span class="text-gray-500">Trading Revenue</span><span>{{ formatAmount(report.trading_revenue) }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Manufacturing Revenue</span><span>{{ formatAmount(report.manufacturing_revenue) }}</span></div>
+                <div class="flex justify-between font-semibold border-t border-gray-100 pt-2"><span>Total Revenue</span><span>{{ formatAmount(report.total_revenue) }}</span></div>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Cost of Goods Sold</h3>
+              <div class="space-y-2 text-sm">
+                <div class="flex justify-between"><span class="text-gray-500">Opening Inventory</span><span>{{ formatAmount(report.opening_inventory) }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Purchases</span><span>{{ formatAmount(report.purchases) }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Closing Inventory</span><span>{{ formatAmount(report.closing_inventory) }}</span></div>
+                <div class="flex justify-between font-semibold border-t border-gray-100 pt-2"><span>Total COGS</span><span>{{ formatAmount(report.total_cogs) }}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="card-stat">
+              <p class="card-stat__value">{{ formatAmount(report.gross_profit) }}</p>
+              <p class="card-stat__label">Gross Profit ({{ report.gross_margin_percent }}%)</p>
+            </div>
+            <div class="card-stat">
+              <p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(report.net_profit) }}</p>
+              <p class="card-stat__label">Net Profit ({{ report.net_margin_percent }}%)</p>
+            </div>
+          </div>
+
+          @if (report.expenses.length) {
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead>
+                  <tr>
+                    <th class="table-th">Expense Account</th>
+                    <th class="table-th text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (line of report.expenses; track line.code) {
+                    <tr class="table-row">
+                      <td class="table-td">{{ line.code }} — {{ line.name }}</td>
+                      <td class="table-td text-right">{{ formatAmount(line.amount) }}</td>
+                    </tr>
+                  }
+                  <tr class="table-row font-semibold">
+                    <td class="table-td">Total Expenses</td>
+                    <td class="table-td text-right">{{ formatAmount(report.total_expenses) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'balance-sheet' && balanceSheet(); as report) {
+      <div id="balance-sheet-report" class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="section-title">Balance Sheet</h2>
+            <p class="text-sm text-gray-500 mt-0.5">As of {{ formatDate(report.as_of_date) }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge" [class]="report.is_balanced ? 'badge-active' : 'badge-rejected'">
+              {{ report.is_balanced ? 'Balanced' : 'Out of Balance' }}
+            </span>
+            <button type="button" class="btn-secondary !text-xs" (click)="exportPdf('balance-sheet')">Export PDF</button>
+          </div>
+        </div>
+        <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div class="space-y-6">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Current Assets</h3>
+              @for (line of report.current_assets; track line.code) {
+                <div class="flex justify-between text-sm py-1"><span>{{ line.code }} — {{ line.name }}</span><span>{{ formatAmount(line.amount) }}</span></div>
+              }
+              <div class="flex justify-between font-semibold border-t border-gray-100 pt-2 mt-2"><span>Total Current Assets</span><span>{{ formatAmount(report.total_current_assets) }}</span></div>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Fixed Assets</h3>
+              @for (line of report.fixed_assets; track line.code) {
+                <div class="flex justify-between text-sm py-1"><span>{{ line.code }} — {{ line.name }}</span><span>{{ formatAmount(line.amount) }}</span></div>
+              }
+              <div class="flex justify-between font-semibold border-t border-gray-100 pt-2 mt-2"><span>Total Fixed Assets</span><span>{{ formatAmount(report.total_fixed_assets) }}</span></div>
+            </div>
+            <div class="flex justify-between font-bold text-[#1B3A6B] text-base border-t border-gray-200 pt-3">
+              <span>Total Assets</span><span>{{ formatAmount(report.total_assets) }}</span>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Current Liabilities</h3>
+              @for (line of report.current_liabilities; track line.code) {
+                <div class="flex justify-between text-sm py-1"><span>{{ line.code }} — {{ line.name }}</span><span>{{ formatAmount(line.amount) }}</span></div>
+              }
+              <div class="flex justify-between font-semibold border-t border-gray-100 pt-2 mt-2"><span>Total Liabilities</span><span>{{ formatAmount(report.total_liabilities) }}</span></div>
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 mb-3">Equity</h3>
+              @for (line of report.equity; track line.code) {
+                <div class="flex justify-between text-sm py-1"><span>{{ line.code }} — {{ line.name }}</span><span>{{ formatAmount(line.amount) }}</span></div>
+              }
+              <div class="flex justify-between font-semibold border-t border-gray-100 pt-2 mt-2"><span>Total Equity</span><span>{{ formatAmount(report.total_equity) }}</span></div>
+            </div>
+            <div class="flex justify-between font-bold text-[#1B3A6B] text-base border-t border-gray-200 pt-3">
+              <span>Total Liabilities & Equity</span><span>{{ formatAmount(report.total_liabilities_equity) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'cash-flow' && cashFlow(); as report) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 class="section-title">Cash Flow Statement</h2>
+            <p class="text-sm text-gray-500 mt-0.5">{{ formatDate(report.period_from) }} — {{ formatDate(report.period_to) }}</p>
+          </div>
+          <button type="button" class="btn-secondary !text-xs" (click)="exportPdf('cash-flow')">Export PDF</button>
+        </div>
+        <div class="p-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div class="card-stat"><p class="card-stat__value">{{ formatAmount(report.operating_inflows) }}</p><p class="card-stat__label">Operating Inflows</p></div>
+          <div class="card-stat"><p class="card-stat__value">{{ formatAmount(report.operating_outflows) }}</p><p class="card-stat__label">Operating Outflows</p></div>
+          <div class="card-stat"><p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(report.net_cash_flow) }}</p><p class="card-stat__label">Net Cash Flow</p></div>
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'general-ledger' && generalLedger(); as entries) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="section-title">General Ledger</h2>
+            <p class="text-sm text-gray-500 mt-0.5">{{ selectedAccountLabel() }} · {{ formatDate(dateFrom) }} — {{ formatDate(dateTo) }}</p>
+          </div>
+          <button type="button" class="btn-secondary !text-xs" (click)="exportPdf('general-ledger')">Export PDF</button>
+        </div>
+        <div class="overflow-x-auto">
+          @if (entries.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Date</th>
+                  <th class="table-th">JE #</th>
+                  <th class="table-th">Description</th>
+                  <th class="table-th text-right">Debit</th>
+                  <th class="table-th text-right">Credit</th>
+                  <th class="table-th text-right">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of entries; track row.je_number + row.date) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ formatDate(row.date) }}</td>
+                    <td class="table-td font-mono text-xs">{{ row.je_number }}</td>
+                    <td class="table-td">{{ row.description }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.debit) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.credit) }}</td>
+                    <td class="table-td text-right font-medium">{{ formatAmount(row.balance) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No ledger entries for the selected period.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'receivables' && receivables(); as report) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Receivables Aging</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Total outstanding: {{ formatAmount(report.summary.total_outstanding) }}</p>
+        </div>
+        <div class="overflow-x-auto">
+          @if (report.aging.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Customer</th>
+                  <th class="table-th text-right">Current</th>
+                  <th class="table-th text-right">1–30</th>
+                  <th class="table-th text-right">31–60</th>
+                  <th class="table-th text-right">61–90</th>
+                  <th class="table-th text-right">90+</th>
+                  <th class="table-th text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of report.aging; track row.customer_id) {
+                  <tr class="table-row">
+                    <td class="table-td font-medium">{{ row.customer_name }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.current) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_1_30) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_31_60) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_61_90) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_90_plus) }}</td>
+                    <td class="table-td text-right font-medium">{{ formatAmount(row.total_outstanding) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No receivables data available.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (reportId === 'payables' && payables(); as report) {
+      <div class="table-container mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Payables Aging</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Total outstanding: {{ formatAmount(report.summary.total_outstanding) }}</p>
+        </div>
+        <div class="overflow-x-auto">
+          @if (report.aging.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Supplier</th>
+                  <th class="table-th text-right">Current</th>
+                  <th class="table-th text-right">1–30</th>
+                  <th class="table-th text-right">31–60</th>
+                  <th class="table-th text-right">61–90</th>
+                  <th class="table-th text-right">90+</th>
+                  <th class="table-th text-right">Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of report.aging; track row.supplier_id) {
+                  <tr class="table-row">
+                    <td class="table-td font-medium">{{ row.supplier_name }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.current) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_1_30) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_31_60) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_61_90) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.days_90_plus) }}</td>
+                    <td class="table-td text-right font-medium">{{ formatAmount(row.total_outstanding) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No payables data available.</p>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

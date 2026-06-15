@@ -1,0 +1,149 @@
+<div class="page-container">
+  <app-inventory-nav />
+
+  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+    <app-page-header
+      title="Production Receipts"
+      subtitle="Receive finished goods from approved work orders into warehouse stock"
+    />
+    <app-procurement-badge />
+  </div>
+
+  <div class="card p-4 mb-6 bg-emerald-50 border border-emerald-100">
+    <p class="text-sm text-emerald-900">
+      Work orders appear here after <strong>Production Supervisor approval</strong>.
+      Confirm receipt to post <strong>PRODUCTION_OUTPUT</strong> stock into the selected warehouse.
+    </p>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load queue" (retry)="load()" />
+  } @else if (!queue().length) {
+    <app-empty-state
+      title="No pending production receipts"
+      message="Finished goods will appear here when production approves a completed work order."
+    />
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Work Order</th>
+              <th class="table-th">Product</th>
+              <th class="table-th text-right">Produced</th>
+              <th class="table-th">Operator</th>
+              <th class="table-th">Approved</th>
+              <th class="table-th">Status</th>
+              <th class="table-th text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of queue(); track row.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono font-semibold">{{ row.wo_number }}</td>
+                <td class="table-td">
+                  <p class="font-medium">{{ row.product_name }}</p>
+                  <p class="text-xs text-gray-500">{{ row.product_code }}</p>
+                </td>
+                <td class="table-td text-right">
+                  {{ formatNumber(row.quantity_produced) }}
+                  <span class="text-xs text-gray-400">/ {{ formatNumber(row.quantity_planned) }}</span>
+                </td>
+                <td class="table-td text-sm">{{ row.operator_name }}</td>
+                <td class="table-td text-xs">
+                  @if (row.production_approved_at) {
+                    <p>{{ formatDateTime(row.production_approved_at) }}</p>
+                    <p class="text-gray-500">{{ row.production_approved_by_name }}</p>
+                  } @else {
+                    —
+                  }
+                </td>
+                <td class="table-td">
+                  <app-status-badge [status]="row.status" [label]="row.status.replace('_', ' ')" />
+                </td>
+                <td class="table-td text-right">
+                  <button type="button" class="btn-primary !text-xs" (click)="openReceive(row)">
+                    Receive Goods
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>
+
+<app-modal
+  [open]="showModal()"
+  title="Receive Finished Goods"
+  size="md"
+  (close)="showModal.set(false)"
+>
+  @if (selected(); as row) {
+    <p class="text-sm text-gray-600 mb-4">
+      Confirm stock-in for <span class="font-semibold">{{ row.wo_number }}</span> —
+      {{ row.product_name }}
+    </p>
+    <div class="space-y-3">
+      <div>
+        <label class="input-label">Warehouse</label>
+        <select
+          class="input-field w-full"
+          [ngModel]="warehouseId()"
+          (ngModelChange)="warehouseId.set(+$event || null)"
+        >
+          @for (wh of warehouses(); track wh.id) {
+            <option [ngValue]="wh.id">{{ wh.name }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Received Quantity</label>
+        <input
+          type="number"
+          class="input-field w-full"
+          [ngModel]="quantityReceived()"
+          (ngModelChange)="quantityReceived.set(+$event)"
+        />
+      </div>
+      <div>
+        <label class="input-label">Batch Number (optional)</label>
+        <input
+          type="text"
+          class="input-field w-full"
+          [ngModel]="batchNumber()"
+          (ngModelChange)="batchNumber.set($event)"
+        />
+      </div>
+      <div>
+        <label class="input-label">Notes</label>
+        <textarea
+          class="input-field w-full"
+          rows="2"
+          [ngModel]="notes()"
+          (ngModelChange)="notes.set($event)"
+        ></textarea>
+      </div>
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button
+      type="button"
+      class="btn-primary"
+      [disabled]="receiving() || !warehouseId()"
+      (click)="confirmReceive()"
+    >
+      @if (receiving()) {
+        <span class="spinner spinner-sm"></span>
+      } @else {
+        Confirm Receipt
+      }
+    </button>
+  </div>
+</app-modal>

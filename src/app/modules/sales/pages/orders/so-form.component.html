@@ -1,0 +1,121 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header [title]="editId() ? 'Edit Sales Order' : 'New Sales Order'">
+    <a routerLink="/sales/orders" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  @if (creditWarning(); as warn) {
+    <div class="card p-4 mb-4 border-amber-200 bg-amber-50 text-amber-900 text-sm">
+      <strong>Credit limit warning:</strong>
+      Outstanding {{ formatCurrency(warn.outstanding) }} + order {{ formatCurrency(grandTotal()) }} =
+      {{ formatCurrency(warn.projected) }} exceeds limit of {{ formatCurrency(warn.limit) }}.
+    </div>
+  }
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">Order Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Customer *</label>
+          <app-searchable-select
+            [options]="customerOptions()"
+            [value]="form.controls.customer.value"
+            (valueChange)="onCustomerSelect($event)"
+          />
+        </div>
+        <div>
+          <label class="input-label">Quotation (optional)</label>
+          <app-searchable-select
+            [options]="quotationOptions()"
+            [value]="form.controls.quotation.value"
+            (valueChange)="onQuotationSelect($event)"
+          />
+        </div>
+        <div><label class="input-label">LPO Number</label><input formControlName="lpo_number" class="input-field" /></div>
+        <div><label class="input-label">LPO Date</label><input type="date" formControlName="lpo_date" class="input-field" /></div>
+        <div><label class="input-label">Delivery Date *</label><input type="date" formControlName="delivery_date" class="input-field" /></div>
+        <div>
+          <label class="input-label">Currency</label>
+          <select formControlName="currency" class="input-field">
+            @for (c of currencies(); track c.id) {
+              <option [ngValue]="c.id">{{ c.code }}</option>
+            }
+          </select>
+        </div>
+        <div><label class="input-label">Exchange Rate</label><input type="number" formControlName="exchange_rate" step="0.0001" class="input-field" /></div>
+        <div class="md:col-span-2">
+          <label class="input-label">Delivery Address</label>
+          <textarea formControlName="delivery_address" rows="2" class="input-field resize-none"></textarea>
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Requested Delivery Location</label>
+          <textarea formControlName="requested_delivery_location" rows="2" class="input-field resize-none" placeholder="Mine site, GPS, or delivery instructions"></textarea>
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Notes</label>
+          <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" formControlName="apply_vat" id="so-vat" />
+          <label for="so-vat" class="text-sm">Apply 18% VAT</label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between mb-3">
+        <h4 class="font-semibold">Line Items</h4>
+        <button type="button" class="btn-ghost !text-xs" (click)="addLine()">+ Add Item</button>
+      </div>
+      <div formArrayName="lineItems" class="space-y-2">
+        @for (line of lineItems().controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-xl">
+            <div class="col-span-4">
+              <app-searchable-select
+                [options]="itemOptions()"
+                [value]="line.value.item"
+                (valueChange)="onItemSelect(i, $event)"
+              />
+            </div>
+            <div class="col-span-2">
+              <input type="number" formControlName="quantity_ordered" class="input-field" placeholder="Qty" />
+            </div>
+            <div class="col-span-2">
+              <input type="number" formControlName="unit_price" class="input-field" placeholder="Price" />
+            </div>
+            <div class="col-span-1">
+              <input type="number" formControlName="discount_percent" class="input-field" placeholder="Disc %" />
+            </div>
+            <div class="col-span-2 text-xs">
+              <span class="text-gray-500">Stock:</span>
+              <span
+                [class]="
+                  line.value.quantity_ordered > stockAvailable(line.value.item, line.value.stock_available)
+                    ? 'text-red-600 font-semibold'
+                    : 'text-green-700 font-medium'
+                "
+              >
+                {{ stockAvailable(line.value.item, line.value.stock_available) }}
+              </span>
+            </div>
+            <div class="col-span-1 font-semibold text-sm">{{ formatCurrency(lineTotal(i)) }}</div>
+            <div class="col-span-12 flex justify-end">
+              <button type="button" class="btn-ghost !text-red-600 !text-xs" (click)="removeLine(i)">Remove</button>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="mt-4 text-right space-y-1 text-sm">
+        <p>Subtotal: <strong>{{ formatCurrency(subtotal()) }}</strong></p>
+        <p>VAT (18%): <strong>{{ formatCurrency(taxAmount()) }}</strong></p>
+        <p class="text-lg">Grand Total: <strong class="text-[#1B3A6B]">{{ formatCurrency(grandTotal()) }}</strong></p>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t pt-4">
+      <button type="button" class="btn-secondary" [disabled]="saving()" (click)="saveDraft()">Save Draft</button>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="confirmOrder()">Confirm Order</button>
+    </div>
+  </form>
+</div>

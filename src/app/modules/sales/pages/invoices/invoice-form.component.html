@@ -1,0 +1,74 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header [title]="editId() ? 'Edit Invoice' : 'New Invoice'">
+    <a routerLink="/sales/invoices" class="btn-secondary">Back</a>
+  </app-page-header>
+
+  <form [formGroup]="form" class="card p-6 space-y-6">
+    <div>
+      <h4 class="font-semibold mb-3">Invoice Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Sales Order</label>
+          <app-searchable-select
+            [options]="salesOrderOptions()"
+            [value]="form.controls.sales_order.value"
+            (valueChange)="onSalesOrderSelect($event)"
+          />
+          <p class="text-xs text-gray-500 mt-1">Select a sales order to auto-fill line items.</p>
+        </div>
+        <div>
+          <label class="input-label">Customer</label>
+          <input type="text" class="input-field bg-gray-50" disabled [value]="form.controls.customer.value ? 'Selected from SO' : '—'" />
+        </div>
+        <div><label class="input-label">Invoice Date *</label><input type="date" formControlName="invoice_date" class="input-field" /></div>
+        <div><label class="input-label">Due Date *</label><input type="date" formControlName="due_date" class="input-field" /></div>
+        <div>
+          <label class="input-label">Currency</label>
+          <select formControlName="currency" class="input-field">
+            @for (c of currencies(); track c.id) {
+              <option [ngValue]="c.id">{{ c.code }}</option>
+            }
+          </select>
+        </div>
+        <div><label class="input-label">Exchange Rate</label><input type="number" formControlName="exchange_rate" step="0.0001" class="input-field" /></div>
+        <div class="md:col-span-2">
+          <label class="input-label">TRA Receipt Number</label>
+          <input formControlName="tra_receipt_number" class="input-field" placeholder="Optional — assign when issued" />
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="flex justify-between mb-3">
+        <h4 class="font-semibold">Line Items</h4>
+        @if (!form.controls.sales_order.value) {
+          <button type="button" class="btn-ghost !text-xs" (click)="addLine()">+ Add Item</button>
+        }
+      </div>
+      <div formArrayName="lineItems" class="space-y-2">
+        @for (line of lineItems().controls; track $index; let i = $index) {
+          <div [formGroupName]="i" class="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-xl">
+            <div class="col-span-4 text-sm">
+              Item #{{ line.value.item }}
+            </div>
+            <div class="col-span-2"><input type="number" formControlName="quantity" class="input-field" placeholder="Qty" /></div>
+            <div class="col-span-2"><input type="number" formControlName="unit_price" class="input-field" placeholder="Price" /></div>
+            <div class="col-span-1"><input type="number" formControlName="discount_percent" class="input-field" placeholder="Disc %" /></div>
+            <div class="col-span-1"><input type="number" formControlName="tax_rate" class="input-field" placeholder="Tax %" /></div>
+            <div class="col-span-2 font-semibold text-sm">{{ formatCurrency(lineTotal(i)) }}</div>
+          </div>
+        }
+      </div>
+      <div class="mt-4 text-right space-y-1 text-sm">
+        <p>Subtotal: <strong>{{ formatCurrency(subtotal()) }}</strong></p>
+        <p>Tax: <strong>{{ formatCurrency(taxAmount()) }}</strong></p>
+        <p class="text-lg">Grand Total: <strong class="text-[#1B3A6B]">{{ formatCurrency(grandTotal()) }}</strong></p>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-3 border-t pt-4">
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">Save Invoice</button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,49 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Goods Received Notes">
+    @if (canAdd()) { <a routerLink="/procurement/grn/new" class="btn-primary">New GRN</a> }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (!grns().length) {
+    <div class="card"><app-empty-state title="No GRNs" message="Record goods received against purchase orders." actionLabel="New GRN" (actionClick)="null" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">GRN Number</th>
+            <th class="table-th">PO Number</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">Warehouse</th>
+            <th class="table-th">Received Date</th>
+            <th class="table-th">Received By</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (g of grns(); track g.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ g.grn_number }}</td>
+              <td class="table-td"><a [routerLink]="['/procurement/purchase-orders', g.po_id, 'view']" class="text-[#1B3A6B]">{{ g.po_number }}</a></td>
+              <td class="table-td">{{ g.supplier_name }}</td>
+              <td class="table-td">{{ g.warehouse_name }}</td>
+              <td class="table-td">{{ formatDate(g.received_date) }}</td>
+              <td class="table-td">{{ g.received_by_name }}</td>
+              <td class="table-td"><app-status-badge [status]="g.status" /></td>
+              <td class="table-td">
+                <a [routerLink]="['/procurement/grn', g.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (g.status === 'DRAFT' && canAdd()) {
+                  <a [routerLink]="['/procurement/grn', g.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="confirm(g)">Confirm</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [page]="page()" [pageSize]="10" [total]="total()" (pageChange)="page.set($event); load()" />
+    </div>
+  }
+</div>

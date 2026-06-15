@@ -1,0 +1,83 @@
+<app-page-header title="Visitor Management">
+  @if (canOperate()) {
+    <a routerLink="/safety/security/visitors/new" class="btn-primary">Register Visitor</a>
+  }
+</app-page-header>
+
+<app-security-nav />
+
+<app-location-tabs
+  [tabs]="locationTabs()"
+  [selected]="selectedLocation()"
+  (selectedChange)="selectedLocation.set($event); load()"
+/>
+
+<div class="card mb-4">
+  <div class="flex flex-wrap gap-3 items-end">
+    <div class="flex-1 min-w-[200px]">
+      <input class="search-field w-full" placeholder="Search name, ID, company..." [(ngModel)]="search" (keyup.enter)="load()" />
+    </div>
+    <select class="input-field !w-auto" [(ngModel)]="statusFilter" (change)="load()">
+      <option value="">All statuses</option>
+      <option value="SIGNED_IN">Signed In</option>
+      <option value="PENDING">Pending</option>
+      <option value="OVERSTAYING">Overstaying</option>
+    </select>
+    <label class="flex items-center gap-2 text-sm">
+      <input type="checkbox" [(ngModel)]="onSite" (change)="load()" /> On site only
+    </label>
+    <button type="button" class="btn-secondary" (click)="load()">Filter</button>
+    <button type="button" class="btn-secondary" (click)="export()">Export</button>
+  </div>
+</div>
+
+@if (loading()) {
+  <app-table-skeleton [rows]="8" />
+} @else if (!visitors().length) {
+  <app-empty-state title="No visitors" message="No visitors match your filters." />
+} @else {
+  <div class="card overflow-x-auto">
+    <table class="data-table w-full">
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Name</th>
+          <th>Company</th>
+          <th>Purpose</th>
+          <th>Host</th>
+          <th>Location</th>
+          <th>Time In</th>
+          <th>Expected Out</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (v of visitors(); track v.id) {
+          <tr [class.font-semibold]="v.status === 'OVERSTAYING'">
+            <td>{{ v.visitor_number }}</td>
+            <td>{{ v.full_name }}</td>
+            <td>{{ v.company || '—' }}</td>
+            <td><span class="badge-blue text-xs">{{ v.purpose }}</span></td>
+            <td>{{ v.host_employee_name }}</td>
+            <td>{{ locationBadge(v.location_name).icon }} {{ v.location_name }}</td>
+            <td>{{ formatDateTime(v.actual_time_in) }}</td>
+            <td>{{ formatDateTime(v.expected_time_out) }}</td>
+            <td><span [class]="statusColor(v.status)">{{ v.status }}</span></td>
+            <td class="whitespace-nowrap">
+              @if (canOperate()) {
+                @if (v.status === 'PENDING') {
+                  <button type="button" class="text-xs text-green-600 mr-2" (click)="signIn(v)">Sign In</button>
+                }
+                @if (v.status === 'SIGNED_IN' || v.status === 'OVERSTAYING') {
+                  <button type="button" class="text-xs text-[#1B3A6B]" (click)="signOut(v)">Sign Out</button>
+                }
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <app-pagination [total]="total()" [page]="page()" (pageChange)="page.set($event); load()" />
+}

@@ -1,0 +1,250 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="Tax" subtitle="VAT returns, PAYE, NSSF and tax configuration">
+    @if (activeTab() !== 'settings') {
+      <button type="button" class="btn-secondary" (click)="exportActiveTab()">Export PDF</button>
+    }
+  </app-page-header>
+
+  <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
+    @for (tab of tabs; track tab.id) {
+      <button
+        type="button"
+        class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+        [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+        (click)="setTab(tab.id)"
+      >
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  @if (activeTab() !== 'settings') {
+    <div class="card p-4 mb-6 flex flex-wrap items-end gap-4">
+      <div>
+        <label class="input-label">Month</label>
+        <select class="input-field min-w-[160px]" [(ngModel)]="month" (ngModelChange)="onPeriodChange()">
+          @for (m of months; track m.value) {
+            <option [ngValue]="m.value">{{ m.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Year</label>
+        <select class="input-field min-w-[120px]" [(ngModel)]="year" (ngModelChange)="onPeriodChange()">
+          @for (y of years; track y) {
+            <option [ngValue]="y">{{ y }}</option>
+          }
+        </select>
+      </div>
+      <p class="text-sm text-gray-500 pb-2">Period: {{ periodLabel() }}</p>
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="5" />
+  } @else if (error()) {
+    <app-error-state (retry)="loadActiveTab()" />
+  } @else {
+    @if (activeTab() === 'vat' && vatSummary(); as vat) {
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(vat.output_vat) }}</p>
+          <p class="card-stat__label">Output VAT</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(vat.input_vat) }}</p>
+          <p class="card-stat__label">Input VAT</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(vat.net_vat_payable) }}</p>
+          <p class="card-stat__label">Net VAT Payable</p>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <h2 class="section-title">VAT Transactions</h2>
+            <p class="text-sm text-gray-500 mt-0.5">{{ periodLabel() }}</p>
+          </div>
+          @if (vat.is_locked) {
+            <span class="badge badge-pending">Locked</span>
+          }
+        </div>
+        <div class="overflow-x-auto">
+          @if (vat.transactions.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Date</th>
+                  <th class="table-th">Type</th>
+                  <th class="table-th">Reference</th>
+                  <th class="table-th text-right">Net Amount</th>
+                  <th class="table-th text-right">VAT</th>
+                  <th class="table-th text-right">Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of vat.transactions; track row.reference + row.date) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ row.date }}</td>
+                    <td class="table-td">
+                      <span class="badge" [class]="row.type === 'OUTPUT' ? 'badge-approved' : 'badge-active'">
+                        {{ row.type }}
+                      </span>
+                    </td>
+                    <td class="table-td font-mono text-xs">{{ row.reference }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.net_amount) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.vat_amount) }}</td>
+                    <td class="table-td text-right">{{ row.rate }}%</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No VAT transactions for this period.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'paye' && payeSummary(); as paye) {
+      <div class="card-stat mb-6 max-w-sm">
+        <p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(paye.total_paye) }}</p>
+        <p class="card-stat__label">Total PAYE — {{ periodLabel() }}</p>
+      </div>
+
+      <div class="table-container">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">PAYE Entries</h2>
+        </div>
+        <div class="overflow-x-auto">
+          @if (paye.entries.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Employee</th>
+                  <th class="table-th text-right">Gross</th>
+                  <th class="table-th text-right">Taxable Income</th>
+                  <th class="table-th text-right">PAYE</th>
+                  <th class="table-th text-right">Cumulative YTD</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of paye.entries; track row.employee) {
+                  <tr class="table-row">
+                    <td class="table-td font-medium">{{ row.employee }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.gross) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.taxable_income) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.paye_amount) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.cumulative_ytd) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No PAYE entries for this period.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'nssf' && nssfSummary(); as nssf) {
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(nssf.total_employee) }}</p>
+          <p class="card-stat__label">Employee Contribution</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(nssf.total_employer) }}</p>
+          <p class="card-stat__label">Employer Contribution</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(nssf.total_nssf) }}</p>
+          <p class="card-stat__label">Total NSSF</p>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">NSSF Entries</h2>
+          <p class="text-sm text-gray-500 mt-0.5">{{ periodLabel() }}</p>
+        </div>
+        <div class="overflow-x-auto">
+          @if (nssf.entries.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of nssf.entries; track $index) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ row | json }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No detailed NSSF entries for this period.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'settings') {
+      <div class="table-container">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="section-title">Tax Settings</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Configure tax rates and applicability</p>
+        </div>
+        <div class="overflow-x-auto">
+          @if (taxSettings().length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Name</th>
+                  <th class="table-th">Rate (%)</th>
+                  <th class="table-th">Applicable To</th>
+                  <th class="table-th">Description</th>
+                  <th class="table-th">Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (setting of taxSettings(); track setting.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-medium">{{ setting.name }}</td>
+                    <td class="table-td">
+                      <input
+                        type="number"
+                        class="input-field !py-1.5 !text-sm w-24"
+                        [value]="setting.rate"
+                        [disabled]="savingSettingId() === setting.id"
+                        (change)="updateSetting(setting, 'rate', $any($event.target).value)"
+                      />
+                    </td>
+                    <td class="table-td">{{ setting.applicable_to }}</td>
+                    <td class="table-td text-gray-600">{{ setting.description }}</td>
+                    <td class="table-td">
+                      <input
+                        type="checkbox"
+                        class="w-4 h-4 rounded border-gray-300"
+                        [checked]="setting.is_active"
+                        [disabled]="savingSettingId() === setting.id"
+                        (change)="updateSetting(setting, 'is_active', $any($event.target).checked)"
+                      />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">No tax settings configured.</p>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

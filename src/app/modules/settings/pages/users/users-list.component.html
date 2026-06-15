@@ -1,0 +1,79 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+  <app-page-header
+    title="Users"
+    subtitle="Manage accounts and multi-department role assignments"
+  >
+    <a routerLink="/settings/users/new" class="btn-primary">New User</a>
+    <a routerLink="/settings/admin" class="btn-secondary">Admin Home</a>
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-col sm:flex-row gap-3">
+    <input
+      type="search"
+      class="input-field flex-1"
+      placeholder="Search by name or email…"
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+      (keyup.enter)="onSearch()"
+    />
+    <button type="button" class="btn-primary" (click)="onSearch()">Search</button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [rows]="8" [cols]="6" />
+  } @else if (!rows().length) {
+    <app-empty-state title="No users found" message="Try adjusting your search." />
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Name</th>
+              <th class="table-th">Email</th>
+              <th class="table-th">Departments</th>
+              <th class="table-th">Primary Role</th>
+              <th class="table-th">Status</th>
+              <th class="table-th text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of rows(); track user.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ user.full_name }}</td>
+                <td class="table-td text-gray-600">{{ user.email }}</td>
+                <td class="table-td">
+                  <span class="text-sm">{{ departmentSummary(user) }}</span>
+                  @if (user.is_multi_department) {
+                    <span class="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#EEF4FB] text-[#1B3A6B] font-semibold">
+                      Multi
+                    </span>
+                  }
+                </td>
+                <td class="table-td">{{ user.role_name ?? '—' }}</td>
+                <td class="table-td">
+                  <app-status-badge [status]="user.is_active ? 'ACTIVE' : 'INACTIVE'" />
+                </td>
+                <td class="table-td text-right">
+                  @if (canEdit()) {
+                    <a [routerLink]="['/settings/users', user.id, 'edit']" class="btn-ghost !text-xs">
+                      Edit
+                    </a>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="25"
+      (pageChange)="onPageChange($event)"
+    />
+  }
+</div>

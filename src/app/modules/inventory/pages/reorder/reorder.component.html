@@ -1,0 +1,60 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Reorder Suggestions">
+    @if (suggestions().length) {
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    }
+  </app-page-header>
+
+  <p class="text-sm text-gray-600 mb-4">
+    Items below reorder level. Create a
+    <a routerLink="/procurement/requisitions" class="text-[#1B3A6B] font-medium hover:underline">procurement requisition</a>
+    to replenish stock.
+  </p>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!suggestions().length) {
+    <div class="card"><app-empty-state title="No reorder suggestions" message="All items are above their reorder levels." /></div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Priority</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Current</th>
+              <th class="table-th">Reorder Level</th>
+              <th class="table-th">Suggested Qty</th>
+              <th class="table-th">Est. Cost</th>
+              <th class="table-th">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of suggestions(); track s.item + '-' + s.warehouse) {
+              <tr class="table-row">
+                <td class="table-td">
+                  <span class="badge" [class]="priorityBadgeClass(s.priority)">{{ s.priority }}</span>
+                </td>
+                <td class="table-td">
+                  <div class="font-mono text-sm">{{ s.item_code }}</div>
+                  <div class="text-xs text-gray-500">{{ s.item_name }}</div>
+                </td>
+                <td class="table-td">{{ s.warehouse_name }}</td>
+                <td class="table-td font-semibold text-red-700">{{ formatNumber(s.current_stock) }}</td>
+                <td class="table-td">{{ formatNumber(s.reorder_level) }}</td>
+                <td class="table-td font-semibold">{{ formatNumber(s.suggested_quantity) }}</td>
+                <td class="table-td">{{ formatCurrency(s.estimated_cost) }}</td>
+                <td class="table-td">
+                  <a routerLink="/procurement/requisitions/new" class="btn-ghost !px-2 !py-1 !text-xs">Create PR</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,148 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Fuel Records">
+    @if (canRecord()) {
+      <button type="button" class="btn-primary" (click)="openRecord()">Record Fueling</button>
+    }
+  </app-page-header>
+
+  @if (summary(); as s) {
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Cost (Month)</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ formatCurrency(s.total_cost_month) }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Liters (Month)</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ formatNumber(s.total_liters_month) }} L</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-xs text-gray-500 uppercase tracking-wide mb-1">Avg Cost / km</p>
+        <p class="text-2xl font-bold text-[#1B3A6B]">{{ formatCurrency(s.avg_cost_per_km) }}</p>
+      </div>
+    </div>
+  }
+
+  <div class="card p-4 mb-4">
+    <input
+      type="text"
+      class="input-field"
+      placeholder="Search vehicle or station..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="9" />
+  } @else if (!records().length) {
+    <div class="card">
+      <app-empty-state
+        title="No fuel records"
+        message="Record fuel purchases to track fleet costs."
+        actionLabel="Record Fueling"
+        (actionClick)="openRecord()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Date</th>
+            <th class="table-th">Vehicle</th>
+            <th class="table-th">Driver</th>
+            <th class="table-th">Liters</th>
+            <th class="table-th">Cost/L</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Odometer</th>
+            <th class="table-th">Station</th>
+            <th class="table-th">Recorded By</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of records(); track r.id) {
+            <tr class="table-row">
+              <td class="table-td">{{ formatDate(r.date) }}</td>
+              <td class="table-td font-medium">{{ r.vehicle_registration }}</td>
+              <td class="table-td">{{ r.driver_name || '—' }}</td>
+              <td class="table-td">{{ formatNumber(r.liters) }}</td>
+              <td class="table-td">{{ formatCurrency(r.cost_per_liter) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(r.total_cost) }}</td>
+              <td class="table-td">{{ formatNumber(r.odometer_reading, 0) }}</td>
+              <td class="table-td">{{ r.station_name || '—' }}</td>
+              <td class="table-td text-sm">{{ r.created_by_name }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showRecord()" title="Record Fueling" size="lg" (close)="showRecord.set(false)">
+  <form [formGroup]="recordForm" class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Vehicle *</label>
+        <select formControlName="vehicle" class="input-field">
+          <option [ngValue]="null">Select vehicle</option>
+          @for (v of vehicles(); track v.id) {
+            <option [ngValue]="v.id">{{ v.registration_number }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Driver</label>
+        <select formControlName="driver" class="input-field">
+          <option [ngValue]="null">Optional</option>
+          @for (d of drivers(); track d.id) {
+            <option [ngValue]="d.id">{{ d.full_name }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Date *</label>
+        <input type="date" formControlName="date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Odometer (km) *</label>
+        <input type="number" formControlName="odometer_reading" min="0" class="input-field" />
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Liters *</label>
+        <input type="number" formControlName="liters" min="0" step="0.01" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Cost per Liter *</label>
+        <input type="number" formControlName="cost_per_liter" min="0" step="0.01" class="input-field" />
+      </div>
+    </div>
+    <div class="bg-gray-50 rounded-xl p-3 text-sm">
+      <span class="text-gray-500">Total Cost:</span>
+      <strong class="text-[#1B3A6B] ml-2">{{ formatCurrency(totalCostPreview()) }}</strong>
+    </div>
+    <div>
+      <label class="input-label">Station Name</label>
+      <input formControlName="station_name" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showRecord.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveRecord()">Save Record</button>
+  </div>
+</app-modal>

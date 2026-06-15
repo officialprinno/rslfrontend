@@ -1,0 +1,246 @@
+<div class="page-container">
+  <app-sales-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error()) {
+    <app-error-state (retry)="loadCustomer()" />
+  } @else if (customer(); as c) {
+    <app-page-header [title]="c.name" [subtitle]="c.mine_name">
+      <a routerLink="/sales/customers" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    <div class="flex flex-wrap gap-1 p-1 bg-gray-100 rounded-xl mb-6">
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          class="px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all"
+          [class]="activeTab() === tab.id ? 'bg-white text-[#1B3A6B] shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+          (click)="setTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    @if (activeTab() === 'overview') {
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="card p-6 lg:col-span-2">
+          <h4 class="font-semibold mb-4">Customer Details</h4>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            <div><span class="text-gray-500">TIN</span><p class="font-medium">{{ c.tin_number }}</p></div>
+            <div><span class="text-gray-500">VAT</span><p>{{ c.vat_number || '—' }}</p></div>
+            <div><span class="text-gray-500">Email</span><p>{{ c.email }}</p></div>
+            <div><span class="text-gray-500">Phone</span><p>{{ c.phone }}</p></div>
+            <div><span class="text-gray-500">Mine</span><p>{{ c.mine_name }}</p></div>
+            <div><span class="text-gray-500">Mine Location</span><p>{{ c.mine_location || '—' }}</p></div>
+            <div><span class="text-gray-500">Mine Type</span><p>{{ mineTypeLabel(c.mine_type) }}</p></div>
+            <div><span class="text-gray-500">Country</span><p>{{ c.country }}</p></div>
+            <div><span class="text-gray-500">Contact Person</span><p>{{ c.contact_person || '—' }}</p></div>
+            <div><span class="text-gray-500">Contact Phone</span><p>{{ c.contact_phone || '—' }}</p></div>
+            <div><span class="text-gray-500">Payment Terms</span><p><app-payment-terms-badge [terms]="$any(c.payment_terms)" /></p></div>
+            <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="c.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="c.is_active ? 'Active' : 'Inactive'" /></p></div>
+          </div>
+        </div>
+
+        <div class="card p-6">
+          <h4 class="font-semibold mb-4">Financial Summary</h4>
+          <div class="space-y-3 text-sm">
+            <div class="flex justify-between"><span class="text-gray-500">Total Orders</span><span class="font-semibold">{{ c.total_orders ?? 0 }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Total Invoiced</span><span class="font-semibold">{{ formatCurrency(c.total_invoiced ?? 0, c.currency_code) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Total Paid</span><span class="font-semibold">{{ formatCurrency(c.total_paid ?? 0, c.currency_code) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Outstanding</span><span class="font-semibold text-red-600">{{ formatCurrency(c.outstanding_balance ?? 0, c.currency_code) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Credit Limit</span><span>{{ formatCurrency(c.credit_limit, c.currency_code) }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500">Credit Balance</span><span [class.text-green-600]="c.credit_balance > 0" [class.text-red-600]="c.credit_balance <= 0">{{ formatCurrency(c.credit_balance, c.currency_code) }}</span></div>
+          </div>
+          <div class="mt-4">
+            <div class="flex justify-between text-xs text-gray-500 mb-1">
+              <span>Credit Used</span>
+              <span>{{ creditUsedPercent(c) | number:'1.0-0' }}%</span>
+            </div>
+            <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-full bg-[#1B3A6B] rounded-full transition-all" [style.width.%]="creditUsedPercent(c)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'orders') {
+      @if (ordersLoading()) { <app-table-skeleton [cols]="6" /> }
+      @else if (!orders().length) {
+        <div class="card"><app-empty-state title="No sales orders" message="This customer has no orders yet." /></div>
+      } @else {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">SO Number</th>
+                <th class="table-th">Delivery Date</th>
+                <th class="table-th">Total</th>
+                <th class="table-th">Status</th>
+                <th class="table-th">Payment</th>
+                <th class="table-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (o of orders(); track o.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ o.so_number }}</td>
+                  <td class="table-td">{{ formatDate(o.delivery_date) }}</td>
+                  <td class="table-td font-semibold">{{ formatCurrency(o.total_amount, o.currency_code) }}</td>
+                  <td class="table-td"><app-status-badge [status]="o.status" /></td>
+                  <td class="table-td"><app-status-badge [status]="o.payment_status" /></td>
+                  <td class="table-td">
+                    <a [routerLink]="['/sales/orders', o.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <app-pagination [page]="ordersPage()" [pageSize]="10" [total]="ordersTotal()" (pageChange)="ordersPage.set($event); loadOrders()" />
+        </div>
+      }
+    }
+
+    @if (activeTab() === 'invoices') {
+      @if (invoicesLoading()) { <app-table-skeleton [cols]="6" /> }
+      @else if (!invoices().length) {
+        <div class="card"><app-empty-state title="No invoices" message="This customer has no invoices yet." /></div>
+      } @else {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Invoice #</th>
+                <th class="table-th">Date</th>
+                <th class="table-th">Due Date</th>
+                <th class="table-th">Total</th>
+                <th class="table-th">Balance</th>
+                <th class="table-th">Status</th>
+                <th class="table-th">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (inv of invoices(); track inv.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ inv.invoice_number }}</td>
+                  <td class="table-td">{{ formatDate(inv.invoice_date) }}</td>
+                  <td class="table-td">{{ formatDate(inv.due_date) }}</td>
+                  <td class="table-td font-semibold">{{ formatCurrency(inv.total_amount, inv.currency_code) }}</td>
+                  <td class="table-td">{{ formatCurrency(inv.balance, inv.currency_code) }}</td>
+                  <td class="table-td"><app-status-badge [status]="inv.status" /></td>
+                  <td class="table-td">
+                    <a [routerLink]="['/sales/invoices', inv.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <app-pagination [page]="invoicesPage()" [pageSize]="10" [total]="invoicesTotal()" (pageChange)="invoicesPage.set($event); loadInvoices()" />
+        </div>
+      }
+    }
+
+    @if (activeTab() === 'payments') {
+      @if (paymentsLoading()) { <app-table-skeleton [cols]="5" /> }
+      @else if (!payments().length) {
+        <div class="card"><app-empty-state title="No payments" message="No payments recorded for this customer." /></div>
+      } @else {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Payment #</th>
+                <th class="table-th">Invoice</th>
+                <th class="table-th">Date</th>
+                <th class="table-th">Amount</th>
+                <th class="table-th">Method</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of payments(); track p.id) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ p.payment_number }}</td>
+                  <td class="table-td">{{ p.invoice_number }}</td>
+                  <td class="table-td">{{ formatDate(p.payment_date) }}</td>
+                  <td class="table-td font-semibold">{{ formatCurrency(p.amount, p.currency_code) }}</td>
+                  <td class="table-td">{{ p.payment_method }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <app-pagination [page]="paymentsPage()" [pageSize]="10" [total]="paymentsTotal()" (pageChange)="paymentsPage.set($event); loadPayments()" />
+        </div>
+      }
+    }
+
+    @if (activeTab() === 'statement') {
+      <div class="card p-4 mb-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="input-label">From</label>
+          <input type="date" class="input-field" [ngModel]="statementDateFrom()" (ngModelChange)="statementDateFrom.set($event)" />
+        </div>
+        <div>
+          <label class="input-label">To</label>
+          <input type="date" class="input-field" [ngModel]="statementDateTo()" (ngModelChange)="statementDateTo.set($event)" />
+        </div>
+        <button type="button" class="btn-secondary" (click)="loadStatement()">Apply</button>
+        <button type="button" class="btn-ghost" (click)="printStatement()">Print</button>
+      </div>
+
+      @if (statementLoading()) { <app-table-skeleton [cols]="6" /> }
+      @else if (statement(); as stmt) {
+        <div id="statement-print-area" class="card p-6">
+          <div class="hidden print:block mb-4">
+            <h1 class="text-xl font-bold text-[#1B3A6B]">Customer Statement</h1>
+            <p class="text-sm text-gray-500">{{ stmt.customer.name }} — {{ stmt.customer.mine_name }}</p>
+          </div>
+          <div class="flex justify-between mb-4 text-sm">
+            <div>
+              <p class="font-semibold">{{ stmt.customer.name }}</p>
+              <p class="text-gray-500">TIN: {{ stmt.customer.tin_number }}</p>
+            </div>
+            <div class="text-right">
+              <p class="text-gray-500">Outstanding Balance</p>
+              <p class="text-lg font-bold text-red-600">{{ stmt.outstanding_balance }} {{ stmt.customer.currency_code }}</p>
+            </div>
+          </div>
+          @if (stmt.aging) {
+            <div class="grid grid-cols-4 gap-3 mb-6 p-3 bg-gray-50 rounded-xl text-sm">
+              @for (entry of (stmt.aging | keyvalue); track entry.key) {
+                <div><span class="text-gray-500 block">{{ entry.key }}</span><span class="font-semibold">{{ entry.value }}</span></div>
+              }
+            </div>
+          }
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="table-th">Date</th>
+                <th class="table-th">Type</th>
+                <th class="table-th">Reference</th>
+                <th class="table-th">Description</th>
+                <th class="table-th text-right">Debit</th>
+                <th class="table-th text-right">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of stmt.lines; track $index) {
+                <tr class="table-row">
+                  <td class="table-td">{{ formatDate(line.date) }}</td>
+                  <td class="table-td">{{ line.type }}</td>
+                  <td class="table-td">{{ line.reference }}</td>
+                  <td class="table-td">{{ line.description }}</td>
+                  <td class="table-td text-right">{{ line.debit || '—' }}</td>
+                  <td class="table-td text-right">{{ line.credit || '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="card"><app-empty-state title="No statement data" message="Select a date range and click Apply." /></div>
+      }
+    }
+  }
+</div>

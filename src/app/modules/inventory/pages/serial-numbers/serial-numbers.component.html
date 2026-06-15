@@ -1,0 +1,101 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Serial Number Tracking">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openNew()">Register Serial</button>
+    }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!serials().length) {
+    <div class="card"><app-empty-state title="No serial numbers" message="Register serial numbers for tracked assets and equipment." [actionLabel]="canAdd() ? 'Register Serial' : ''" (actionClick)="openNew()" /></div>
+  } @else {
+    <div class="table-container">
+      <div class="flex justify-end px-4 pt-3">
+        <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Serial #</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Mfr Serial</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Purchase Date</th>
+              <th class="table-th">Warranty</th>
+              <th class="table-th">Registered</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of serials(); track s.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-sm">{{ s.serial_number }}</td>
+                <td class="table-td">{{ s.item_code }}</td>
+                <td class="table-td">{{ s.warehouse_name }}</td>
+                <td class="table-td text-sm">{{ s.manufacturer_serial || '—' }}</td>
+                <td class="table-td"><app-status-badge [status]="s.status" /></td>
+                <td class="table-td text-xs">{{ s.purchase_date ? formatDate(s.purchase_date) : '—' }}</td>
+                <td class="table-td text-xs">{{ s.warranty_date ? formatDate(s.warranty_date) : '—' }}</td>
+                <td class="table-td text-xs">{{ formatDateTime(s.created_at) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="Register Serial Number" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Item *</label>
+      <app-searchable-select [options]="itemOptions()" [value]="form.controls.item.value" placeholder="Search items..." (valueChange)="form.controls.item.setValue($event != null ? +$event : null)" />
+    </div>
+    <div>
+      <label class="input-label">Warehouse *</label>
+      <select formControlName="warehouse" class="input-field">
+        <option [ngValue]="null">Select warehouse</option>
+        @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Serial Number *</label>
+      <input type="text" formControlName="serial_number" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">Manufacturer Serial</label>
+      <input type="text" formControlName="manufacturer_serial" class="input-field" />
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Purchase Date</label>
+        <input type="date" formControlName="purchase_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Warranty Date</label>
+        <input type="date" formControlName="warranty_date" class="input-field" />
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Status *</label>
+      <select formControlName="status" class="input-field">
+        <option value="IN_STOCK">In Stock</option>
+        <option value="SOLD">Sold</option>
+        <option value="IN_USE">In Use</option>
+        <option value="RETIRED">Retired</option>
+      </select>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Register
+    </button>
+  </div>
+</app-modal>

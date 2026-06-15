@@ -1,0 +1,56 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Sales Dashboard" subtitle="Rock Solutions Limited — Distribution & Revenue" />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load dashboard" (retry)="load()" />
+  } @else if (data(); as d) {
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="card p-5">
+        <p class="text-sm text-gray-500">New Orders</p>
+        <p class="text-3xl font-bold text-[#1B3A6B]">{{ d.new_orders_count ?? d.pending_so_approvals }}</p>
+        <a routerLink="/sales/orders" [queryParams]="{ status: 'NEW_ORDER' }" class="text-xs text-[#2E6DB4] mt-2 inline-block">View orders →</a>
+      </div>
+      <div class="card p-5">
+        <p class="text-sm text-gray-500">Pending Quotations</p>
+        <p class="text-3xl font-bold text-[#1B3A6B]">{{ d.pending_quotations_count ?? 0 }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-sm text-gray-500">Awaiting Payment</p>
+        <p class="text-3xl font-bold text-amber-600">{{ d.awaiting_payment_count ?? 0 }}</p>
+      </div>
+      <div class="card p-5">
+        <p class="text-sm text-gray-500">Monthly Revenue</p>
+        <p class="text-2xl font-bold text-green-700">{{ formatCurrency(d.monthly_revenue ?? '0', 'TZS') }}</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="card p-6">
+        <h4 class="font-semibold mb-4">Top Customers (This Month)</h4>
+        @if (d.top_customers.length) {
+          <ul class="space-y-2 text-sm">
+            @for (c of d.top_customers; track c.name) {
+              <li class="flex justify-between border-b border-gray-100 pb-2">
+                <span>{{ c.name }}</span>
+                <span class="font-medium">{{ formatCurrency(c.revenue, 'TZS') }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-sm text-gray-500">No revenue recorded this month.</p>
+        }
+      </div>
+      <div class="card p-6">
+        <h4 class="font-semibold mb-4">KPIs</h4>
+        <dl class="space-y-3 text-sm">
+          <div class="flex justify-between"><dt class="text-gray-500">Quotation Conversion</dt><dd class="font-medium">{{ d.quotation_conversion_rate }}%</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-500">Accepted Quotations</dt><dd class="font-medium">{{ d.accepted_quotations_count ?? 0 }}</dd></div>
+          <div class="flex justify-between"><dt class="text-gray-500">Overdue Invoices</dt><dd class="font-medium text-red-600">{{ d.overdue_invoices_count }}</dd></div>
+        </dl>
+      </div>
+    </div>
+  }
+</div>

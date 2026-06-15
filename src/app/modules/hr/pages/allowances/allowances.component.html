@@ -1,0 +1,144 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Allowances" subtitle="System-wide allowance configurations">
+    @if (canManage()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Allowance</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <label class="input-label">Search</label>
+    <input
+      type="text"
+      class="input-field max-w-md"
+      placeholder="Allowance name..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!items().length) {
+    <div class="card">
+      <app-empty-state
+        title="No allowances"
+        message="Configure allowances applied during payroll processing."
+        [actionLabel]="canManage() ? 'Add Allowance' : ''"
+        (actionClick)="openAdd()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Name</th>
+              <th class="table-th">Amount</th>
+              <th class="table-th">Taxable</th>
+              <th class="table-th">Department</th>
+              <th class="table-th">Effective</th>
+              <th class="table-th">End Date</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ item.name }}</td>
+                <td class="table-td font-semibold">{{ formatCurrency(item.amount) }}</td>
+                <td class="table-td">{{ item.is_taxable ? 'Yes' : 'No' }}</td>
+                <td class="table-td">{{ item.department_name || 'All departments' }}</td>
+                <td class="table-td">{{ formatDate(item.effective_date) }}</td>
+                <td class="table-td">{{ item.end_date ? formatDate(item.end_date) : '—' }}</td>
+                <td class="table-td">
+                  <app-status-badge
+                    [status]="item.is_active ? 'ACTIVE' : 'CANCELLED'"
+                    [label]="item.is_active ? 'Active' : 'Inactive'"
+                  />
+                </td>
+                <td class="table-td">
+                  @if (canManage()) {
+                    <div class="flex gap-1">
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(item)">
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-ghost !px-2 !py-1 !text-xs !text-red-600"
+                        (click)="onDelete(item)"
+                      >
+                        Deactivate
+                      </button>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal
+  [open]="showForm()"
+  [title]="editing() ? 'Edit Allowance' : 'Add Allowance'"
+  size="lg"
+  (close)="showForm.set(false)"
+>
+  <form [formGroup]="form" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Name *</label>
+        <input type="text" formControlName="name" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Amount (TZS) *</label>
+        <input type="number" formControlName="amount" class="input-field" min="0" step="0.01" />
+      </div>
+      <div>
+        <label class="input-label">Department</label>
+        <select formControlName="department" class="input-field">
+          <option [ngValue]="null">All departments</option>
+          @for (dept of departments(); track dept.id) {
+            <option [ngValue]="dept.id">{{ dept.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="flex items-end">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" formControlName="is_taxable" class="login-checkbox" />
+          <span class="text-sm">Taxable allowance</span>
+        </label>
+      </div>
+      <div>
+        <label class="input-label">Effective Date *</label>
+        <input type="date" formControlName="effective_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">End Date</label>
+        <input type="date" formControlName="end_date" class="input-field" />
+      </div>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving() || !canManage()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>

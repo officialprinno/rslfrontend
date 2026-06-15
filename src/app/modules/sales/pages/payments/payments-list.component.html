@@ -1,0 +1,110 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Customer Payments">
+    @if (canRecord()) {
+      <button type="button" class="btn-primary" (click)="openRecord()">Record Payment</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <input
+      type="text"
+      class="input-field max-w-sm"
+      placeholder="Search payment number..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!payments().length) {
+    <div class="card">
+      <app-empty-state
+        title="No payments"
+        message="Record customer payments against outstanding invoices."
+        actionLabel="Record Payment"
+        (actionClick)="openRecord()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Payment #</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">Invoice</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">Method</th>
+            <th class="table-th">Reference</th>
+            <th class="table-th">Received By</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of payments(); track p.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ p.payment_number }}</td>
+              <td class="table-td">{{ p.customer_name }}</td>
+              <td class="table-td">{{ p.invoice_number }}</td>
+              <td class="table-td">{{ formatDate(p.payment_date) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(p.amount, p.currency_code) }}</td>
+              <td class="table-td">{{ p.payment_method }}</td>
+              <td class="table-td text-sm">{{ p.reference_number || '—' }}</td>
+              <td class="table-td text-sm">{{ p.received_by_name }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showRecord()" title="Record Payment" size="lg" (close)="showRecord.set(false)">
+  <form [formGroup]="recordForm" class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+      <label class="input-label">Customer *</label>
+      <select formControlName="customer" class="input-field" (change)="onCustomerSelect(+$any($event.target).value || null)">
+        <option [ngValue]="null">Select customer</option>
+        @for (c of customers(); track c.id) {
+          <option [ngValue]="c.id">{{ c.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="col-span-2">
+      <label class="input-label">Invoice *</label>
+      <select formControlName="invoice" class="input-field" (change)="onInvoiceSelect(+$any($event.target).value || null)">
+        <option [ngValue]="null">Select invoice</option>
+        @for (inv of invoices(); track inv.id) {
+          <option [ngValue]="inv.id">
+            {{ inv.invoice_number }} — Balance {{ formatCurrency(inv.balance, inv.currency_code) }}
+          </option>
+        }
+      </select>
+    </div>
+    <div><label class="input-label">Amount *</label><input type="number" formControlName="amount" class="input-field" /></div>
+    <div><label class="input-label">Payment Date *</label><input type="date" formControlName="payment_date" class="input-field" /></div>
+    <div>
+      <label class="input-label">Method *</label>
+      <select formControlName="payment_method" class="input-field">
+        @for (m of paymentMethods; track m.value) {
+          <option [value]="m.value">{{ m.label }}</option>
+        }
+      </select>
+    </div>
+    <div><label class="input-label">Reference Number</label><input formControlName="reference_number" class="input-field" /></div>
+    <div class="col-span-2"><label class="input-label">Bank Name</label><input formControlName="bank_name" class="input-field" /></div>
+    <div class="col-span-2"><textarea formControlName="notes" rows="2" class="input-field resize-none" placeholder="Notes"></textarea></div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showRecord.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="savePayment()">Record Payment</button>
+  </div>
+</app-modal>

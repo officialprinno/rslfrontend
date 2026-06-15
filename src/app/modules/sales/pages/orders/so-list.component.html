@@ -1,0 +1,119 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Sales Orders">
+    @if (canAdd()) {
+      <a routerLink="/sales/orders/new" class="btn-primary">New Order</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search SO number..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-44"
+      [ngModel]="customerFilter()"
+      (ngModelChange)="customerFilter.set($event ? +$event : ''); page.set(1); load()"
+    >
+      <option value="">All Customers</option>
+      @for (c of customers(); track c.id) {
+        <option [value]="c.id">{{ c.name }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-36"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st }}</option>
+      }
+    </select>
+    <input
+      type="date"
+      class="input-field w-36"
+      placeholder="Delivery from"
+      [ngModel]="deliveryFrom()"
+      (ngModelChange)="deliveryFrom.set($event); page.set(1); load()"
+    />
+    <input
+      type="date"
+      class="input-field w-36"
+      placeholder="Delivery to"
+      [ngModel]="deliveryTo()"
+      (ngModelChange)="deliveryTo.set($event); page.set(1); load()"
+    />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="9" />
+  } @else if (!orders().length) {
+    <div class="card">
+      <app-empty-state
+        title="No sales orders"
+        message="Create a sales order from a quotation or manually."
+        actionLabel="New Order"
+        (actionClick)="null"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">SO Number</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">Delivery Date</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Delivery</th>
+            <th class="table-th">Payment</th>
+            <th class="table-th">Created By</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (so of orders(); track so.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ so.so_number }}</td>
+              <td class="table-td">{{ so.customer_name }}</td>
+              <td class="table-td" [class]="deliveryDateClass(so)">{{ formatDate(so.delivery_date) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(so.total_amount, so.currency_code) }}</td>
+              <td class="table-td"><app-status-badge [status]="so.status" /></td>
+              <td class="table-td"><app-status-badge [status]="so.delivery_status" /></td>
+              <td class="table-td"><app-status-badge [status]="so.payment_status" /></td>
+              <td class="table-td text-sm">{{ so.created_by_name }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/sales/orders', so.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (so.status === 'DRAFT') {
+                  <a [routerLink]="['/sales/orders', so.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                  @if (canConfirm()) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="confirmOrder(so)">
+                      Confirm
+                    </button>
+                  }
+                }
+                @if (so.status !== 'DELIVERED' && so.status !== 'CANCELLED') {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="cancelOrder(so)">
+                    Cancel
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

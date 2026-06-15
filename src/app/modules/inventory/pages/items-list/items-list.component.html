@@ -1,0 +1,129 @@
+<div class="page-container">
+  <app-inventory-nav />
+
+  <app-page-header title="Inventory Items" subtitle="Manage all stock items">
+  <div class="flex flex-wrap gap-2">
+    @if (canSeedMaster()) {
+      <button type="button" class="btn-secondary" [disabled]="seeding()" (click)="loadMasterCatalog(false)">
+        {{ seeding() ? 'Loading…' : 'Load Master Catalogue' }}
+      </button>
+    }
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Item</button>
+    }
+  </div>
+  </app-page-header>
+
+  <div class="card !p-4 mb-4">
+    <div class="flex flex-col lg:flex-row gap-3 lg:items-center">
+      <div class="flex-1">
+        <input
+          type="search"
+          class="search-field"
+          placeholder="Search by name or code..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          (keyup.enter)="onSearch()"
+        />
+      </div>
+      <select class="input-field !w-auto" [ngModel]="categoryFilter()" (ngModelChange)="categoryFilter.set($event); onSearch()">
+        <option value="">All Categories</option>
+        @for (cat of categories(); track cat.id) {
+          <option [value]="cat.id">{{ cat.name }}</option>
+        }
+      </select>
+      <select class="input-field !w-auto" [ngModel]="typeFilter()" (ngModelChange)="typeFilter.set($event); onSearch()">
+        <option value="">All Types</option>
+        @for (t of itemTypes; track t) { <option [value]="t">{{ t }}</option> }
+      </select>
+      <select class="input-field !w-auto" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); onSearch()">
+        <option value="all">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [rows]="pageSize()" [cols]="10" />
+  } @else if (error()) {
+    <app-error-state (retry)="loadItems()" />
+  } @else if (!items().length) {
+    <div class="card">
+      <app-empty-state title="No items found" message="Add your first inventory item or adjust filters." actionLabel="Add Item" (actionClick)="openAdd()" />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th cursor-pointer" (click)="onSort('code')">Code</th>
+              <th class="table-th cursor-pointer" (click)="onSort('name')">Name</th>
+              <th class="table-th">Category</th>
+              <th class="table-th">Type</th>
+              <th class="table-th">Unit</th>
+              <th class="table-th cursor-pointer" (click)="onSort('unit_cost')">Unit Cost</th>
+              <th class="table-th">Selling Price</th>
+              <th class="table-th">Stock Qty</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr class="table-row cursor-pointer" (click)="onRowClick(item)">
+                <td class="table-td font-mono text-xs font-semibold text-[#1B3A6B]">{{ item.code }}</td>
+                <td class="table-td font-medium">{{ item.name }}</td>
+                <td class="table-td text-gray-600">{{ item.category_name }}</td>
+                <td class="table-td"><app-item-type-badge [type]="item.item_type" /></td>
+                <td class="table-td">{{ item.unit_of_measure }}</td>
+                <td class="table-td whitespace-nowrap">{{ formatCurrency(item.unit_cost, item.currency_code) }}</td>
+                <td class="table-td whitespace-nowrap">{{ formatCurrency(item.selling_price, item.currency_code) }}</td>
+                <td class="table-td font-semibold" [class.text-red-600]="isLowStock(item)">{{ formatNumber(stockQty(item)) }}</td>
+                <td class="table-td">
+                  <app-status-badge [status]="item.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="item.is_active ? 'Active' : 'Inactive'" />
+                </td>
+                <td class="table-td" (click)="$event.stopPropagation()">
+                  <div class="flex items-center gap-1">
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(item)">View</button>
+                    @if (canEdit()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(item)">Edit</button>
+                    }
+                    @if (canDelete()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(item)">Delete</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      />
+    </div>
+  }
+</div>
+
+<app-item-form-modal
+  [open]="showForm()"
+  [item]="editingItem()"
+  [categories]="categories()"
+  (closed)="showForm.set(false)"
+  (saved)="onItemSaved()"
+/>
+
+<app-item-view-modal
+  [open]="showView()"
+  [item]="viewingItem()"
+  [stockQty]="viewingItem() ? stockQty(viewingItem()!) : 0"
+  (closed)="showView.set(false)"
+  (edit)="openEdit($event)"
+/>

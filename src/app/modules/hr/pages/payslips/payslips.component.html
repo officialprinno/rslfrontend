@@ -1,0 +1,123 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Payslips" subtitle="Employee payslip records" />
+
+  <div class="card p-4 mb-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      @if (canViewAll()) {
+        <div>
+          <label class="input-label">Employee</label>
+          <select class="input-field" [ngModel]="employeeFilter()" (ngModelChange)="employeeFilter.set($event); page.set(1); load()">
+            <option value="">All Employees</option>
+            @for (e of employees(); track e.id) {
+              <option [value]="e.id">{{ e.full_name }}</option>
+            }
+          </select>
+        </div>
+      }
+      <div>
+        <label class="input-label">Year</label>
+        <input
+          type="number"
+          class="input-field"
+          placeholder="e.g. 2026"
+          [ngModel]="yearFilter()"
+          (ngModelChange)="yearFilter.set($event); page.set(1); load()"
+        />
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (!payslips().length) {
+    <div class="card">
+      <app-empty-state title="No payslips" message="Payslips appear after payroll is marked as paid." />
+    </div>
+  } @else {
+    <div class="table-container mb-4">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Employee</th>
+            <th class="table-th">Period</th>
+            <th class="table-th">Department</th>
+            <th class="table-th">Gross</th>
+            <th class="table-th">Net</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of payslips(); track p.id) {
+            <tr class="table-row">
+              <td class="table-td">
+                <div class="font-medium">{{ p.employee_name }}</div>
+                <div class="text-xs text-gray-500">{{ p.employee_number }}</div>
+              </td>
+              <td class="table-td">{{ p.period_display }}</td>
+              <td class="table-td">{{ p.department_name }}</td>
+              <td class="table-td">{{ canViewAmounts() ? formatHrAmount(p.gross_salary) : '••••••' }}</td>
+              <td class="table-td font-semibold">{{ canViewAmounts() ? formatHrAmount(p.net_salary) : '••••••' }}</td>
+              <td class="table-td">
+                <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(p)">View</button>
+                <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-[#1B3A6B]" (click)="downloadPdf(p)">PDF</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [page]="page()" [total]="total()" [pageSize]="10" (pageChange)="page.set($event); load()" />
+  }
+</div>
+
+<app-modal [open]="showView()" title="Payslip Details" size="xl" (close)="showView.set(false)">
+  @if (selected(); as p) {
+    <div class="grid grid-cols-2 gap-4 text-sm mb-6">
+      <div><span class="text-gray-500">Employee</span><p class="font-medium">{{ p.employee_name }}</p></div>
+      <div><span class="text-gray-500">Period</span><p class="font-medium">{{ p.period_display }}</p></div>
+      <div><span class="text-gray-500">Department</span><p>{{ p.department_name }}</p></div>
+      <div><span class="text-gray-500">Job Title</span><p>{{ p.job_title }}</p></div>
+      <div><span class="text-gray-500">TIN</span><p>{{ p.tin_number || '—' }}</p></div>
+      <div><span class="text-gray-500">NSSF</span><p>{{ p.nssf_number || '—' }}</p></div>
+      <div><span class="text-gray-500">Bank</span><p>{{ p.bank_name || '—' }}</p></div>
+      <div><span class="text-gray-500">Account</span><p>{{ maskBankAccount(p.bank_account) }}</p></div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="card p-3">
+        <h4 class="font-semibold text-gray-900 mb-2">Earnings</h4>
+        <dl class="space-y-1 text-sm">
+          <div class="flex justify-between"><dt>Basic Salary</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.basic_salary) : '••••••' }}</dd></div>
+          @for (entry of allowanceEntries(p); track entry.name) {
+            <div class="flex justify-between"><dt>{{ entry.name }}</dt><dd>{{ canViewAmounts() ? formatHrAmount(entry.amount) : '••••••' }}</dd></div>
+          }
+          <div class="flex justify-between font-semibold border-t pt-1"><dt>Gross</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.gross_salary) : '••••••' }}</dd></div>
+        </dl>
+      </div>
+      <div class="card p-3">
+        <h4 class="font-semibold text-gray-900 mb-2">Deductions</h4>
+        <dl class="space-y-1 text-sm">
+          <div class="flex justify-between"><dt>NSSF</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.nssf_employee) : '••••••' }}</dd></div>
+          <div class="flex justify-between"><dt>PAYE</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.paye) : '••••••' }}</dd></div>
+          <div class="flex justify-between"><dt>NHIF</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.nhif) : '••••••' }}</dd></div>
+          @if (+p.other_deductions > 0) {
+            <div class="flex justify-between"><dt>Other</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.other_deductions) : '••••••' }}</dd></div>
+          }
+          <div class="flex justify-between font-semibold border-t pt-1"><dt>Total</dt><dd>{{ canViewAmounts() ? formatHrAmount(p.total_deductions) : '••••••' }}</dd></div>
+        </dl>
+      </div>
+    </div>
+
+    <div class="mt-4 p-4 rounded-lg bg-[#1B3A6B]/5 text-center">
+      <p class="text-sm text-gray-600">Net Pay</p>
+      <p class="text-2xl font-bold text-[#1B3A6B]">{{ canViewAmounts() ? formatHrAmount(p.net_salary) : '••••••' }}</p>
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+    @if (selected(); as p) {
+      <button type="button" class="btn-primary" (click)="downloadPdf(p)">Download PDF</button>
+    }
+  </div>
+</app-modal>

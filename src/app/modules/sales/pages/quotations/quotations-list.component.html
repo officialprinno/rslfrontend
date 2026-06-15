@@ -1,0 +1,103 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header title="Quotations" subtitle="Customer price quotations">
+    @if (canAdd()) {
+      <a routerLink="/sales/quotations/new" class="btn-primary">New Quotation</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4">
+    <div class="flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[180px]">
+        <label class="input-label">Search</label>
+        <input type="text" class="input-field" placeholder="Quotation #, customer..." [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1); load()" />
+      </div>
+      <div class="w-44">
+        <label class="input-label">Customer</label>
+        <select class="input-field" [ngModel]="customerFilter()" (ngModelChange)="customerFilter.set($event ? +$event : ''); page.set(1); load()">
+          <option value="">All</option>
+          @for (c of customers(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+        </select>
+      </div>
+      <div class="w-36">
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+          <option value="">All</option>
+          @for (st of statuses; track st) { <option [value]="st">{{ st }}</option> }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">From</label>
+        <input type="date" class="input-field w-36" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event); page.set(1); load()" />
+      </div>
+      <div>
+        <label class="input-label">To</label>
+        <input type="date" class="input-field w-36" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event); page.set(1); load()" />
+      </div>
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    </div>
+  </div>
+
+  @if (loading()) { <app-table-skeleton [cols]="8" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!quotations().length) {
+    <div class="card">
+      <app-empty-state title="No quotations" message="Create quotations for your customers." [actionLabel]="canAdd() ? 'New Quotation' : ''" />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Quotation #</th>
+              <th class="table-th">Customer</th>
+              <th class="table-th">Mine</th>
+              <th class="table-th">Valid Until</th>
+              <th class="table-th">Total</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Created</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (q of quotations(); track q.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ q.quotation_number }}</td>
+                <td class="table-td">{{ q.customer_name }}</td>
+                <td class="table-td">{{ q.mine_name }}</td>
+                <td class="table-td" [class.text-red-600]="isExpired(q)">{{ formatDate(q.valid_until) }}</td>
+                <td class="table-td font-semibold">{{ formatCurrency(q.total_amount, q.currency_code) }}</td>
+                <td class="table-td"><app-status-badge [status]="q.status" /></td>
+                <td class="table-td text-sm">{{ formatDate(q.created_at) }}</td>
+                <td class="table-td">
+                  <div class="flex flex-wrap gap-1">
+                    <a [routerLink]="['/sales/quotations', q.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                    @if (q.status === 'DRAFT' && canAdd()) {
+                      <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onSend(q)">Send</button>
+                    }
+                    @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canAdd() && !q.has_sales_order) {
+                      <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                    }
+                    @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canConvert()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onConvert(q)">Convert</button>
+                    }
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onDuplicate(q)">Duplicate</button>
+                    @if (q.status === 'DRAFT' && canDelete()) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(q)">Delete</button>
+                    }
+                    @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canDelete() && !q.has_sales_order) {
+                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(q)">Delete</button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </div>
+  }
+</div>

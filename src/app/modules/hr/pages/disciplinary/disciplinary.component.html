@@ -1,0 +1,134 @@
+<div class="page-container">
+  <app-hr-nav />
+  <app-page-header title="Disciplinary Records" subtitle="Confidential employee disciplinary history">
+    @if (canAdd()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Record</button>
+    }
+  </app-page-header>
+
+  <div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+    <span class="text-amber-600 text-lg leading-none">🔒</span>
+    <div>
+      <p class="font-semibold text-amber-900">Confidential — HR access only</p>
+      <p class="text-sm text-amber-800 mt-0.5">
+        These records are restricted. Only authorised HR personnel may view or create entries.
+      </p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!items().length) {
+    <div class="card">
+      <app-empty-state
+        title="No disciplinary records"
+        message="Disciplinary records will appear here when created."
+        [actionLabel]="canAdd() ? 'Add Record' : ''"
+        (actionClick)="openAdd()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Employee</th>
+              <th class="table-th">Incident Date</th>
+              <th class="table-th">Type</th>
+              <th class="table-th">Description</th>
+              <th class="table-th">Issued By</th>
+              <th class="table-th">Acknowledged</th>
+              <th class="table-th">Confidential</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ item.employee_name }}</td>
+                <td class="table-td">{{ formatDate(item.incident_date) }}</td>
+                <td class="table-td">
+                  <app-status-badge
+                    [status]="item.record_type === 'TERMINATION' ? 'CANCELLED' : 'PENDING'"
+                    [label]="disciplinaryTypeLabel(item.record_type)"
+                  />
+                </td>
+                <td class="table-td text-sm text-gray-600 max-w-xs">{{ truncate(item.description) }}</td>
+                <td class="table-td">{{ item.issued_by_name || '—' }}</td>
+                <td class="table-td">{{ item.employee_acknowledged ? 'Yes' : 'No' }}</td>
+                <td class="table-td">
+                  @if (item.is_confidential) {
+                    <span class="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Confidential</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showForm()" title="Add Disciplinary Record" size="lg" (close)="showForm.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Employee *</label>
+      <app-searchable-select
+        [options]="employeeOptions()"
+        [value]="form.controls.employee.value"
+        placeholder="Search employee..."
+        (valueChange)="setEmployee($event)"
+      />
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Incident Date *</label>
+        <input type="date" formControlName="incident_date" class="input-field" />
+      </div>
+      <div>
+        <label class="input-label">Record Type *</label>
+        <select formControlName="record_type" class="input-field">
+          @for (t of disciplinaryTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="input-label">Description *</label>
+      <textarea formControlName="description" rows="3" class="input-field resize-none"></textarea>
+      @if (fieldErrors()['description']) {
+        <p class="text-xs text-red-600 mt-1">{{ fieldErrors()['description'] }}</p>
+      }
+    </div>
+    <div>
+      <label class="input-label">Action Taken</label>
+      <textarea formControlName="action_taken" rows="2" class="input-field resize-none"></textarea>
+    </div>
+    <div>
+      <label class="input-label">Witness</label>
+      <input type="text" formControlName="witness" class="input-field" />
+    </div>
+    <label class="flex items-center gap-2 cursor-pointer">
+      <input type="checkbox" formControlName="employee_acknowledged" class="login-checkbox" />
+      <span class="text-sm">Employee acknowledged</span>
+    </label>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving() || !canAdd()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save Record
+    </button>
+  </div>
+</app-modal>

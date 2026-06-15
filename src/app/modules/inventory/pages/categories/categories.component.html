@@ -1,0 +1,80 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Item Categories">
+    @if (canManage()) {
+      <button type="button" class="btn-primary" (click)="openAdd()">Add Category</button>
+    }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="4" /> }
+  @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (!categories().length) {
+    <div class="card"><app-empty-state title="No categories" message="Create categories to organize inventory items." [actionLabel]="canManage() ? 'Add Category' : ''" (actionClick)="openAdd()" /></div>
+  } @else {
+    <div class="table-container">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Name</th>
+              <th class="table-th">Parent Category</th>
+              <th class="table-th">Total Items</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (cat of categories(); track cat.id) {
+              <tr class="table-row">
+                <td class="table-td font-medium">{{ cat.name }}</td>
+                <td class="table-td text-gray-600">{{ cat.parent_name || '—' }}</td>
+                <td class="table-td">{{ itemCount(cat.id) }}</td>
+                <td class="table-td">
+                  <div class="flex gap-1">
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(cat)">Edit</button>
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(cat)">Delete</button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="flex justify-end mt-3">
+      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" [title]="modalTitle()" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Name *</label>
+      <input type="text" formControlName="name" class="input-field" [class.input-field--error]="fieldErrors()['name'] || (form.controls.name.invalid && form.controls.name.touched)" />
+      @if (fieldErrors()['name']) { <p class="input-error">{{ fieldErrors()['name'] }}</p> }
+      @else if (form.controls.name.invalid && form.controls.name.touched) { <p class="input-error">Name is required</p> }
+    </div>
+    <div>
+      <label class="input-label">Parent Category</label>
+      <select formControlName="parent" class="input-field">
+        <option [ngValue]="null">None</option>
+        @for (cat of categories(); track cat.id) {
+          @if (cat.id !== editing()?.id) {
+            <option [ngValue]="cat.id">{{ cat.name }}</option>
+          }
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Description</label>
+      <textarea formControlName="description" rows="3" class="input-field resize-none"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) { <span class="spinner spinner-sm"></span> }
+      Save
+    </button>
+  </div>
+</app-modal>

@@ -1,0 +1,127 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Delivery Orders">
+    @if (canAdd()) {
+      <a routerLink="/logistics/deliveries/new" class="btn-primary">New Delivery</a>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search DO number, SO, customer..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-40"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st.replace('_', ' ') }}</option>
+      }
+    </select>
+    <input
+      type="date"
+      class="input-field w-36"
+      [ngModel]="dateFrom()"
+      (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+    />
+    <input
+      type="date"
+      class="input-field w-36"
+      [ngModel]="dateAfter()"
+      (ngModelChange)="dateAfter.set($event); page.set(1); load()"
+    />
+    <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+      <input
+        type="checkbox"
+        [ngModel]="overdueOnly()"
+        (ngModelChange)="overdueOnly.set($event); page.set(1); load()"
+      />
+      Overdue only
+    </label>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="9" />
+  } @else if (!deliveries().length) {
+    <div class="card">
+      <app-empty-state
+        title="No delivery orders"
+        message="Schedule a delivery from a confirmed sales order."
+        actionLabel="New Delivery"
+        (actionClick)="null"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">DO Number</th>
+            <th class="table-th">SO Number</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">Scheduled</th>
+            <th class="table-th">Vehicle</th>
+            <th class="table-th">Driver</th>
+            <th class="table-th">Destination</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (d of deliveries(); track d.id) {
+            <tr class="table-row" [class]="rowClass(d)">
+              <td class="table-td font-medium">{{ d.do_number }}</td>
+              <td class="table-td">{{ d.so_number }}</td>
+              <td class="table-td">{{ d.customer_name }}</td>
+              <td class="table-td" [class]="isOverdue(d) ? 'text-red-600 font-semibold' : ''">
+                {{ formatDate(d.scheduled_date) }}
+              </td>
+              <td class="table-td">{{ d.vehicle_registration || '—' }}</td>
+              <td class="table-td">{{ d.driver_name || '—' }}</td>
+              <td class="table-td max-w-[160px] truncate">{{ d.destination || '—' }}</td>
+              <td class="table-td">
+                <span class="inline-flex items-center gap-1.5">
+                  @if (d.status === 'IN_TRANSIT') {
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-purple-600"></span>
+                    </span>
+                  }
+                  <app-status-badge [status]="d.status" />
+                </span>
+              </td>
+              <td class="table-td whitespace-nowrap">
+                <a [routerLink]="['/logistics/deliveries', d.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
+                @if (d.status === 'SCHEDULED' && canManage()) {
+                  <a [routerLink]="['/logistics/deliveries', d.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                  @if (canStart()) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="startTrip(d)">
+                      Start
+                    </button>
+                  }
+                }
+                @if ((d.status === 'SCHEDULED' || d.status === 'IN_TRANSIT') && canManage()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="cancelDelivery(d)">
+                    Cancel
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

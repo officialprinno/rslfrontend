@@ -1,0 +1,112 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Supplier Quotations">
+    @if (canAdd()) { <button type="button" class="btn-primary" (click)="openRecord()">Record Quotation</button> }
+  </app-page-header>
+
+  @if (loading()) { <app-table-skeleton [cols]="9" /> }
+  @else if (!quotations().length) {
+    <div class="card"><app-empty-state title="No quotations" message="Record supplier responses to RFQs." actionLabel="Record Quotation" (actionClick)="openRecord()" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Quotation #</th>
+            <th class="table-th">RFQ</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Valid Until</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Delivery</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (q of quotations(); track q.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ q.quotation_number }}</td>
+              <td class="table-td">{{ q.rfq_number }}</td>
+              <td class="table-td">{{ q.supplier_name }}</td>
+              <td class="table-td">{{ formatDate(q.quotation_date) }}</td>
+              <td class="table-td" [class.text-red-600]="isExpired(q.valid_until)">{{ formatDate(q.valid_until) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(q.total_amount, q.currency_code) }}</td>
+              <td class="table-td">{{ q.delivery_days }}d</td>
+              <td class="table-td"><app-status-badge [status]="q.status" /></td>
+              <td class="table-td">
+                @if (q.status === 'PENDING' && canAdd()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="select(q)">Select</button>
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="reject(q)">Reject</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [page]="page()" [pageSize]="10" [total]="total()" (pageChange)="page.set($event); load()" />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showModal()" title="Record Quotation" size="xl" (close)="showModal.set(false)">
+  <form [formGroup]="form" class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div><label class="input-label">RFQ *</label>
+        <select formControlName="rfq" class="input-field">
+          <option [ngValue]="null">Select RFQ</option>
+          @for (r of rfqs(); track r.id) { <option [ngValue]="r.id">{{ r.rfq_number }}</option> }
+        </select>
+      </div>
+      <div><label class="input-label">Supplier *</label>
+        <select formControlName="supplier" class="input-field">
+          <option [ngValue]="null">Select</option>
+          @for (s of suppliers(); track s.id) { <option [ngValue]="s.id">{{ s.name }}</option> }
+        </select>
+      </div>
+      <div><label class="input-label">Quotation Number *</label><input formControlName="quotation_number" class="input-field" /></div>
+      <div><label class="input-label">Quotation Date *</label><input type="date" formControlName="quotation_date" class="input-field" /></div>
+      <div><label class="input-label">Valid Until *</label><input type="date" formControlName="valid_until" class="input-field" /></div>
+      <div><label class="input-label">Delivery Days</label><input type="number" formControlName="delivery_days" class="input-field" /></div>
+      <div><label class="input-label">Currency</label>
+        <select formControlName="currency" class="input-field">
+          @for (c of currencies(); track c.id) { <option [ngValue]="c.id">{{ c.code }}</option> }
+        </select>
+      </div>
+      <div><label class="input-label">Exchange Rate</label><input type="number" formControlName="exchange_rate" step="0.0001" class="input-field" /></div>
+    </div>
+    <div formArrayName="items">
+      <div class="flex items-center justify-between mb-2">
+        <h5 class="font-medium">Items</h5>
+        @if (!itemsArray().length) {
+          <span class="text-xs text-amber-600">Select an RFQ above to load items</span>
+        }
+      </div>
+      @if (itemsArray().length) {
+        <div class="grid grid-cols-12 gap-2 text-xs text-gray-500 mb-1 px-1">
+          <div class="col-span-6">Item</div>
+          <div class="col-span-3">Quantity</div>
+          <div class="col-span-3">Unit Price</div>
+        </div>
+      }
+      @for (line of itemsArray().controls; track $index; let i = $index) {
+        <div [formGroupName]="i" class="grid grid-cols-12 gap-2 mb-2 items-center">
+          <input type="hidden" formControlName="item" />
+          <div class="col-span-6 text-sm py-2">{{ line.get('item_label')?.value }}</div>
+          <div class="col-span-3">
+            <input type="number" formControlName="quantity" class="input-field" placeholder="Qty" min="0.0001" step="any" />
+          </div>
+          <div class="col-span-3">
+            <input type="number" formControlName="unit_price" class="input-field" placeholder="Unit Price" min="0" step="0.01" />
+          </div>
+        </div>
+      }
+    </div>
+    <p class="text-right font-bold">Total: {{ formatCurrency(grandTotal()) }}</p>
+    <textarea formControlName="notes" rows="2" class="input-field resize-none" placeholder="Notes"></textarea>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">Save</button>
+  </div>
+</app-modal>

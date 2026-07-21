@@ -28,7 +28,44 @@ export const EMPLOYMENT_TYPES = [
   { value: 'PERMANENT', label: 'Permanent' },
   { value: 'CONTRACT', label: 'Contract' },
   { value: 'CASUAL', label: 'Casual' },
+  { value: 'LOCAL_LABOR', label: 'Local Labor (Unskilled)' },
+  { value: 'SECURITY_GUARD', label: 'Local Security Guard' },
 ] as const;
+
+/** Employment types that default to statutory (PAYE/NSSF/NHIF) exemption. */
+export const STATUTORY_EXEMPT_EMPLOYMENT_TYPES: readonly string[] = [
+  'LOCAL_LABOR',
+  'SECURITY_GUARD',
+];
+
+export const DEDUCTION_TYPES = [
+  { value: 'BANK_LOAN', label: 'Bank Loan' },
+  { value: 'OFFICE_LOAN', label: 'Office Loan' },
+  { value: 'SALARY_ADVANCE', label: 'Salary Advance' },
+  { value: 'OTHER', label: 'Other Deduction' },
+] as const;
+
+export function deductionTypeLabel(type: string): string {
+  return DEDUCTION_TYPES.find((t) => t.value === type)?.label ?? type;
+}
+
+export const WORKING_COMPANY_SCOPES = [
+  { value: 'STEIN', label: 'Rock Solutions Stein' },
+  { value: 'SUPPLY', label: 'Rock Solutions Supply' },
+  { value: 'BOTH', label: 'Both Companies' },
+] as const;
+
+/** Default working company scope suggested from department name. */
+export const DEPARTMENT_WORKING_SCOPE: Record<string, string> = {
+  Production: 'STEIN',
+  Safety: 'STEIN',
+  Sales: 'SUPPLY',
+  Finance: 'BOTH',
+  Procurement: 'BOTH',
+  'HR & Admin': 'BOTH',
+  Logistics: 'BOTH',
+  'General Manager': 'BOTH',
+};
 
 export function employmentTypeLabel(type: string): string {
   return EMPLOYMENT_TYPES.find((t) => t.value === type)?.label ?? type;
@@ -38,6 +75,8 @@ export const EMPLOYMENT_TYPE_COLORS: Record<string, string> = {
   PERMANENT: 'blue',
   CONTRACT: 'orange',
   CASUAL: 'gray',
+  LOCAL_LABOR: 'purple',
+  SECURITY_GUARD: 'cyan',
 };
 
 export const LEAVE_TYPE_COLORS: Record<string, string> = {

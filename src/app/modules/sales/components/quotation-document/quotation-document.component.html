@@ -1,0 +1,267 @@
+@let doc = document();
+@let co = doc.company;
+@let cu = doc.customer;
+@let del = doc.delivery;
+@let meta = doc.meta;
+@let fin = doc.financials;
+
+<div class="quotation-doc text-sm text-gray-800 bg-white">
+  <!-- Header: company left | meta right | QR -->
+  <div class="flex flex-wrap justify-between gap-4 border-b border-gray-800 pb-4 mb-4">
+    <div class="min-w-0 flex-1 max-w-[50%]">
+      @if (co.logo_url) {
+        <img [src]="co.logo_url" [alt]="co.name" class="h-10 mb-2 object-contain max-w-[180px]" />
+      }
+      <p class="font-bold text-gray-900">{{ co.name }}</p>
+      <div class="mt-1 space-y-0.5 text-[11px] text-gray-600 leading-snug">
+        @if (co.registration_number) { <p>Reg. No: {{ co.registration_number }}</p> }
+        <p>
+          @if (co.tin) { TIN No: {{ co.tin }} }
+          @if (co.vrn) { &nbsp;|&nbsp; VRN No: {{ co.vrn }} }
+        </p>
+        @if (co.address) { <p>{{ co.address }}</p> }
+        @if (co.phone || co.email || co.website) {
+          <p>
+            @if (co.phone) { Tel: {{ co.phone }} }
+            @if (co.email) { &nbsp;|&nbsp; {{ co.email }} }
+            @if (co.website) { &nbsp;|&nbsp; {{ co.website }} }
+          </p>
+        }
+      </div>
+    </div>
+
+    <div class="flex items-start gap-4 shrink-0">
+      <div class="text-right text-[11px]">
+        <h3 class="text-base font-bold text-gray-900 tracking-wide mb-2">SALES QUOTATION</h3>
+        <dl class="space-y-0.5">
+          <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Quote No</dt><dd class="min-w-[100px] text-left">{{ meta.quotation_number }}</dd></div>
+          @if (meta.quotation_date) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Quote Date</dt><dd class="min-w-[100px] text-left">{{ meta.quotation_date }}</dd></div>
+          }
+          @if (meta.expiry_date) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Validity</dt><dd class="min-w-[100px] text-left">{{ meta.expiry_date }}</dd></div>
+          }
+          @if (meta.sales_representative) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Sales Person</dt><dd class="min-w-[100px] text-left">{{ meta.sales_representative }}</dd></div>
+          }
+          @if (meta.delivery_terms) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Delivery Terms</dt><dd class="min-w-[100px] text-left">{{ meta.delivery_terms }}</dd></div>
+          }
+          @if (meta.payment_terms) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Payment Terms</dt><dd class="min-w-[100px] text-left">{{ meta.payment_terms }}</dd></div>
+          }
+          @if (meta.currency) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Currency</dt><dd class="min-w-[100px] text-left">{{ meta.currency }}</dd></div>
+          }
+          @if (meta.prepared_by) {
+            <div class="flex justify-end gap-3"><dt class="text-gray-500 font-semibold">Prepared by</dt><dd class="min-w-[100px] text-left">{{ meta.prepared_by }}</dd></div>
+          }
+        </dl>
+      </div>
+      @if (doc.verify_url || doc.qr_url) {
+        <div class="text-center shrink-0">
+          <app-qr-code [data]="doc.verify_url || doc.qr_url" [size]="72" alt="Scan quotation QR" />
+          <p class="text-[9px] text-gray-500 mt-1">Scan to Verify</p>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Customer | Delivery (ALAF two-column) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6 text-[11px]">
+    <div>
+      <p class="font-bold text-gray-900 mb-2 uppercase text-xs">Customer</p>
+      <dl class="space-y-1">
+        <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">CUSTOMER</dt><dd>{{ display(cu.name) }}</dd></div>
+        @if (cu.address) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">ADDRESS</dt><dd>{{ cu.address }}</dd></div> }
+        @if (cu.tin) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">TIN-NO</dt><dd>{{ cu.tin }}</dd></div> }
+        @if (cu.vrn) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">VRN-NO</dt><dd>{{ cu.vrn }}</dd></div> }
+        @if (cu.phone) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">TEL-NO</dt><dd>{{ cu.phone }}</dd></div> }
+        @if (cu.email) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">EMAIL</dt><dd class="break-all">{{ cu.email }}</dd></div> }
+        @if (cu.number) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">CUSTOMER NO</dt><dd>{{ cu.number }}</dd></div> }
+      </dl>
+    </div>
+    <div>
+      <p class="font-bold text-gray-900 mb-2 uppercase text-xs">Delivery</p>
+      <dl class="space-y-1">
+        <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">SHIP TO</dt><dd>{{ display(del.delivery_to || cu.name) }}</dd></div>
+        @if (del.delivery_address || cu.address) {
+          <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">Address</dt><dd>{{ del.delivery_address || cu.address }}</dd></div>
+        }
+        @if (del.mine_site) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">Mine / Site</dt><dd>{{ del.mine_site }}</dd></div> }
+        @if (cu.phone) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">Tel</dt><dd>{{ cu.phone }}</dd></div> }
+        @if (del.warehouse) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">Warehouse</dt><dd>{{ del.warehouse }}</dd></div> }
+        @if (del.delivery_method) { <div class="grid grid-cols-[90px_1fr] gap-2"><dt class="font-bold text-gray-600">Delivery</dt><dd>{{ del.delivery_method }}</dd></div> }
+      </dl>
+    </div>
+  </div>
+
+  <!-- Line items — clean horizontal rules -->
+  <div class="overflow-x-auto mb-2">
+    <table class="w-full text-[11px] quotation-lines-alaf">
+      <thead>
+        <tr class="border-y border-gray-800">
+          <th class="py-2 pr-2 text-left font-bold w-8">NO</th>
+          <th class="py-2 pr-2 text-left font-bold">DESCRIPTION</th>
+          <th class="py-2 pr-2 text-left font-bold w-12">UOM</th>
+          <th class="py-2 pr-2 text-right font-bold w-14">QTY</th>
+          @for (col of dimColumns(); track col.key) {
+            <th class="py-2 pr-2 text-right font-bold w-16">{{ col.label }}</th>
+          }
+          @if (showWeight()) {
+            <th class="py-2 pr-2 text-right font-bold w-20">WT/UNIT</th>
+          }
+          <th class="py-2 pr-2 text-right font-bold w-24">UNIT PRICE</th>
+          <th class="py-2 text-right font-bold w-24">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of doc.lines; track $index; let i = $index) {
+          <tr class="border-b border-gray-200">
+            <td class="py-2 pr-2 text-center">{{ i + 1 }}</td>
+            <td class="py-2 pr-2 break-words">
+              {{ line.item_code }}
+              @if (line.description && line.description !== line.item_code) {
+                — {{ line.description }}
+              }
+              @if (line.brand) { ({{ line.brand }}) }
+            </td>
+            <td class="py-2 pr-2">{{ line.uom || '—' }}</td>
+            <td class="py-2 pr-2 text-right">{{ line.quantity }}</td>
+            @for (col of dimColumns(); track col.key) {
+              <td class="py-2 pr-2 text-right tabular-nums">
+                {{ formatDim(lineDim(line, col.key), line.dimension_unit) }}
+              </td>
+            }
+            @if (showWeight()) {
+              <td class="py-2 pr-2 text-right tabular-nums">
+                {{ formatDim(line.weight_per_unit, line.weight_unit) }}
+              </td>
+            }
+            <td class="py-2 pr-2 text-right tabular-nums">{{ money(line.unit_price) }}</td>
+            <td class="py-2 text-right tabular-nums font-medium">{{ money(line.line_total) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (totalWeight() != null && totalWeight() !== '') {
+    <p class="text-[11px] text-right mb-4 font-semibold tabular-nums">
+      TOTAL WEIGHT ({{ totalWeightUnit() }}) {{ totalWeight() }}
+    </p>
+  }
+
+  <!-- Summary right -->
+  <div class="flex justify-end mb-4">
+    <dl class="text-[11px] w-56 space-y-1">
+      <div class="flex justify-between gap-4"><dt class="font-semibold text-gray-600">SUBTOTAL</dt><dd class="tabular-nums">{{ money(fin.subtotal) }}</dd></div>
+      @if (hasFinancial(fin.line_discounts)) {
+        <div class="flex justify-between gap-4"><dt class="font-semibold text-gray-600">DISCOUNT</dt><dd class="tabular-nums">-{{ money(fin.line_discounts) }}</dd></div>
+      }
+      <div class="flex justify-between gap-4"><dt class="font-semibold text-gray-600">VAT</dt><dd class="tabular-nums">{{ money(fin.vat) }}</dd></div>
+      @if (hasFinancial(fin.freight)) {
+        <div class="flex justify-between gap-4"><dt class="font-semibold text-gray-600">FREIGHT</dt><dd class="tabular-nums">{{ money(fin.freight) }}</dd></div>
+      }
+      <div class="flex justify-between gap-4 border-t border-gray-800 pt-2 text-sm font-bold">
+        <dt>GRAND TOTAL</dt><dd class="tabular-nums">{{ money(fin.grand_total) }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  <p class="text-[11px] text-gray-600 italic mb-6">Amount in Words: {{ doc.amount_in_words }}</p>
+
+  <!-- Bank + Acceptance -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 text-[11px] border-t border-gray-200 pt-6">
+    <div class="pr-4 md:border-r md:border-gray-200">
+      <p class="font-bold text-gray-900 mb-3">Bank Details</p>
+      @if (bankAccounts().length) {
+        <div
+          class="grid gap-0 border border-gray-300 rounded-sm overflow-hidden"
+          [style.grid-template-columns]="'repeat(' + bankAccounts().length + ', minmax(0, 1fr))'"
+        >
+          @for (bank of bankAccounts(); track $index; let last = $last) {
+            <div
+              class="p-3 space-y-2"
+              [class.border-r]="!last"
+              [class.border-gray-200]="!last"
+            >
+              <p class="font-bold text-gray-900 border-b border-gray-200 pb-2">{{ bank.bank_name }}</p>
+              @if (bank.branch) {
+                <div>
+                  <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Branch</p>
+                  <p class="text-gray-800">{{ bank.branch }}</p>
+                </div>
+              }
+              <div>
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Acc. Name</p>
+                <p class="text-gray-800 leading-snug">{{ bank.account_name }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Acc. No.</p>
+                <p class="text-gray-900 font-semibold tabular-nums">{{ bank.account_number }}</p>
+              </div>
+              @if (bank.swift_code) {
+                <div>
+                  <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Swift</p>
+                  <p class="text-gray-800">{{ bank.swift_code }}</p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+      <p class="mt-3 px-3 py-2 bg-slate-50 border border-gray-200 rounded-sm font-medium text-gray-800">
+        Payment Reference: <span class="font-bold">{{ meta.quotation_number }}</span>
+      </p>
+    </div>
+    @if (showAcceptance()) {
+      <div class="pl-0 md:pl-4">
+        <div class="border border-gray-300 rounded-sm p-4 h-full">
+          <p class="font-bold text-gray-900 mb-4">Acceptance of Quotation</p>
+          <div class="space-y-4">
+            <div>
+              <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Name of Authorised Signatory</p>
+              <div class="border-b border-gray-500 h-9"></div>
+            </div>
+            <div>
+              <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Signature</p>
+              <div class="border-b border-gray-500 h-9"></div>
+            </div>
+            <div>
+              <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Company Stamp</p>
+              <div class="border-b border-gray-500 h-9"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 pt-1">
+              <div>
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Date</p>
+                <div class="border-b border-gray-500 h-9"></div>
+              </div>
+              <div>
+                <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">PO No.</p>
+                <div class="border-b border-gray-500 h-9"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (termsLines().length) {
+    <div class="border-t pt-4 mb-4">
+      <p class="font-bold text-xs mb-2">Terms and Conditions</p>
+      <div class="text-[10px] text-gray-600 leading-relaxed space-y-1">
+        @for (term of termsLines(); track $index) {
+          <p>{{ cleanTerm(term) }}</p>
+        }
+      </div>
+    </div>
+  }
+
+  <div class="border-t pt-2 text-[9px] text-gray-500 flex flex-wrap justify-between gap-2">
+    <span>Generated by RSL-FMS</span>
+    <span>{{ doc.generated_at }}</span>
+    <span>Confidential</span>
+  </div>
+</div>

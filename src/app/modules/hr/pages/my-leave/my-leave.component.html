@@ -1,0 +1,121 @@
+<div class="page-container">
+  <app-page-header
+    title="My Leave"
+    [subtitle]="profile()?.full_name ? 'Apply and track leave for ' + profile()!.full_name : 'Employee self-service'"
+  >
+    @if (profile()) {
+      <button type="button" class="btn-primary" (click)="openApply()">Apply for Leave</button>
+    }
+  </app-page-header>
+
+  @if (!loading() && !profile()) {
+    <div class="card p-8 text-center">
+      <p class="text-gray-700 font-medium mb-2">No employee profile linked</p>
+      <p class="text-sm text-gray-500 max-w-md mx-auto">
+        No HR employee record matches your login (<strong>{{ userEmail() }}</strong>).
+        Ask HR to create your employee record with this work email, or link your user account on the employee profile.
+      </p>
+    </div>
+  } @else {
+    @if (profile()?.is_hod) {
+      <div class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-900">
+        <strong>Department head leave</strong> — your requests are sent to the <strong>General Manager</strong> for approval, not HR.
+        HR can view the outcome for payroll records only.
+      </div>
+    } @else {
+      <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900">
+        Submit leave here. HR will review and approve your request.
+      </div>
+    }
+
+    @if (balances().length) {
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        @for (bal of balances(); track bal.leave_type_id) {
+          <div class="card p-4">
+            <p class="text-xs text-gray-500 uppercase tracking-wide">{{ bal.leave_type_name }}</p>
+            <p class="text-2xl font-bold text-[#1B3A6B] mt-1">{{ bal.days_remaining }}</p>
+            <p class="text-xs text-gray-500">of {{ bal.days_entitled }} days remaining</p>
+          </div>
+        }
+      </div>
+    }
+
+    <h3 class="text-lg font-semibold text-[#1B3A6B] mb-3">My Requests</h3>
+
+    @if (loading()) {
+      <app-table-skeleton [cols]="6" />
+    } @else if (!requests().length) {
+      <div class="card">
+        <app-empty-state title="No leave requests" message="You have not submitted any leave requests yet." />
+      </div>
+    } @else {
+      <div class="table-container">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Leave Type</th>
+              <th class="table-th">Period</th>
+              <th class="table-th">Days</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Submitted</th>
+              <th class="table-th">Decision</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (req of requests(); track req.id) {
+              <tr class="table-row">
+                <td class="table-td">{{ req.leave_type_name }}</td>
+                <td class="table-td">{{ formatDate(req.start_date) }} — {{ formatDate(req.end_date) }}</td>
+                <td class="table-td">{{ req.days_requested }}</td>
+                <td class="table-td">
+                  <app-status-badge [status]="req.status" [label]="leaveStatusLabel(req)" />
+                </td>
+                <td class="table-td">{{ formatDate(req.created_at) }}</td>
+                <td class="table-td">
+                  @if (req.approved_by_name) {
+                    <div class="text-sm">{{ req.approved_by_name }}</div>
+                    @if (req.approver_comment || req.rejection_reason) {
+                      <div class="text-xs text-gray-500">{{ req.approver_comment || req.rejection_reason }}</div>
+                    }
+                  } @else {
+                    <span class="text-gray-400">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+
+<app-modal [open]="showApply()" title="Apply for Leave" size="lg" (close)="showApply.set(false)">
+  <form [formGroup]="applyForm" class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+      <label class="input-label">Leave Type *</label>
+      <select formControlName="leave_type" class="input-field">
+        <option [ngValue]="null">Select type</option>
+        @for (lt of leaveTypes(); track lt.id) {
+          <option [ngValue]="lt.id">{{ lt.name }} ({{ lt.days_entitled }} days)</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Start Date *</label>
+      <input type="date" formControlName="start_date" class="input-field" />
+    </div>
+    <div>
+      <label class="input-label">End Date *</label>
+      <input type="date" formControlName="end_date" class="input-field" />
+    </div>
+    <div class="col-span-2">
+      <label class="input-label">Reason *</label>
+      <textarea formControlName="reason" class="input-field" rows="3"></textarea>
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showApply.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitApply()">Submit Request</button>
+  </div>
+</app-modal>

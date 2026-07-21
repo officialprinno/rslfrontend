@@ -58,7 +58,7 @@
 
     <div>
       <h4 class="section-title text-sm mb-3">Pricing</h4>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label class="input-label">Currency *</label>
           <select formControlName="currency" class="input-field" [class.input-field--error]="fieldError('currency')">
@@ -73,11 +73,10 @@
           <label class="input-label">Unit Cost *</label>
           <input type="number" formControlName="unit_cost" min="0" step="0.01" class="input-field" />
         </div>
-        <div>
-          <label class="input-label">Selling Price *</label>
-          <input type="number" formControlName="selling_price" min="0" step="0.01" class="input-field" />
-        </div>
       </div>
+      <p class="text-xs text-gray-500 mt-2">
+        Selling price is set by Finance after goods receipt approval — not on this form.
+      </p>
     </div>
 
     <div>
@@ -98,6 +97,49 @@
             <input type="checkbox" formControlName="has_expiry_date" class="login-checkbox" />
             <span class="text-sm text-gray-700">Expiry Date</span>
           </label>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h4 class="section-title text-sm mb-3">Physical Dimensions &amp; Weight</h4>
+      <p class="text-xs text-gray-500 mb-3">Optional — shown on sales quotations when filled in.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="input-label">Length</label>
+          <input type="number" formControlName="length" min="0" step="0.0001" class="input-field" placeholder="—" />
+        </div>
+        <div>
+          <label class="input-label">Width</label>
+          <input type="number" formControlName="width" min="0" step="0.0001" class="input-field" placeholder="—" />
+        </div>
+        <div>
+          <label class="input-label">Height</label>
+          <input type="number" formControlName="height" min="0" step="0.0001" class="input-field" placeholder="—" />
+        </div>
+        <div>
+          <label class="input-label">Thickness</label>
+          <input type="number" formControlName="thickness" min="0" step="0.0001" class="input-field" placeholder="—" />
+        </div>
+        <div>
+          <label class="input-label">Diameter</label>
+          <input type="number" formControlName="diameter" min="0" step="0.0001" class="input-field" placeholder="—" />
+        </div>
+        <div>
+          <label class="input-label">Dimension Unit</label>
+          <select formControlName="dimension_unit" class="input-field">
+            @for (u of dimensionUnits; track u) { <option [value]="u">{{ u }}</option> }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Weight per Unit</label>
+          <input type="number" formControlName="weight_per_unit" min="0" step="0.0001" class="input-field" placeholder="—" />
+        </div>
+        <div>
+          <label class="input-label">Weight Unit</label>
+          <select formControlName="weight_unit" class="input-field">
+            @for (u of weightUnits; track u) { <option [value]="u">{{ u }}</option> }
+          </select>
         </div>
       </div>
     </div>

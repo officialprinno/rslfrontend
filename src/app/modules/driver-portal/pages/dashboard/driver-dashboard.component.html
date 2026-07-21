@@ -46,16 +46,20 @@
     <div class="card p-4 mb-6">
       <h3 class="font-semibold mb-3">Quick Actions</h3>
       <div class="grid grid-cols-2 gap-2">
-        @if (d.active_trip_id) {
-          <a [routerLink]="['/driver-portal/trips', d.active_trip_id]" class="btn-primary text-center !text-sm">
+        @if (d.in_progress_count > 1) {
+          <a routerLink="/driver-portal/trips" [queryParams]="{ status: 'active' }" class="btn-primary text-center !text-sm col-span-2">
+            Continue {{ d.in_progress_count }} Active Deliveries
+          </a>
+        } @else if (d.active_trip_id) {
+          <a [routerLink]="['/driver-portal/trips', d.active_trip_id]" class="btn-primary text-center !text-sm col-span-2">
             Continue Trip
           </a>
         } @else if (d.assigned_count) {
-          <a routerLink="/driver-portal/trips" [queryParams]="{ status: 'assigned' }" class="btn-primary text-center !text-sm">
-            Start Delivery
+          <a routerLink="/driver-portal/trips" [queryParams]="{ status: 'assigned' }" class="btn-primary text-center !text-sm col-span-2">
+            Start Delivery{{ d.assigned_count > 1 ? ' (' + d.assigned_count + ' assigned)' : '' }}
           </a>
         } @else {
-          <span class="btn-secondary text-center !text-sm opacity-60 cursor-not-allowed">No Active Trip</span>
+          <span class="btn-secondary text-center !text-sm col-span-2 opacity-60 cursor-not-allowed">No Active Trip</span>
         }
         <a routerLink="/driver-portal/vehicle" class="btn-secondary text-center !text-sm">Vehicle Status</a>
         <a routerLink="/driver-portal/trips" class="btn-ghost text-center !text-sm">All Trips</a>

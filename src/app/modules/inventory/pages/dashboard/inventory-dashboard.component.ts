@@ -1,28 +1,46 @@
-import { DecimalPipe, SlicePipe } from '@angular/common';
+import { DecimalPipe, KeyValuePipe, SlicePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
-  OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { interval, Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
-import { InventoryDashboard, Warehouse } from '../../../../core/models/inventory.model';
+import { InventoryDashboard, MovementType, Warehouse } from '../../../../core/models/inventory.model';
+import { PurchaseOrder } from '../../../../core/models/procurement.model';
 import { AuthService } from '../../../../core/services/auth.service';
 import { InventoryService } from '../../../../core/services/inventory.service';
+import { CompanyContextService } from '../../../../core/services/company-context.service';
+import { ProcurementService } from '../../../../core/services/procurement.service';
 import { WarehouseContextService } from '../../../../core/services/warehouse-context.service';
-import { formatCurrency, formatDateTime, formatNumber } from '../../../../core/utils/format.util';
-import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
-import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
-import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
+import { formatCurrency, formatDate, formatDateTime, formatNumber } from '../../../../core/utils/format.util';
+import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
+import {
+  ApprovalQueueComponent,
+  ChartCardComponent,
+  DashboardApprovalItem,
+  DashboardInsight,
+  DashboardLayoutComponent,
+  DashboardSectionComponent,
+  DateRangeValue,
+  InsightBannerComponent,
+  KpiCardComponent,
+  setupDashboardCompanyReload,
+} from '../../../../shared/dashboard';
 import { InventoryNavComponent } from '../../components/inventory-nav/inventory-nav.component';
+import { MovementTypeBadgeComponent } from '../../components/movement-type-badge/movement-type-badge.component';
 import { ProcurementBadgeComponent } from '../../components/procurement-badge/procurement-badge.component';
-import { isStoreOperationsRole } from '../../utils/inventory-permissions.util';
+import {
+  isWarehouseOperationsRole,
+  canViewInventoryPurchaseOrders,
+  warehouseManagerLabel,
+} from '../../utils/inventory-permissions.util';
+import { canManageGRN } from '../../../procurement/utils/procurement-permissions.util';
 
 const PIE_COLORS = ['#1B3A6B', '#2E6DB4', '#4A90D9', '#7EB3E8', '#F0A500', '#2E86AB'];
 
@@ -30,52 +48,187 @@ const PIE_COLORS = ['#1B3A6B', '#2E6DB4', '#4A90D9', '#7EB3E8', '#F0A500', '#2E8
   selector: 'app-inventory-dashboard',
   imports: [
     DecimalPipe,
+    KeyValuePipe,
     SlicePipe,
     FormsModule,
     RouterLink,
-    PageHeaderComponent,
     InventoryNavComponent,
     ProcurementBadgeComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
+    DashboardLayoutComponent,
+    InsightBannerComponent,
+    KpiCardComponent,
+    ChartCardComponent,
+    DashboardSectionComponent,
+    MovementTypeBadgeComponent,
+    ApprovalQueueComponent,
+    StatusBadgeComponent,
   ],
   templateUrl: './inventory-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class InventoryDashboardComponent implements OnInit, OnDestroy {
+export class InventoryDashboardComponent implements OnInit {
   private readonly inventory = inject(InventoryService);
+  private readonly procurement = inject(ProcurementService);
   private readonly auth = inject(AuthService);
   readonly warehouseContext = inject(WarehouseContextService);
-  private refreshSub?: Subscription;
+  readonly companyContext = inject(CompanyContextService);
+
+  constructor() {
+    setupDashboardCompanyReload(() => {
+      this.data.set(null);
+      this.receivablePos.set([]);
+      this.load(false, true);
+      if (this.showReceivablePos()) {
+        this.loadReceivablePos();
+      }
+    });
+  }
 
   readonly data = signal<InventoryDashboard | null>(null);
   readonly warehouses = signal<Warehouse[]>([]);
+  readonly receivablePos = signal<PurchaseOrder[]>([]);
+  readonly receivablePosLoading = signal(false);
   readonly loading = signal(true);
+  readonly refreshing = signal(false);
   readonly error = signal(false);
+  readonly lastUpdated = signal<Date | null>(null);
+  readonly dateRange = signal<DateRangeValue | null>(null);
 
   readonly formatCurrency = formatCurrency;
   readonly formatNumber = formatNumber;
+  readonly formatDate = formatDate;
   readonly formatDateTime = formatDateTime;
   readonly pieColors = PIE_COLORS;
 
-  readonly isStoreRole = () => isStoreOperationsRole(this.auth);
+  readonly isWarehouseRole = () => isWarehouseOperationsRole(this.auth, this.companyContext);
+  readonly showReceivablePos = () => canViewInventoryPurchaseOrders(this.auth, this.companyContext);
+  readonly canReceiveGoods = () => canManageGRN(this.auth, this.companyContext);
+  readonly warehouseManagerLabel = () => warehouseManagerLabel(this.companyContext);
 
-  readonly quickActions = [
+  readonly dashboardTitle = computed(() =>
+    this.isWarehouseRole() ? 'Warehouse Operations Dashboard' : 'Inventory Dashboard',
+  );
+
+  readonly dashboardSubtitle = computed(() => {
+    const code = this.companyContext.activeCompany()?.code;
+    if (code === 'STEIN') {
+      return 'Rock Solutions Stein — Manufacturing Inventory & Factory Warehouse';
+    }
+    if (code === 'SUPPLY') {
+      return 'Rock Solutions Supply — Commercial Inventory & Warehouse Operations';
+    }
+    return 'Rock Solutions Limited — Inventory & Warehouse Control';
+  });
+
+  readonly insights = computed((): DashboardInsight[] => {
+    const d = this.data();
+    if (!d) return [];
+    const items: DashboardInsight[] = [];
+
+    if (d.out_of_stock_count > 0) {
+      items.push({
+        id: 'out-of-stock',
+        message: `${d.out_of_stock_count} item(s) out of stock — immediate action required`,
+        tone: 'danger',
+        route: '/inventory/stock',
+        queryParams: { status: 'OUT_OF_STOCK' },
+      });
+    }
+    if (d.low_stock_count > 0) {
+      items.push({
+        id: 'low-stock',
+        message: `${d.low_stock_count} item(s) below reorder level`,
+        tone: 'warning',
+        route: '/inventory/stock',
+        queryParams: { status: 'LOW_STOCK' },
+      });
+    }
+    if (d.pending_grn > 0) {
+      items.push({
+        id: 'pending-grn',
+        message: `${d.pending_grn} GRN(s) awaiting stock confirmation`,
+        tone: 'info',
+        route: '/inventory/grn',
+      });
+    }
+    if (d.pending_department_requests > 0) {
+      items.push({
+        id: 'dept-requests',
+        message: `${d.pending_department_requests} department request(s) awaiting approval`,
+        tone: 'accent',
+        route: '/inventory/department-requests',
+      });
+    }
+    if (!items.length && d.inventory_health_score != null) {
+      items.push({
+        id: 'health',
+        message: `Inventory health ${d.inventory_health_score}% · ${formatCurrency(d.total_inventory_value)} total value`,
+        tone: d.inventory_health_score >= 80 ? 'success' : 'warning',
+      });
+    }
+    return items.slice(0, 6);
+  });
+
+  readonly approvalQueueItems = computed((): DashboardApprovalItem[] => {
+    const d = this.data();
+    if (!d) return [];
+    const items: DashboardApprovalItem[] = [];
+
+    if (d.low_stock_count > 0) {
+      items.push({
+        id: 'low-stock',
+        title: 'Low Stock Alert',
+        subtitle: 'Items below reorder level',
+        amount: String(d.low_stock_count),
+        priority: 'high',
+        route: '/inventory/stock',
+        queryParams: { status: 'LOW_STOCK' },
+      });
+    }
+    if (d.out_of_stock_count > 0) {
+      items.push({
+        id: 'out-of-stock',
+        title: 'Out of Stock',
+        subtitle: 'Immediate action required',
+        amount: String(d.out_of_stock_count),
+        priority: 'high',
+        route: '/inventory/stock',
+        queryParams: { status: 'OUT_OF_STOCK' },
+      });
+    }
+    if (d.pending_grn > 0) {
+      items.push({
+        id: 'pending-grn',
+        title: 'Pending GRN',
+        subtitle: 'Awaiting stock confirmation',
+        amount: String(d.pending_grn),
+        priority: 'medium',
+        route: '/inventory/grn',
+      });
+    }
+    if (d.pending_department_requests > 0) {
+      items.push({
+        id: 'dept-requests',
+        title: 'Dept Requests',
+        subtitle: 'Awaiting approval',
+        amount: String(d.pending_department_requests),
+        priority: 'medium',
+        route: '/inventory/department-requests',
+      });
+    }
+    return items;
+  });
+
+  readonly warehouseQuickActions = [
     { label: 'Receive Stock', route: '/inventory/grn', desc: 'Goods receipt (GRN)' },
     { label: 'Issue Stock', route: '/inventory/gin', desc: 'Goods issue note (GIN)' },
     { label: 'Transfer Stock', route: '/inventory/transfers', desc: 'Inter-warehouse transfer' },
-    { label: 'Count Inventory', route: '/inventory/stock-take', desc: 'Physical stock take' },
+    { label: 'Count Inventory', route: '/inventory/stock-take', desc: 'Monthly warehouse stock take' },
     { label: 'View Movements', route: '/inventory/movements', desc: 'Stock movement ledger' },
   ];
 
   ngOnInit(): void {
     this.inventory.getWarehouses().subscribe((w) => this.warehouses.set(w));
-    this.load();
-    this.refreshSub = interval(300_000).subscribe(() => this.load(true));
-  }
-
-  ngOnDestroy(): void {
-    this.refreshSub?.unsubscribe();
   }
 
   onWarehouseChange(event: Event): void {
@@ -85,19 +238,58 @@ export class InventoryDashboardComponent implements OnInit, OnDestroy {
     this.load();
   }
 
-  load(silent = false): void {
-    if (!silent) {
+  load(silent = false, bypassCache = false): void {
+    if (silent) {
+      this.refreshing.set(true);
+    } else {
       this.loading.set(true);
-      this.error.set(false);
     }
+    this.error.set(false);
     const warehouseId = this.warehouseContext.activeWarehouseId();
     this.inventory
-      .getDashboard(warehouseId)
-      .pipe(finalize(() => { if (!silent) this.loading.set(false); }))
+      .getDashboard(warehouseId, this.dateRange(), bypassCache)
+      .pipe(
+        finalize(() => {
+          this.loading.set(false);
+          this.refreshing.set(false);
+        }),
+      )
       .subscribe({
-        next: (d) => this.data.set(d),
-        error: () => { if (!silent) this.error.set(true); },
+        next: (d) => {
+          this.data.set(d);
+          this.lastUpdated.set(new Date());
+        },
+        error: () => this.error.set(true),
       });
+  }
+
+  loadReceivablePos(silent = false): void {
+    if (!silent) {
+      this.receivablePosLoading.set(true);
+    }
+    this.procurement
+      .getReceivablePurchaseOrders(8)
+      .pipe(finalize(() => { if (!silent) this.receivablePosLoading.set(false); }))
+      .subscribe({
+        next: (pos) => this.receivablePos.set(pos),
+        error: () => this.receivablePos.set([]),
+      });
+  }
+
+  onRefresh(): void {
+    this.load(true, true);
+    if (this.showReceivablePos()) {
+      this.loadReceivablePos(true);
+    }
+  }
+
+  onDateRangeChange(range: DateRangeValue): void {
+    this.dateRange.set(range);
+    this.load(true);
+  }
+
+  isReceivable(status: string): boolean {
+    return ['APPROVED', 'SENT', 'PARTIAL', 'AWAITING_DELIVERY'].includes(status);
   }
 
   maxMonthlyValue(): number {
@@ -147,5 +339,69 @@ export class InventoryDashboardComponent implements OnInit, OnDestroy {
       PRODUCTION_OUTPUT: 'Production Output',
     };
     return labels[type] ?? type;
+  }
+
+  readonly activityItems = computed(() => {
+    const d = this.data();
+    if (!d?.recent_activities?.length) return [];
+    return d.recent_activities.map((a) => ({
+      ...a,
+      movementType: this.toMovementType(a.type),
+    }));
+  });
+
+  toMovementType(type: string): MovementType {
+    const allowed: MovementType[] = [
+      'IN',
+      'OUT',
+      'TRANSFER',
+      'ADJUSTMENT',
+      'PRODUCTION_CONSUMPTION',
+      'PRODUCTION_OUTPUT',
+    ];
+    return allowed.includes(type as MovementType) ? (type as MovementType) : 'OUT';
+  }
+
+  quantityTone(type: string): string {
+    if (type === 'IN' || type === 'PRODUCTION_OUTPUT') return 'text-emerald-700';
+    if (type === 'OUT' || type === 'PRODUCTION_CONSUMPTION') return 'text-red-600';
+    return 'text-gray-900';
+  }
+
+  activityRoute(activity: {
+    reference_type: string;
+    entity_id: number | null;
+    id: number;
+  }): string[] {
+    const entityId = activity.entity_id;
+    if (activity.reference_type === 'SALES_ORDER' && entityId) {
+      return ['/sales/orders', String(entityId), 'view'];
+    }
+    if (activity.reference_type === 'GRN' && entityId) {
+      return ['/inventory/grn', String(entityId), 'view'];
+    }
+    if (activity.reference_type === 'WORK_ORDER' && entityId) {
+      return ['/production/work-orders', String(entityId), 'view'];
+    }
+    if (activity.reference_type === 'ADJUSTMENT' && entityId) {
+      return ['/inventory/adjustments'];
+    }
+    if (activity.reference_type === 'TRANSFER' && entityId) {
+      return ['/inventory/transfers'];
+    }
+    if (activity.reference_type === 'DEPT_REQUEST' && entityId) {
+      return ['/inventory/department-requests'];
+    }
+    return ['/inventory/movements'];
+  }
+
+  activityViewEnabled(activity: { reference_type: string; entity_id: number | null }): boolean {
+    if (activity.reference_type === 'MANUAL' || !activity.reference_type) {
+      return false;
+    }
+    if (['SALES_ORDER', 'GRN', 'WORK_ORDER'].includes(activity.reference_type)) {
+      return activity.entity_id != null;
+    }
+    return true;
   }
 }

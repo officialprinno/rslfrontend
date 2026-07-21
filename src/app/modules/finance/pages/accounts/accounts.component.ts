@@ -1,10 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
-import { Account, AccountFormData, AccountType, LedgerEntry } from '../../../../core/models/finance.model';
-import { PaginatedData } from '../../../../core/models/paginated.model';
+import {
+  AccountCategory,
+  ChartOfAccount,
+  ChartOfAccountFormData,
+  LedgerEntry,
+} from '../../../../core/models/finance.model';
 import { AuthService } from '../../../../core/services/auth.service';
+import { CompanyContextService } from '../../../../core/services/company-context.service';
 import { FinanceService } from '../../../../core/services/finance.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { extractFieldErrors, getApiErrorMessage } from '../../../../core/utils/api.util';
@@ -17,9 +22,15 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { FinanceNavComponent } from '../../components/finance-nav/finance-nav.component';
 import {
-  ACCOUNT_TYPES,
-  accountTypeCodeRange,
+  ACCOUNT_CATEGORIES,
+  ACCOUNT_SUBCATEGORIES,
+  ADD_NEW_CATEGORY,
+  ADD_NEW_SUBCATEGORY,
+  categoryLabel,
   formatAccountingAmount,
+  normalizeCategoryInput,
+  normalizeSubcategoryInput,
+  subcategoryLabel,
 } from '../../constants/finance.constants';
 import { canManageAccounts } from '../../utils/finance-permissions.util';
 
@@ -39,141 +50,289 @@ import { canManageAccounts } from '../../utils/finance-permissions.util';
   templateUrl: './accounts.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AccountsComponent implements OnInit {
+export class AccountsComponent {
   private readonly finance = inject(FinanceService);
   private readonly auth = inject(AuthService);
+  private readonly companyContext = inject(CompanyContextService);
   private readonly notification = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
 
-  readonly accounts = signal<Account[]>([]);
+  readonly accounts = signal<ChartOfAccount[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly saving = signal(false);
   readonly ledgerLoading = signal(false);
   readonly showForm = signal(false);
   readonly showLedger = signal(false);
-  readonly editing = signal<Account | null>(null);
-  readonly ledgerAccount = signal<Account | null>(null);
+  readonly editing = signal<ChartOfAccount | null>(null);
+  readonly ledgerAccount = signal<ChartOfAccount | null>(null);
   readonly ledgerEntries = signal<LedgerEntry[]>([]);
   readonly fieldErrors = signal<Record<string, string>>({});
-  readonly expandedIds = signal<Set<number>>(new Set());
+  readonly searchQuery = signal('');
+  readonly categoryFilter = signal<string>('');
+  readonly importing = signal(false);
+  readonly exporting = signal(false);
+  readonly suggestingCode = signal(false);
 
-  readonly accountTypes = ACCOUNT_TYPES;
+  readonly isAddMode = computed(() => !this.editing());
+
+  readonly addNewCategory = ADD_NEW_CATEGORY;
+  readonly addNewSubcategory = ADD_NEW_SUBCATEGORY;
   readonly formatAccountingAmount = formatAccountingAmount;
   readonly formatDate = formatDate;
-  readonly accountTypeCodeRange = accountTypeCodeRange;
-  readonly typePrefix = (type: AccountType | null | undefined) =>
-    ACCOUNT_TYPES.find((t) => t.value === type)?.prefix ?? '1';
   readonly canAdd = () => canManageAccounts(this.auth);
-  readonly codePreviewLoading = signal(false);
 
-  readonly groupedAccounts = computed(() => {
-    const groups = new Map<AccountType, Account[]>();
-    for (const type of ACCOUNT_TYPES) {
-      groups.set(type.value, []);
+  readonly pageSubtitle = computed(() => {
+    const company = this.companyContext.activeCompany();
+    if (!company || company.id === 'consolidated') {
+      return 'Company chart of accounts catalog';
     }
-    for (const account of this.accounts()) {
-      const list = groups.get(account.account_type) ?? [];
-      list.push(account);
-      groups.set(account.account_type, list);
-    }
-    return ACCOUNT_TYPES.map((t) => ({
-      type: t.value,
-      label: t.label,
-      accounts: groups.get(t.value) ?? [],
-    })).filter((g) => g.accounts.length > 0);
+    return `${company.name} chart of accounts`;
   });
 
-  readonly flatAccounts = computed(() => this.flattenAccounts(this.accounts()));
+  constructor() {
+    effect(() => {
+      const company = this.companyContext.activeCompany();
+      if (!company) return;
+      this.categoryFilter.set('');
+      this.load();
+    });
+  }
+
+  readonly categoryOptions = computed(() => {
+    const known = new Set<string>(ACCOUNT_CATEGORIES.map((c) => c.value));
+    const extras: { value: string; label: string }[] = [];
+    for (const account of this.accounts()) {
+      if (!known.has(account.category) && !extras.some((e) => e.value === account.category)) {
+        extras.push({
+          value: account.category,
+          label: account.category_display || categoryLabel(account.category),
+        });
+      }
+    }
+    extras.sort((a, b) => a.label.localeCompare(b.label));
+    return [...ACCOUNT_CATEGORIES, ...extras];
+  });
+
+  readonly groupedAccounts = computed(() => {
+    const query = this.searchQuery().trim().toLowerCase();
+    const category = this.categoryFilter();
+    const filtered = this.accounts().filter((account) => {
+      if (category && account.category !== category) return false;
+      if (!query) return true;
+      const haystack = [account.code, account.name, account.subcategory ?? '', account.category]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+    const groups = new Map<string, ChartOfAccount[]>();
+    const labels = new Map<string, string>();
+    for (const cat of ACCOUNT_CATEGORIES) {
+      groups.set(cat.value, []);
+      labels.set(cat.value, cat.label);
+    }
+    for (const account of filtered) {
+      const list = groups.get(account.category) ?? [];
+      list.push(account);
+      groups.set(account.category, list);
+      if (!labels.has(account.category)) {
+        labels.set(account.category, account.category_display || categoryLabel(account.category));
+      }
+    }
+    const predefined = ACCOUNT_CATEGORIES.map((c) => ({
+      type: c.value,
+      label: c.label,
+      accounts: (groups.get(c.value) ?? []).sort((a, b) => a.code.localeCompare(b.code)),
+    })).filter((g) => g.accounts.length > 0);
+    const custom = [...groups.keys()]
+      .filter((key) => !ACCOUNT_CATEGORIES.some((c) => c.value === key))
+      .filter((key) => (groups.get(key)?.length ?? 0) > 0)
+      .sort((a, b) => (labels.get(a) ?? a).localeCompare(labels.get(b) ?? b))
+      .map((key) => ({
+        type: key,
+        label: labels.get(key) ?? key,
+        accounts: (groups.get(key) ?? []).sort((a, b) => a.code.localeCompare(b.code)),
+      }));
+    return [...predefined, ...custom];
+  });
 
   readonly form = this.fb.group({
-    account_code: [''],
-    account_name: ['', Validators.required],
-    account_type: ['ASSET' as AccountType, Validators.required],
-    parent: [null as number | null],
+    code: [''],
+    name: ['', Validators.required],
+    categorySelection: ['ASSETS' as string, Validators.required],
+    newCategoryName: [''],
+    subcategorySelection: [''],
+    newSubcategoryName: [''],
+    normal_balance: ['DEBIT' as 'DEBIT' | 'CREDIT'],
+    parent_account: [null as number | null],
     description: [''],
     is_active: [true],
   });
 
-  ngOnInit(): void {
-    this.load();
-  }
-
   load(): void {
     this.loading.set(true);
     this.error.set(false);
+    const params: Record<string, string> = {};
+    const category = this.categoryFilter();
+    if (category) params['category'] = category;
     this.finance
-      .getAccounts({ tree: true })
+      .getChartOfAccounts(params)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: (data) => {
-          const list = Array.isArray(data) ? data : (data as PaginatedData<Account>).results;
-          this.accounts.set(list);
-          this.expandedIds.set(new Set(list.map((a) => a.id)));
-        },
+        next: (data) => this.accounts.set(data.results),
         error: () => this.error.set(true),
       });
   }
 
-  flattenAccounts(accounts: Account[], depth = 0): { account: Account; depth: number }[] {
-    const result: { account: Account; depth: number }[] = [];
-    for (const account of accounts) {
-      result.push({ account, depth });
-      if (account.children?.length && this.isExpanded(account.id)) {
-        result.push(...this.flattenAccounts(account.children, depth + 1));
+  onCategoryFilterChange(value: string): void {
+    this.categoryFilter.set(value);
+    this.load();
+  }
+
+  importOfficialCoa(): void {
+    if (!this.canAdd()) return;
+    this.importing.set(true);
+    this.finance
+      .importChartOfAccounts()
+      .pipe(finalize(() => this.importing.set(false)))
+      .subscribe({
+        next: (stats) => {
+          this.notification.success(
+            `Import complete — created ${stats.created}, updated ${stats.updated}, skipped ${stats.skipped}`,
+          );
+          this.load();
+        },
+        error: (e) =>
+          this.notification.error(getApiErrorMessage(e, 'Failed to import chart of accounts')),
+      });
+  }
+
+  exportCoa(): void {
+    this.exporting.set(true);
+    this.finance
+      .exportChartOfAccounts(this.categoryFilter() ? { category: this.categoryFilter() } : {})
+      .pipe(finalize(() => this.exporting.set(false)))
+      .subscribe({
+        next: (rows) => {
+          const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = `rsl-chart-of-accounts-${new Date().toISOString().slice(0, 10)}.json`;
+          anchor.click();
+          URL.revokeObjectURL(url);
+          this.notification.success('Chart of accounts exported');
+        },
+        error: (e) =>
+          this.notification.error(getApiErrorMessage(e, 'Failed to export chart of accounts')),
+      });
+  }
+
+  effectiveCategory(): string {
+    const selection = this.form.controls.categorySelection.value;
+    if (selection === ADD_NEW_CATEGORY) {
+      const name = this.form.controls.newCategoryName.value?.trim() ?? '';
+      return name ? normalizeCategoryInput(name) : '';
+    }
+    return selection ?? '';
+  }
+
+  isNewCategoryMode(): boolean {
+    return this.form.controls.categorySelection.value === ADD_NEW_CATEGORY;
+  }
+
+  isNewSubcategoryMode(): boolean {
+    return this.form.controls.subcategorySelection.value === ADD_NEW_SUBCATEGORY;
+  }
+
+  subcategoryOptions(): { value: string; label: string }[] {
+    const category = this.effectiveCategory();
+    if (!category) return [];
+
+    const predefined = [...(ACCOUNT_SUBCATEGORIES[category] ?? [])];
+    const known = new Set(predefined.map((s) => s.value));
+    const extras: { value: string; label: string }[] = [];
+
+    for (const account of this.accounts()) {
+      if (account.category !== category || !account.subcategory) continue;
+      if (!known.has(account.subcategory)) {
+        known.add(account.subcategory);
+        extras.push({
+          value: account.subcategory,
+          label: account.subcategory_display || subcategoryLabel(account.subcategory),
+        });
       }
     }
-    return result;
+    extras.sort((a, b) => a.label.localeCompare(b.label));
+    return [...predefined, ...extras];
   }
 
-  toggleExpand(id: number): void {
-    const next = new Set(this.expandedIds());
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    this.expandedIds.set(next);
+  effectiveSubcategory(): string | null {
+    const selection = this.form.controls.subcategorySelection.value;
+    if (!selection) return null;
+    if (selection === ADD_NEW_SUBCATEGORY) {
+      const name = this.form.controls.newSubcategoryName.value?.trim() ?? '';
+      return name ? normalizeSubcategoryInput(name) : null;
+    }
+    return selection;
   }
 
-  isExpanded(id: number): boolean {
-    return this.expandedIds().has(id);
-  }
-
-  parentOptions(excludeId?: number): Account[] {
-    const type = this.form.controls.account_type.value;
+  parentOptions(excludeId?: number): ChartOfAccount[] {
+    const category = this.effectiveCategory();
+    if (!category) return [];
     return this.accounts().filter(
-      (a) => a.id !== excludeId && a.is_active && a.account_type === type,
+      (a) => a.id !== excludeId && a.is_active && a.category === category,
     );
   }
 
-  onAccountTypeChange(): void {
-    const parent = this.form.controls.parent.value;
+  onCategoryChange(): void {
+    const parent = this.form.controls.parent_account.value;
+    const category = this.effectiveCategory();
     if (parent) {
       const parentAccount = this.accounts().find((a) => a.id === parent);
-      if (!parentAccount || parentAccount.account_type !== this.form.controls.account_type.value) {
-        this.form.patchValue({ parent: null });
+      if (!parentAccount || parentAccount.category !== category) {
+        this.form.patchValue({ parent_account: null });
       }
     }
-    if (!this.editing()) {
-      this.refreshNextCode();
+    this.form.patchValue({
+      subcategorySelection: '',
+      newSubcategoryName: '',
+    });
+    if (this.isNewCategoryMode()) return;
+    const cat = ACCOUNT_CATEGORIES.find((c) => c.value === this.form.controls.categorySelection.value);
+    if (cat) {
+      this.form.patchValue({ normal_balance: cat.normalBalance as 'DEBIT' | 'CREDIT' });
     }
+    this.suggestAccountCode();
+  }
+
+  onSubcategoryChange(): void {
+    this.suggestAccountCode();
   }
 
   onParentChange(): void {
-    if (!this.editing()) {
-      this.refreshNextCode();
-    }
+    this.suggestAccountCode();
   }
 
-  refreshNextCode(): void {
-    const type = this.form.controls.account_type.value;
-    if (!type) return;
-    this.codePreviewLoading.set(true);
+  suggestAccountCode(): void {
+    if (this.editing()) return;
+    const category = this.effectiveCategory();
+    if (!category) return;
+    if (this.isNewSubcategoryMode() && !this.effectiveSubcategory()) return;
+
+    this.suggestingCode.set(true);
     this.finance
-      .getNextAccountCode(type, this.form.controls.parent.value)
-      .pipe(finalize(() => this.codePreviewLoading.set(false)))
+      .getNextChartAccountCode({
+        category,
+        subcategory: this.effectiveSubcategory(),
+        parent_account: this.form.controls.parent_account.value,
+      })
+      .pipe(finalize(() => this.suggestingCode.set(false)))
       .subscribe({
-        next: (res) =>
-          this.form.patchValue({ account_code: res.account_code }, { emitEvent: false }),
-        error: (e) => this.notification.error(getApiErrorMessage(e, 'Could not generate code')),
+        next: (result) => this.form.patchValue({ code: result.code }),
+        error: () => {
+          /* Backend generates on save if suggestion fails */
+        },
       });
   }
 
@@ -181,40 +340,48 @@ export class AccountsComponent implements OnInit {
     this.editing.set(null);
     this.fieldErrors.set({});
     this.form.reset({
-      account_code: '',
-      account_name: '',
-      account_type: 'ASSET',
-      parent: null,
+      code: '',
+      name: '',
+      categorySelection: 'ASSETS',
+      newCategoryName: '',
+      subcategorySelection: '',
+      newSubcategoryName: '',
+      normal_balance: 'DEBIT',
+      parent_account: null,
       description: '',
       is_active: true,
     });
-    this.form.controls.account_code.disable();
+    this.form.controls.code.disable();
     this.showForm.set(true);
-    this.refreshNextCode();
+    this.suggestAccountCode();
   }
 
-  openEdit(account: Account): void {
+  openEdit(account: ChartOfAccount): void {
     this.editing.set(account);
     this.fieldErrors.set({});
-    this.form.controls.account_code.enable();
+    this.form.controls.code.disable();
     this.form.patchValue({
-      account_code: account.account_code,
-      account_name: account.account_name,
-      account_type: account.account_type,
-      parent: account.parent_id,
-      description: account.description,
+      code: account.code,
+      name: account.name,
+      categorySelection: account.category,
+      newCategoryName: '',
+      subcategorySelection: account.subcategory ?? '',
+      newSubcategoryName: '',
+      normal_balance: account.normal_balance,
+      parent_account: account.parent_account,
+      description: account.description ?? '',
       is_active: account.is_active,
     });
     this.showForm.set(true);
   }
 
-  openLedger(account: Account): void {
+  openLedger(account: ChartOfAccount): void {
     this.ledgerAccount.set(account);
     this.ledgerEntries.set([]);
     this.showLedger.set(true);
     this.ledgerLoading.set(true);
     this.finance
-      .getAccountLedger(account.id)
+      .getChartOfAccountLedger(account.id)
       .pipe(finalize(() => this.ledgerLoading.set(false)))
       .subscribe({
         next: (entries) => this.ledgerEntries.set(entries),
@@ -223,6 +390,17 @@ export class AccountsComponent implements OnInit {
   }
 
   onSubmit(): void {
+    const category = this.effectiveCategory();
+    if (!category) {
+      this.form.controls.newCategoryName.markAsTouched();
+      this.notification.error('Please enter a category name.');
+      return;
+    }
+    if (this.isNewSubcategoryMode() && !this.effectiveSubcategory()) {
+      this.form.controls.newSubcategoryName.markAsTouched();
+      this.notification.error('Please enter a subcategory name.');
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.notification.error('Please complete all required fields.');
@@ -230,20 +408,25 @@ export class AccountsComponent implements OnInit {
     }
     const raw = this.form.getRawValue();
     const edit = this.editing();
-    const data: AccountFormData = {
-      account_name: (raw.account_name ?? '').trim(),
-      account_type: raw.account_type ?? 'ASSET',
-      parent: raw.parent,
+    const data: ChartOfAccountFormData = {
+      name: (raw.name ?? '').trim(),
+      category: category as AccountCategory,
+      subcategory: this.effectiveSubcategory(),
+      normal_balance: raw.normal_balance ?? 'DEBIT',
+      parent_account: raw.parent_account,
       description: raw.description ?? '',
       is_active: raw.is_active ?? true,
     };
     if (edit) {
-      data.account_code = (raw.account_code ?? '').trim();
+      data.code = (raw.code ?? '').trim();
+    } else {
+      const code = (raw.code ?? '').trim();
+      if (code) data.code = code;
     }
     this.saving.set(true);
     const req$ = edit
-      ? this.finance.updateAccount(edit.id, data)
-      : this.finance.createAccount(data);
+      ? this.finance.updateChartOfAccount(edit.id, data)
+      : this.finance.createChartOfAccount(data);
     req$.pipe(finalize(() => this.saving.set(false))).subscribe({
       next: () => {
         this.notification.success(edit ? 'Account updated' : 'Account created');

@@ -43,6 +43,63 @@
   </div>
 
   <div class="flex items-center gap-1 sm:gap-2">
+    @if (companyContext.activeCompany(); as activeCompany) {
+      <div class="relative">
+        <button
+          type="button"
+          (click)="toggleCompanyMenu()"
+          class="flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
+          [style.border-color]="activeCompany.brandColor + '33'"
+          [style.background-color]="activeCompany.brandColor + '14'"
+          [style.color]="activeCompany.brandColor"
+          [attr.aria-expanded]="companyMenuOpen()"
+        >
+          <span
+            class="w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center"
+            [style.background-color]="activeCompany.brandColor"
+          >
+            {{ activeCompany.code }}
+          </span>
+          <span class="max-w-[7rem] sm:max-w-[9rem] truncate">{{ activeCompany.name }}</span>
+          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        @if (companyMenuOpen()) {
+          <div class="dropdown-menu !min-w-[14rem]" role="menu">
+            @for (company of companyContext.companies(); track company.company_id) {
+              <button
+                type="button"
+                (click)="selectCompany(company.company_id)"
+                class="flex items-center w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors gap-2"
+                [class.font-semibold]="companyContext.activeCompany()?.id === company.company_id"
+                role="menuitem"
+              >
+                <span
+                  class="w-6 h-6 rounded text-[10px] font-bold text-white flex items-center justify-center"
+                  [style.background-color]="company.brand_color || '#1B3A6B'"
+                >
+                  {{ company.company_code }}
+                </span>
+                {{ company.company_name }}
+              </button>
+            }
+            @if (companyContext.canUseConsolidated()) {
+              <button
+                type="button"
+                (click)="selectCompany('consolidated')"
+                class="flex items-center w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors border-t border-[var(--border-color)]"
+                [class.font-semibold]="companyContext.isConsolidated()"
+                role="menuitem"
+              >
+                Consolidated
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
+
     @if (auth.isMultiDepartment()) {
       <div class="relative hidden md:block">
         <button
@@ -90,7 +147,13 @@
 
     <div class="hidden sm:block w-px h-6 bg-[var(--border-color)] mx-1"></div>
 
-    <button type="button" class="btn-icon relative" [attr.aria-label]="'common.notifications' | translate" (click)="notificationsOpen.set(true)">
+    <button
+      type="button"
+      class="btn-icon relative"
+      [attr.aria-label]="'common.notifications' | translate"
+      [attr.aria-expanded]="notificationShell.drawerOpen()"
+      (click)="notificationShell.openDrawer()"
+    >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           stroke-linecap="round"
@@ -189,5 +252,4 @@
     </div>
   </div>
 
-  <app-notifications-panel [open]="notificationsOpen()" (close)="notificationsOpen.set(false)" />
 </header>

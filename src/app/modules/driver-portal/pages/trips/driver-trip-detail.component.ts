@@ -62,6 +62,7 @@ export class DriverTripDetailComponent implements OnInit {
   receiverCompany = '';
   quantityDelivered = 0;
   deliveryNotes = '';
+  readonly proofDocument = signal<File | null>(null);
 
   readonly formatDateTime = formatDateTime;
 
@@ -113,6 +114,7 @@ export class DriverTripDetailComponent implements OnInit {
     this.showDeliver.set(false);
     this.showReturn.set(false);
     this.showConfirmReturn.set(false);
+    this.proofDocument.set(null);
   }
 
   submitStart(): void {
@@ -132,22 +134,36 @@ export class DriverTripDetailComponent implements OnInit {
     this.runAction(() => this.portal.confirmArrival(t.id, this.arrivalNotes), 'Arrival confirmed');
   }
 
+  onProofDocumentSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.proofDocument.set(input.files?.[0] ?? null);
+  }
+
   submitDelivery(): void {
     const t = this.trip()!;
     if (!this.receiverName.trim()) {
       this.notification.error('Receiver name is required.');
       return;
     }
+    const proof = this.proofDocument();
+    if (!proof) {
+      this.notification.error('Attach the signed delivery document (proof of delivery) to continue.');
+      return;
+    }
     this.runAction(
       () =>
-        this.portal.confirmDelivery(t.id, {
-          receiver_name: this.receiverName,
-          receiver_position: this.receiverPosition,
-          receiver_phone: this.receiverPhone,
-          receiver_company: this.receiverCompany,
-          quantity_delivered: this.quantityDelivered,
-          delivery_notes: this.deliveryNotes,
-        }),
+        this.portal.confirmDelivery(
+          t.id,
+          {
+            receiver_name: this.receiverName,
+            receiver_position: this.receiverPosition,
+            receiver_phone: this.receiverPhone,
+            receiver_company: this.receiverCompany,
+            quantity_delivered: this.quantityDelivered,
+            delivery_notes: this.deliveryNotes,
+          },
+          proof,
+        ),
       'Delivery confirmed — logistics notified',
     );
   }

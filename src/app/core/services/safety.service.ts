@@ -3,6 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import { environment } from '../../environments/environments';
+import { dashboardHttpParams } from '../../shared/dashboard';
+import { DashboardCacheService } from '../../shared/dashboard/services/dashboard-cache.service';
+import { DateRangeValue } from '../../shared/dashboard/models/dashboard.types';
 import { ApiResponse } from '../models/auth.models';
 import { ListParams, PaginatedData } from '../models/paginated.model';
 import {
@@ -28,16 +31,24 @@ import {
   WorkPermitFormData,
 } from '../models/safety.model';
 import { buildHttpParams, unwrapApi } from '../utils/api.util';
+import { fetchCachedDashboard } from '../utils/dashboard-fetch.util';
 
 @Injectable({ providedIn: 'root' })
 export class SafetyService {
   private readonly http = inject(HttpClient);
+  private readonly dashCache = inject(DashboardCacheService);
   private readonly baseUrl = `${environment.apiUrl}/safety`;
 
-  getDashboard(): Observable<SafetyDashboard> {
-    return this.http
-      .get<ApiResponse<SafetyDashboard>>(`${this.baseUrl}/dashboard/`)
-      .pipe(unwrapApi());
+  getDashboard(range?: DateRangeValue | null, bypassCache = false): Observable<SafetyDashboard> {
+    const url = `${this.baseUrl}/dashboard/`;
+    const params = dashboardHttpParams(range);
+    return fetchCachedDashboard<SafetyDashboard>(
+      this.http,
+      this.dashCache,
+      url,
+      params,
+      bypassCache,
+    );
   }
 
   getSafetyScore(): Observable<{ safety_score: number }> {

@@ -10,6 +10,7 @@ import { SafetyService } from '../../../../core/services/safety.service';
 import { UsersService } from '../../../../core/services/users.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { formatDate, formatDateTime } from '../../../../core/utils/format.util';
+import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
@@ -58,6 +59,7 @@ export class InspectionsListComponent implements OnInit {
   readonly inspectors = signal<{ id: number; full_name: string; email: string }[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly workspaceEmpty = signal(false);
   readonly saving = signal(false);
   readonly startingId = signal<number | null>(null);
   readonly total = signal(0);
@@ -114,7 +116,7 @@ export class InspectionsListComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.error.set(false);
+    resetListLoadState(this.error, this.workspaceEmpty);
     const params: Record<string, string | number> = {
       page: this.page(),
       page_size: this.pageSize(),
@@ -136,7 +138,7 @@ export class InspectionsListComponent implements OnInit {
           this.inspections.set(d.results);
           this.total.set(d.count);
         },
-        error: () => this.error.set(true),
+        error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
   }
 

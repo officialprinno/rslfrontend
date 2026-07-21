@@ -108,7 +108,7 @@
 
     <div class="table-container">
 
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
 
         <table class="w-full">
 
@@ -203,9 +203,7 @@
           </tbody>
 
         </table>
-
       </div>
-
       <app-pagination
 
         [page]="page()"
@@ -219,9 +217,7 @@
         (pageSizeChange)="pageSize.set($event); page.set(1); load()"
 
       />
-
     </div>
-
   }
 
 </div>
@@ -239,7 +235,6 @@
       @if (editing()) {
 
         <input type="text" class="input-field bg-gray-50" [value]="editing()!.full_name" disabled />
-
       } @else {
 
         <app-searchable-select
@@ -405,11 +400,8 @@
           </div>
 
         </div>
-
       </div>
-
     </div>
-
   }
 
   <div modalFooter>

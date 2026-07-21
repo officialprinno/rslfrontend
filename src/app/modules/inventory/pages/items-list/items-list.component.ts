@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { finalize, forkJoin } from 'rxjs';
+import { Router, RouterLink } from '@angular/router';
+import { finalize } from 'rxjs';
 
 import { Category, Item, ItemType } from '../../../../core/models/inventory.model';
 import { AuthService } from '../../../../core/services/auth.service';
@@ -9,11 +10,16 @@ import { InventoryService } from '../../../../core/services/inventory.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatCurrency, formatNumber } from '../../../../core/utils/format.util';
+import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { EnterpriseDataTableComponent } from '../../../../shared/components/enterprise-data-table/enterprise-data-table.component';
+import { ListFilterBarComponent } from '../../../../shared/components/list-filter-bar/list-filter-bar.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
+import { TableActionsComponent, TableAction } from '../../../../shared/components/table-actions/table-actions.component';
+import { TableCellTextComponent } from '../../../../shared/components/table-cell-text/table-cell-text.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { InventoryNavComponent } from '../../components/inventory-nav/inventory-nav.component';
 import { ItemFormModalComponent } from '../../components/item-form-modal/item-form-modal.component';
@@ -22,12 +28,22 @@ import { ItemViewModalComponent } from '../../components/item-view-modal/item-vi
 import { ITEM_TYPES } from '../../constants/inventory.constants';
 import { importMasterInventory, masterCatalogSummary } from '../../utils/master-inventory.util';
 import { canAddItem, canDeleteItem, canEditItem } from '../../utils/inventory-permissions.util';
+import { canProcessInventoryWorkflows } from '../../../finance/utils/finance-permissions.util';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
+
+const FINANCE_WORKFLOW_STATUS_LABELS: Record<string, string> = {
+  RECEIVED: 'In Finance queue',
+  COSTING_IN_PROGRESS: 'Costing in progress',
+  PRICING_IN_PROGRESS: 'Pricing in progress',
+  PENDING_FINANCE_APPROVAL: 'Pending approval',
+  READY_FOR_SALE: 'Ready for sale',
+};
 
 @Component({
   selector: 'app-items-list',
   imports: [
     FormsModule,
+    RouterLink,
     PageHeaderComponent,
     InventoryNavComponent,
     PaginationComponent,
@@ -38,6 +54,10 @@ import { getApiErrorMessage } from '../../../../core/utils/api.util';
     ItemTypeBadgeComponent,
     ItemFormModalComponent,
     ItemViewModalComponent,
+    EnterpriseDataTableComponent,
+    ListFilterBarComponent,
+    TableActionsComponent,
+    TableCellTextComponent,
   ],
   templateUrl: './items-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,12 +67,13 @@ export class ItemsListComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly router = inject(Router);
 
   readonly items = signal<Item[]>([]);
   readonly categories = signal<Category[]>([]);
-  readonly stockMap = signal<Map<number, number>>(new Map());
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly workspaceEmpty = signal(false);
   readonly total = signal(0);
   readonly page = signal(1);
   readonly pageSize = signal(10);
@@ -78,6 +99,7 @@ export class ItemsListComponent implements OnInit {
   readonly canEdit = () => canEditItem(this.auth);
   readonly canDelete = () => canDeleteItem(this.auth);
   readonly canSeedMaster = () => this.auth.currentUser()?.is_staff === true;
+  readonly canOpenFinancePricing = () => canProcessInventoryWorkflows(this.auth);
   readonly masterCatalogSummary = masterCatalogSummary;
 
   ngOnInit(): void {
@@ -93,7 +115,7 @@ export class ItemsListComponent implements OnInit {
 
   loadItems(): void {
     this.loading.set(true);
-    this.error.set(false);
+    resetListLoadState(this.error, this.workspaceEmpty);
 
     const params: Record<string, string | number | boolean> = {
       page: this.page(),
@@ -106,20 +128,15 @@ export class ItemsListComponent implements OnInit {
     if (this.statusFilter() === 'active') params['is_active'] = true;
     if (this.statusFilter() === 'inactive') params['is_active'] = false;
 
-    forkJoin({
-      items: this.inventory.getItems(params),
-      stock: this.inventory.getStockQuantitiesByItem(),
-    })
+    this.inventory
+      .getItems(params)
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ items, stock }) => {
-          this.items.set(
-            items.results.map((i) => ({ ...i, current_stock: stock.get(i.id) ?? 0 })),
-          );
+        next: (items) => {
+          this.items.set(items.results);
           this.total.set(items.count);
-          this.stockMap.set(stock);
         },
-        error: () => this.error.set(true),
+        error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
   }
 
@@ -185,6 +202,25 @@ export class ItemsListComponent implements OnInit {
       });
   }
 
+  rowActions(item: Item): TableAction[] {
+    const actions: TableAction[] = [{ id: 'view', label: 'View', icon: 'view' }];
+    if (this.canOpenFinancePricing() && item.pending_finance_workflow_id) {
+      actions.push({ id: 'finance', label: 'Set Selling Price', icon: 'edit' });
+    }
+    if (this.canEdit()) actions.push({ id: 'edit', label: 'Edit', icon: 'edit' });
+    if (this.canDelete()) actions.push({ id: 'delete', label: 'Delete', icon: 'delete', danger: true });
+    return actions;
+  }
+
+  onRowAction(actionId: string, item: Item): void {
+    if (actionId === 'view') this.openView(item);
+    if (actionId === 'finance' && item.pending_finance_workflow_id) {
+      void this.router.navigate(['/finance/inventory-workflows', item.pending_finance_workflow_id]);
+    }
+    if (actionId === 'edit') this.openEdit(item);
+    if (actionId === 'delete') this.onDelete(item);
+  }
+
   exportExcel(): void {
     exportToExcel('inventory-items', [
       { key: 'code', label: 'Code' },
@@ -194,16 +230,25 @@ export class ItemsListComponent implements OnInit {
       { key: 'unit_of_measure', label: 'Unit' },
       { key: 'unit_cost', label: 'Unit Cost', format: (r) => formatCurrency(r.unit_cost, r.currency_code) },
       { key: 'selling_price', label: 'Selling Price', format: (r) => formatCurrency(r.selling_price, r.currency_code) },
-      { key: 'current_stock', label: 'Stock Qty', format: (r) => formatNumber(r.current_stock ?? 0) },
+      { key: 'current_stock', label: 'Stock Qty', format: (r) => formatNumber(this.stockQty(r)) },
     ], this.items());
   }
 
   stockQty(item: Item): number {
-    return item.current_stock ?? this.stockMap().get(item.id) ?? 0;
+    return Number(item.quantity_available ?? item.current_stock ?? 0);
   }
 
   isLowStock(item: Item): boolean {
     return this.stockQty(item) <= item.reorder_level;
+  }
+
+  isTradedAwaitingFinance(item: Item): boolean {
+    return item.item_type === 'TRADED' && !!item.finance_pricing_pending;
+  }
+
+  financeWorkflowStatusLabel(status: string | null | undefined): string {
+    if (!status) return 'In Finance queue';
+    return FINANCE_WORKFLOW_STATUS_LABELS[status] ?? status;
   }
 
   onItemSaved(): void {

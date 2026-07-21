@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { Currency } from '../../../../core/models/inventory.model';
 import { Customer, CustomerFormData, PaymentTerms } from '../../../../core/models/sales.model';
 import { AuthService } from '../../../../core/services/auth.service';
+import { CompanyContextService } from '../../../../core/services/company-context.service';
 import { ConfirmDialogService } from '../../../../core/services/confirm-dialog.service';
 import { CurrencyService } from '../../../../core/services/currency.service';
 import { NotificationService } from '../../../../core/services/notification.service';
@@ -15,10 +15,14 @@ import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatCurrency, formatDate } from '../../../../core/utils/format.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { EnterpriseDataTableComponent } from '../../../../shared/components/enterprise-data-table/enterprise-data-table.component';
+import { ListFilterBarComponent } from '../../../../shared/components/list-filter-bar/list-filter-bar.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
+import { TableActionsComponent, TableAction } from '../../../../shared/components/table-actions/table-actions.component';
+import { TableCellTextComponent } from '../../../../shared/components/table-cell-text/table-cell-text.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { PaymentTermsBadgeComponent } from '../../../procurement/components/payment-terms-badge/payment-terms-badge.component';
 import { SalesNavComponent } from '../../components/sales-nav/sales-nav.component';
@@ -30,7 +34,6 @@ import { canDeleteAnything, canManageCustomers } from '../../utils/sales-permiss
   imports: [
     FormsModule,
     ReactiveFormsModule,
-    RouterLink,
     PageHeaderComponent,
     SalesNavComponent,
     PaginationComponent,
@@ -40,6 +43,10 @@ import { canDeleteAnything, canManageCustomers } from '../../utils/sales-permiss
     TableSkeletonComponent,
     StatusBadgeComponent,
     PaymentTermsBadgeComponent,
+    EnterpriseDataTableComponent,
+    ListFilterBarComponent,
+    TableActionsComponent,
+    TableCellTextComponent,
   ],
   templateUrl: './customers.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +55,7 @@ export class CustomersComponent implements OnInit {
   private readonly sales = inject(SalesService);
   private readonly currencyService = inject(CurrencyService);
   private readonly auth = inject(AuthService);
+  private readonly companyContext = inject(CompanyContextService);
   private readonly notification = inject(NotificationService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly fb = inject(FormBuilder);
@@ -80,25 +88,33 @@ export class CustomersComponent implements OnInit {
   readonly form = this.fb.group({
     name: ['', Validators.required],
     registration_number: [''],
-    tin_number: ['', Validators.required],
+    tin_number: [''],
     vat_number: [''],
     email: ['', [Validators.required, Validators.email]],
     phone: ['', Validators.required],
     address: [''],
     city: [''],
-    country: ['Tanzania', Validators.required],
-    mine_name: ['', Validators.required],
+    country: ['Tanzania'],
+    mine_name: [''],
     mine_location: [''],
-    mine_type: ['UNDERGROUND' as CustomerFormData['mine_type'], Validators.required],
+    mine_type: ['UNDERGROUND' as CustomerFormData['mine_type']],
     contact_person: [''],
     contact_phone: [''],
-    currency: [null as number | null, Validators.required],
-    credit_limit: [0, Validators.required],
-    payment_terms: ['NET_30' as PaymentTerms, Validators.required],
+    currency: [null as number | null],
+    credit_limit: [0],
+    payment_terms: ['' as string],
+    custom_term_days: [null as number | null],
   });
+
+  readonly isCustomTerm = signal(false);
+
+  private readonly standardTermValues = new Set<string>(PAYMENT_TERMS.map((t) => t.value));
 
   ngOnInit(): void {
     this.currencyService.getCurrencies().subscribe((c) => this.currencies.set(c));
+    this.form.controls.payment_terms.valueChanges.subscribe((v) => {
+      this.isCustomTerm.set(v === 'CUSTOM');
+    });
     this.load();
   }
 
@@ -148,7 +164,8 @@ export class CustomersComponent implements OnInit {
       contact_phone: '',
       currency: this.currencies()[0]?.id ?? null,
       credit_limit: 0,
-      payment_terms: 'NET_30',
+      payment_terms: '',
+      custom_term_days: null,
     });
     this.showForm.set(true);
   }
@@ -156,6 +173,9 @@ export class CustomersComponent implements OnInit {
   openEdit(c: Customer): void {
     this.editing.set(c);
     this.fieldErrors.set({});
+    const term = (c.payment_terms || '') as string;
+    const netMatch = /^NET_(\d+)$/.exec(term);
+    const isCustom = !!term && !this.standardTermValues.has(term) && !!netMatch;
     this.form.patchValue({
       name: c.name,
       registration_number: c.registration_number,
@@ -173,7 +193,8 @@ export class CustomersComponent implements OnInit {
       contact_phone: c.contact_phone,
       currency: c.currency,
       credit_limit: c.credit_limit,
-      payment_terms: c.payment_terms,
+      payment_terms: isCustom ? 'CUSTOM' : term === 'IMMEDIATE' ? 'CASH' : term,
+      custom_term_days: isCustom && netMatch ? Number(netMatch[1]) : null,
     });
     this.showForm.set(true);
   }
@@ -184,7 +205,20 @@ export class CustomersComponent implements OnInit {
       this.notification.error('Please complete all required fields.');
       return;
     }
+    if (!this.companyContext.headerValue() || this.companyContext.isConsolidated()) {
+      this.notification.error('Select Rock Solutions Stein or Supply in the header before saving a customer.');
+      return;
+    }
     const raw = this.form.getRawValue();
+    let paymentTerms = (raw.payment_terms || '') as string;
+    if (paymentTerms === 'CUSTOM') {
+      const days = Number(raw.custom_term_days);
+      if (!Number.isInteger(days) || days < 1 || days > 365) {
+        this.notification.error('Enter the number of net days (1–365) for the custom payment term.');
+        return;
+      }
+      paymentTerms = `NET_${days}`;
+    }
     const data: CustomerFormData = {
       name: (raw.name ?? '').trim(),
       registration_number: raw.registration_number ?? '',
@@ -202,7 +236,7 @@ export class CustomersComponent implements OnInit {
       contact_phone: raw.contact_phone ?? '',
       currency: raw.currency!,
       credit_limit: Number(raw.credit_limit),
-      payment_terms: raw.payment_terms ?? 'NET_30',
+      payment_terms: paymentTerms as PaymentTerms,
     };
     this.saving.set(true);
     const edit = this.editing();
@@ -241,6 +275,20 @@ export class CustomersComponent implements OnInit {
           error: (e) => this.notification.error(getApiErrorMessage(e, 'Delete failed')),
         });
       });
+  }
+
+  rowActions(c: Customer): TableAction[] {
+    const actions: TableAction[] = [
+      { id: 'view', label: 'View', icon: 'view', routerLink: ['/sales/customers', c.id] },
+    ];
+    if (this.canAdd()) actions.push({ id: 'edit', label: 'Edit', icon: 'edit' });
+    if (this.canDelete()) actions.push({ id: 'delete', label: 'Delete', icon: 'delete', danger: true });
+    return actions;
+  }
+
+  onRowAction(actionId: string, c: Customer): void {
+    if (actionId === 'edit') this.openEdit(c);
+    if (actionId === 'delete') this.onDelete(c);
   }
 
   exportExcel(): void {

@@ -3,10 +3,22 @@
   <app-page-header title="Stock Overview" subtitle="Real-time stock levels" [hasActions]="false" />
 
   @if (summary(); as s) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7 gap-5">
       <div class="card-stat">
-        <p class="card-stat__value">{{ s.total_items }}</p>
-        <p class="card-stat__label">Total Items in Stock</p>
+        <p class="card-stat__value">{{ formatNumber(s.total_items) }}</p>
+        <p class="card-stat__label">Total Items (SKUs)</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-[#1B3A6B]">{{ formatNumber(s.total_quantity || 0) }}</p>
+        <p class="card-stat__label">Total Quantity</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-blue-700">{{ formatNumber(s.frozen_items_count || 0) }}</p>
+        <p class="card-stat__label">Frozen Items</p>
+      </div>
+      <div class="card-stat">
+        <p class="card-stat__value text-blue-700">{{ formatNumber(s.total_frozen || 0) }}</p>
+        <p class="card-stat__label">Frozen Quantity</p>
       </div>
       <div class="card-stat">
         <p class="card-stat__value text-red-600">{{ s.low_stock_count }}</p>
@@ -39,27 +51,35 @@
         <option value="IN_STOCK">In Stock</option>
         <option value="LOW_STOCK">Low Stock</option>
         <option value="OUT_OF_STOCK">Out of Stock</option>
+        <option value="FROZEN">Frozen (Damage)</option>
       </select>
       <button type="button" class="btn-ghost" (click)="exportExcel()">Export</button>
     </div>
   </div>
 
-  @if (loading()) { <app-table-skeleton [cols]="10" /> }
+  @if (loading()) { <app-table-skeleton [cols]="11" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
   @else if (!stock().length) {
-    <div class="card"><app-empty-state title="No stock records" message="Stock will appear when items are received into warehouses." /></div>
+    <div class="card"><app-empty-state moduleName="Stock Overview" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
               <th class="table-th">Item Code</th>
               <th class="table-th">Item Name</th>
               <th class="table-th">Warehouse</th>
+              <th class="table-th">Unit</th>
               <th class="table-th">Qty on Hand</th>
               <th class="table-th">Qty Reserved</th>
+              <th class="table-th">Qty Frozen</th>
+              <th class="table-th">Total Qty</th>
+              @if (showWip()) {
+                <th class="table-th">WIP</th>
+              }
               <th class="table-th">Qty Available</th>
+              <th class="table-th">On Order</th>
               <th class="table-th">Reorder Level</th>
               <th class="table-th">Unit Cost</th>
               <th class="table-th">Total Value</th>
@@ -72,9 +92,29 @@
                 <td class="table-td font-mono text-xs">{{ row.item_code }}</td>
                 <td class="table-td font-medium">{{ row.item_name }}</td>
                 <td class="table-td">{{ row.warehouse_name }}</td>
+                <td class="table-td font-medium">{{ row.unit_of_measure || 'unit' }}</td>
                 <td class="table-td">{{ formatNumber(row.quantity_on_hand) }}</td>
-                <td class="table-td">{{ formatNumber(row.quantity_reserved) }}</td>
+                <td class="table-td">
+                  @if (row.quantity_reserved > 0) {
+                    <button
+                      type="button"
+                      class="text-[#1B3A6B] font-semibold hover:underline cursor-pointer"
+                      (click)="openReservedBreakdown(row)"
+                      [attr.title]="'View customers holding reserved stock'"
+                    >
+                      {{ formatNumber(row.quantity_reserved) }}
+                    </button>
+                  } @else {
+                    {{ formatNumber(row.quantity_reserved) }}
+                  }
+                </td>
+                <td class="table-td" [class]="frozenClass(row)">{{ formatNumber(row.quantity_frozen ?? 0) }}</td>
+                <td class="table-td font-medium text-[#1B3A6B]">{{ formatNumber(totalQty(row)) }}</td>
+                @if (showWip()) {
+                  <td class="table-td">{{ formatNumber(row.quantity_wip ?? 0) }}</td>
+                }
                 <td class="table-td" [class]="qtyClass(row)">{{ formatNumber(row.quantity_available) }}</td>
+                <td class="table-td">{{ formatNumber(row.incoming_qty ?? 0) }}</td>
                 <td class="table-td">{{ formatNumber(row.reorder_level) }}</td>
                 <td class="table-td">{{ formatCurrency(row.unit_cost) }}</td>
                 <td class="table-td font-medium">{{ formatCurrency(row.total_value) }}</td>
@@ -87,4 +127,12 @@
       <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
     </div>
   }
+
+  <app-stock-reserved-breakdown-modal
+    [open]="reservedModalOpen()"
+    [loading]="reservedLoading()"
+    [breakdown]="reservedBreakdown()"
+    (close)="closeReservedBreakdown()"
+    (stockUpdated)="onReservedStockReturned()"
+  />
 </div>

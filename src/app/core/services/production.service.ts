@@ -3,6 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import { environment } from '../../environments/environments';
+import { dashboardHttpParams } from '../../shared/dashboard';
+import { DashboardCacheService } from '../../shared/dashboard/services/dashboard-cache.service';
+import { DateRangeValue } from '../../shared/dashboard/models/dashboard.types';
 import { ApiResponse } from '../models/auth.models';
 import { PaginatedData, ListParams } from '../models/paginated.model';
 import {
@@ -26,10 +29,12 @@ import {
   WorkOrder,
 } from '../models/production.model';
 import { buildHttpParams, unwrapApi } from '../utils/api.util';
+import { fetchCachedDashboard } from '../utils/dashboard-fetch.util';
 
 @Injectable({ providedIn: 'root' })
 export class ProductionService {
   private readonly http = inject(HttpClient);
+  private readonly dashCache = inject(DashboardCacheService);
   private readonly baseUrl = `${environment.apiUrl}/production`;
 
   // Products
@@ -337,10 +342,19 @@ export class ProductionService {
   }
 
   // Dashboard
-  getProductionDashboard(): Observable<ProductionDashboard> {
-    return this.http
-      .get<ApiResponse<ProductionDashboard>>(`${this.baseUrl}/dashboard/`)
-      .pipe(unwrapApi());
+  getProductionDashboard(
+    range?: DateRangeValue | null,
+    bypassCache = false,
+  ): Observable<ProductionDashboard> {
+    const url = `${this.baseUrl}/dashboard/`;
+    const params = dashboardHttpParams(range);
+    return fetchCachedDashboard<ProductionDashboard>(
+      this.http,
+      this.dashCache,
+      url,
+      params,
+      bypassCache,
+    );
   }
 
   getOperatorDashboard(): Observable<OperatorDashboard> {

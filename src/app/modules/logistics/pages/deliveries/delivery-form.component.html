@@ -83,14 +83,14 @@
               </div>
               <div class="col-span-2">
                 <span class="text-xs text-gray-500 block">Ordered</span>
-                <span>{{ line.value.quantity_ordered }}</span>
+                <span>{{ line.value.quantity_ordered }} {{ line.value.unit_of_measure }}</span>
               </div>
               <div class="col-span-2">
                 <span class="text-xs text-gray-500 block">Delivered</span>
-                <span>{{ line.value.quantity_delivered }}</span>
+                <span>{{ line.value.quantity_delivered }} {{ line.value.unit_of_measure }}</span>
               </div>
               <div class="col-span-2">
-                <label class="input-label !text-xs">Qty to Deliver</label>
+                <label class="input-label !text-xs">Qty to Deliver ({{ line.value.unit_of_measure }})</label>
                 <input type="number" formControlName="quantity" min="0" class="input-field" />
               </div>
               <div class="col-span-2">

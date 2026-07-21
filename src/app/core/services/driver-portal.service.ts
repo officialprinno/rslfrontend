@@ -14,6 +14,7 @@ import {
   VehicleConditionData,
 } from '../models/driver-portal.model';
 import { buildHttpParams, unwrapApi } from '../utils/api.util';
+import { DriverInternalRoute } from '../models/internal-route.model';
 
 @Injectable({ providedIn: 'root' })
 export class DriverPortalService {
@@ -52,9 +53,22 @@ export class DriverPortalService {
       .pipe(unwrapApi());
   }
 
-  confirmDelivery(id: number, data: ConfirmDeliveryData): Observable<DriverTrip> {
+  confirmDelivery(
+    id: number,
+    data: ConfirmDeliveryData,
+    proofDocument: File,
+  ): Observable<DriverTrip> {
+    const form = new FormData();
+    form.append('receiver_name', data.receiver_name);
+    form.append('receiver_position', data.receiver_position ?? '');
+    form.append('receiver_phone', data.receiver_phone ?? '');
+    form.append('receiver_company', data.receiver_company ?? '');
+    form.append('quantity_delivered', String(data.quantity_delivered));
+    form.append('delivery_notes', data.delivery_notes ?? '');
+    form.append('signature_data', data.signature_data ?? '');
+    form.append('proof_document', proofDocument, proofDocument.name);
     return this.http
-      .post<ApiResponse<DriverTrip>>(`${this.baseUrl}/trips/${id}/confirm-delivery/`, data)
+      .post<ApiResponse<DriverTrip>>(`${this.baseUrl}/trips/${id}/confirm-delivery/`, form)
       .pipe(unwrapApi());
   }
 
@@ -105,6 +119,30 @@ export class DriverPortalService {
   loadDraft(key: string): Observable<{ key: string; data: unknown }> {
     return this.http
       .get<ApiResponse<{ key: string; data: unknown }>>(`${this.baseUrl}/draft/${key}/`)
+      .pipe(unwrapApi());
+  }
+
+  getInternalRoutes(): Observable<DriverInternalRoute[]> {
+    return this.http
+      .get<ApiResponse<DriverInternalRoute[]>>(`${environment.apiUrl}/logistics/my-internal-routes/`)
+      .pipe(unwrapApi());
+  }
+
+  startInternalRoute(id: number): Observable<DriverInternalRoute> {
+    return this.http
+      .post<ApiResponse<DriverInternalRoute>>(
+        `${environment.apiUrl}/logistics/internal-routes/${id}/start/`,
+        {},
+      )
+      .pipe(unwrapApi());
+  }
+
+  completeInternalRoute(id: number): Observable<DriverInternalRoute> {
+    return this.http
+      .post<ApiResponse<DriverInternalRoute>>(
+        `${environment.apiUrl}/logistics/internal-routes/${id}/complete/`,
+        {},
+      )
       .pipe(unwrapApi());
   }
 }

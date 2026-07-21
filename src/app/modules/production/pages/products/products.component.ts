@@ -205,6 +205,10 @@ export class ProductsComponent implements OnInit {
     this.specValues.update((vals) => ({ ...vals, [key]: value }));
   }
 
+  specValue(key: string): string {
+    return this.specValues()[key] ?? '';
+  }
+
   onItemSelect(itemId: number | string | null): void {
     if (itemId === null || itemId === '') return;
     const id = Number(itemId);

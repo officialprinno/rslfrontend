@@ -6,7 +6,6 @@ import { GoodsReceivedNote } from '../../../../core/models/procurement.model';
 import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { ProcurementService } from '../../../../core/services/procurement.service';
-import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { formatDate } from '../../../../core/utils/format.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
@@ -63,7 +62,6 @@ export class GrnListComponent implements OnInit {
         this.notification.success(`GRN confirmed. Stock updated: ${summary}`);
         this.load();
       },
-      error: (e) => this.notification.error(getApiErrorMessage(e)),
     });
   }
 }

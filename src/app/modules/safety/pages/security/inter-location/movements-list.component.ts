@@ -50,8 +50,9 @@ import { AuthService } from '../../../../../core/services/auth.service';
     </div>
     @if (showModal()) {
       <div class="modal-overlay" (click)="showModal.set(false)">
-        <div class="modal-container max-w-lg" (click)="$event.stopPropagation()">
+        <div class="modal-container max-w-lg modal-size-lg" (click)="$event.stopPropagation()">
           <div class="modal-body space-y-3">
+            <div class="modal-body-inner space-y-3">
             <h3 class="font-semibold">Log Movement</h3>
             <select class="input-field w-full" [(ngModel)]="form.from_location">
               @for (l of locations(); track l.id) { <option [value]="l.id">From: {{ l.name }}</option> }
@@ -63,6 +64,7 @@ import { AuthService } from '../../../../../core/services/auth.service';
             <div class="flex gap-2 justify-end">
               <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
               <button type="button" class="btn-primary" (click)="save()">Log Movement</button>
+            </div>
             </div>
           </div>
         </div>

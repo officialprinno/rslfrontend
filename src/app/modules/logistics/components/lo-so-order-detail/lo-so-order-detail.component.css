@@ -1,0 +1,82 @@
+.lo-dispatch-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 42rem;
+}
+
+.lo-dispatch-table .col-item {
+  width: 28%;
+  min-width: 9rem;
+}
+
+.lo-dispatch-table .col-qty {
+  width: 9%;
+  min-width: 4.25rem;
+}
+
+.lo-dispatch-table .col-dispatch {
+  width: 11%;
+  min-width: 5rem;
+}
+
+.lo-dispatch-table .col-money {
+  width: 14%;
+  min-width: 6.5rem;
+}
+
+.lo-dispatch-table th,
+.lo-dispatch-table td {
+  padding: 0.625rem 0.75rem;
+  vertical-align: middle;
+}
+
+.lo-dispatch-table thead th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.lo-dispatch-table tbody td {
+  font-size: 0.8125rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.lo-dispatch-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lo-dispatch-table tbody tr.is-active-wave {
+  background: linear-gradient(90deg, #eff6ff 0%, #ffffff 100%);
+}
+
+.lo-dispatch-table tbody tr.is-idle-wave {
+  opacity: 0.55;
+}
+
+.lo-dispatch-qty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: #1b3a6b;
+  color: #fff;
+}
+
+.lo-dispatch-qty--zero {
+  background: #e5e7eb;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.lo-dispatch-summary {
+  min-width: 17rem;
+}

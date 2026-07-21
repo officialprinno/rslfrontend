@@ -7,6 +7,7 @@ import { Customer, SalesOrder } from '../../../../core/models/sales.model';
 import { AuthService } from '../../../../core/services/auth.service';
 import { ConfirmDialogService } from '../../../../core/services/confirm-dialog.service';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { PromptDialogService } from '../../../../core/services/prompt-dialog.service';
 import { SalesService } from '../../../../core/services/sales.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { formatCurrency, formatDate } from '../../../../core/utils/format.util';
@@ -16,6 +17,7 @@ import { PaginationComponent } from '../../../../shared/components/pagination/pa
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { SalesNavComponent } from '../../components/sales-nav/sales-nav.component';
+import { salesOrderIsEditable } from '../../constants/sales.constants';
 import { canApproveSO, canCreateQuotation } from '../../utils/sales-permissions.util';
 
 @Component({
@@ -38,6 +40,7 @@ export class SoListComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly promptDialog = inject(PromptDialogService);
 
   readonly orders = signal<SalesOrder[]>([]);
   readonly customers = signal<Customer[]>([]);
@@ -52,6 +55,7 @@ export class SoListComponent implements OnInit {
 
   readonly formatCurrency = formatCurrency;
   readonly formatDate = formatDate;
+  readonly salesOrderIsEditable = salesOrderIsEditable;
   readonly canAdd = () => canCreateQuotation(this.auth);
   readonly canConfirm = () => canApproveSO(this.auth);
 
@@ -119,14 +123,23 @@ export class SoListComponent implements OnInit {
   }
 
   cancelOrder(order: SalesOrder): void {
-    const reason = prompt('Cancellation reason:');
-    if (!reason?.trim()) return;
-    this.sales.cancelSalesOrder(order.id, reason).subscribe({
-      next: () => {
-        this.notification.success('Sales order cancelled');
-        this.load();
-      },
-      error: (e) => this.notification.error(getApiErrorMessage(e)),
+    this.promptDialog.open({
+      title: 'Cancel Sales Order',
+      message: `Provide a reason for cancelling ${order.so_number}.`,
+      label: 'Cancellation reason',
+      placeholder: 'Explain why this order is being cancelled',
+      required: true,
+      multiline: true,
+      confirmLabel: 'Cancel Order',
+    }).subscribe((reason) => {
+      if (!reason?.trim()) return;
+      this.sales.cancelSalesOrder(order.id, reason.trim()).subscribe({
+        next: () => {
+          this.notification.success('Sales order cancelled');
+          this.load();
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
+      });
     });
   }
 }

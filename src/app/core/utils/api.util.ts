@@ -33,6 +33,23 @@ function unwrapPayload<T>(payload: T): T {
   return payload;
 }
 
+export function unwrapApiWithMessage<T>(): (
+  source: Observable<ApiResponse<T>>,
+) => Observable<{ data: T; message: string }> {
+  return (source) =>
+    source.pipe(
+      map((response) => {
+        if (!response.success) {
+          throw new Error(response.message || 'Request failed');
+        }
+        return {
+          data: unwrapPayload(response.data),
+          message: response.message || '',
+        };
+      }),
+    );
+}
+
 export function unwrapApi<T>(): (source: Observable<ApiResponse<T>>) => Observable<T> {
   return (source) =>
     source.pipe(
@@ -45,6 +62,25 @@ export function unwrapApi<T>(): (source: Observable<ApiResponse<T>>) => Observab
     );
 }
 
+export function unwrapApiWithMeta<T>(): (
+  source: Observable<ApiResponse<T>>,
+) => Observable<{ data: T; message: string; warning?: string | null; warnings?: unknown[] | null }> {
+  return (source) =>
+    source.pipe(
+      map((response) => {
+        if (!response.success) {
+          throw new Error(response.message || 'Request failed');
+        }
+        return {
+          data: unwrapPayload(response.data),
+          message: response.message || '',
+          warning: response.warning,
+          warnings: response.warnings,
+        };
+      }),
+    );
+}
+
 export function unwrapApiOrThrow<T>(response: ApiResponse<T>): T {
   if (!response.success) {
     throw new Error(response.message || 'Request failed');
@@ -52,11 +88,25 @@ export function unwrapApiOrThrow<T>(response: ApiResponse<T>): T {
   return response.data;
 }
 
+function normalizeErrorMessages(messages: unknown): string[] {
+  if (messages == null) return [];
+  if (typeof messages === 'string') return [messages];
+  if (Array.isArray(messages)) {
+    return messages.flatMap((entry) => normalizeErrorMessages(entry));
+  }
+  if (typeof messages === 'object') {
+    const detail = messages as { string?: string };
+    if (typeof detail.string === 'string') return [detail.string];
+  }
+  return [String(messages)];
+}
+
 function flattenApiErrors(
-  errors: ApiResponse<unknown>['errors'],
+  errors: ApiResponse<unknown>['errors'] | string,
   prefix = '',
 ): string[] {
   if (!errors) return [];
+  if (typeof errors === 'string') return [errors];
   if (Array.isArray(errors)) {
     return errors.flatMap((entry, index) => {
       if (typeof entry === 'string') {
@@ -67,11 +117,9 @@ function flattenApiErrors(
   }
   return Object.entries(errors).flatMap(([key, messages]) => {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (!messages?.length) return [];
-    if (typeof messages[0] === 'string') {
-      return messages.map((message) => (path ? `${path}: ${message}` : message));
-    }
-    return flattenApiErrors(messages as ApiResponse<unknown>['errors'], path);
+    return normalizeErrorMessages(messages).map((message) =>
+      path ? `${path}: ${message}` : message,
+    );
   });
 }
 
@@ -100,11 +148,15 @@ export function getApiErrorMessage(
   return fallback;
 }
 
-export function extractFieldErrors(errors: ApiResponse<unknown>['errors']): Record<string, string> {
-  if (!errors || Array.isArray(errors)) return {};
+export function extractFieldErrors(
+  errors: ApiResponse<unknown>['errors'] | string,
+): Record<string, string> {
+  if (!errors || typeof errors === 'string') return {};
+  if (Array.isArray(errors)) return {};
   const result: Record<string, string> = {};
   Object.entries(errors).forEach(([key, messages]) => {
-    if (messages?.length) result[key] = messages[0];
+    const normalized = normalizeErrorMessages(messages);
+    if (normalized.length) result[key] = normalized[0];
   });
   return result;
 }

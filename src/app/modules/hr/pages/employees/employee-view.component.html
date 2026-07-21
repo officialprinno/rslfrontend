@@ -34,6 +34,9 @@
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="emp.status" /></p></div>
           <div><span class="text-gray-500">Department</span><p class="font-medium">{{ emp.department_name }}</p></div>
+          <div><span class="text-gray-500">Working Company</span><p>{{ workingCompanyLabel(emp) }}</p></div>
+          <div><span class="text-gray-500">Primary Company</span><p>{{ emp.primary_working_company_name || '—' }}</p></div>
+          <div><span class="text-gray-500">System Account</span><p>{{ emp.has_system_account ? 'Provisioned' : 'Pending — contact administrator' }}</p></div>
           <div><span class="text-gray-500">Employment Type</span><p>{{ employmentTypeLabel(emp.employment_type) }}</p></div>
           <div><span class="text-gray-500">Reports To</span><p>{{ emp.reports_to_name || '—' }}</p></div>
           <div><span class="text-gray-500">Phone</span><p>{{ emp.phone || '—' }}</p></div>
@@ -223,7 +226,13 @@
                 <tr class="table-row">
                   <td class="table-td">
                     @if (doc.file_url) {
-                      <a [href]="doc.file_url" target="_blank" class="text-[#1B3A6B] hover:underline">{{ doc.name }}</a>
+                      <app-open-file
+                        [fileUrl]="doc.file_url"
+                        [fileName]="doc.name"
+                        buttonClass="text-[#1B3A6B] hover:underline"
+                      >
+                        {{ doc.name }}
+                      </app-open-file>
                     } @else {
                       {{ doc.name }}
                     }

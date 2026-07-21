@@ -35,7 +35,7 @@
     <app-table-skeleton [cols]="8" />
   } @else if (!payrolls().length) {
     <div class="card">
-      <app-empty-state title="No payroll runs" message="Generate a new payroll to get started." />
+      <app-empty-state moduleName="Payroll Runs" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container mb-4">
@@ -78,7 +78,7 @@
           }
         </tbody>
       </table>
+      <app-pagination [page]="page()" [total]="total()" [pageSize]="10" (pageChange)="page.set($event); load()" />
     </div>
-    <app-pagination [page]="page()" [total]="total()" [pageSize]="10" (pageChange)="page.set($event); load()" />
   }
 </div>

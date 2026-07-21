@@ -14,7 +14,41 @@
         <div><span class="text-gray-500">Category</span><p class="font-medium">{{ i.category_name }}</p></div>
         <div><span class="text-gray-500">Unit</span><p class="font-medium">{{ i.unit_of_measure }}</p></div>
         <div><span class="text-gray-500">Unit Cost</span><p class="font-medium">{{ formatCurrency(i.unit_cost, i.currency_code) }}</p></div>
-        <div><span class="text-gray-500">Selling Price</span><p class="font-medium">{{ formatCurrency(i.selling_price, i.currency_code) }}</p></div>
+        <div>
+          <span class="text-gray-500">Selling Price (Finance)</span>
+          @if (i.finance_price_approved || i.approved_selling_price) {
+            <p class="font-medium">{{ formatCurrency(i.approved_selling_price ?? i.selling_price, i.currency_code) }}</p>
+          } @else if (isTradedAwaitingFinance(i)) {
+            <p class="text-sm text-amber-700 font-medium">Awaiting Finance approval</p>
+            @if (i.pending_finance_workflow_id) {
+              <div class="mt-2 rounded-lg border border-amber-100 bg-amber-50/70 p-3 space-y-2">
+                <p class="text-xs text-gray-600">
+                  Stock was sent to Finance via GRN
+                  @if (i.pending_finance_workflow_grn_number) {
+                    <span class="font-semibold text-gray-800">{{ i.pending_finance_workflow_grn_number }}</span>
+                  }.
+                </p>
+                <p class="text-xs text-gray-600">
+                  Status: {{ financeWorkflowStatusLabel(i.pending_finance_workflow_status) }}
+                </p>
+                @if (canOpenFinancePricing()) {
+                  <a
+                    [routerLink]="['/finance/inventory-workflows', i.pending_finance_workflow_id]"
+                    class="inline-flex text-xs font-semibold text-[#1B3A6B] hover:underline"
+                  >
+                    Open workflow and set selling price
+                  </a>
+                }
+              </div>
+            } @else {
+              <p class="text-xs text-gray-500 mt-1">
+                Confirm a GRN for this item — received stock is sent automatically to Finance for pricing.
+              </p>
+            }
+          } @else {
+            <p class="text-sm text-amber-700">Awaiting Finance approval</p>
+          }
+        </div>
         <div><span class="text-gray-500">Reorder Level</span><p class="font-medium">{{ formatNumber(i.reorder_level) }}</p></div>
         <div>
           <span class="text-gray-500">Stock Qty</span>
@@ -28,6 +62,32 @@
         </div>
         <div><span class="text-gray-500">Updated</span><p class="font-medium">{{ formatDateTime(i.updated_at) }}</p></div>
       </div>
+
+      @if (i.length || i.width || i.height || i.thickness || i.diameter || i.weight_per_unit) {
+        <div class="border-t pt-4">
+          <h4 class="text-sm font-semibold text-gray-700 mb-3">Physical Dimensions &amp; Weight</h4>
+          <div class="grid grid-cols-2 gap-4 text-sm">
+            @if (i.length) {
+              <div><span class="text-gray-500">Length</span><p class="font-medium">{{ i.length }} {{ i.dimension_unit || 'm' }}</p></div>
+            }
+            @if (i.width) {
+              <div><span class="text-gray-500">Width</span><p class="font-medium">{{ i.width }} {{ i.dimension_unit || 'm' }}</p></div>
+            }
+            @if (i.height) {
+              <div><span class="text-gray-500">Height</span><p class="font-medium">{{ i.height }} {{ i.dimension_unit || 'm' }}</p></div>
+            }
+            @if (i.thickness) {
+              <div><span class="text-gray-500">Thickness</span><p class="font-medium">{{ i.thickness }} {{ i.dimension_unit || 'm' }}</p></div>
+            }
+            @if (i.diameter) {
+              <div><span class="text-gray-500">Diameter</span><p class="font-medium">{{ i.diameter }} {{ i.dimension_unit || 'm' }}</p></div>
+            }
+            @if (i.weight_per_unit) {
+              <div><span class="text-gray-500">Weight per Unit</span><p class="font-medium">{{ i.weight_per_unit }} {{ i.weight_unit || 'Kg' }}</p></div>
+            }
+          </div>
+        </div>
+      }
     </div>
   }
 

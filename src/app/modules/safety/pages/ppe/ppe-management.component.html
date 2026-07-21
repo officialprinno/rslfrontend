@@ -192,13 +192,13 @@
             }
           </tbody>
         </table>
-        <app-pagination
+      <app-pagination
           [page]="requestPage()"
           [pageSize]="15"
           [total]="requestTotal()"
           (pageChange)="requestPage.set($event); loadRequests()"
         />
-      </div>
+    </div>
     }
   }
 
@@ -311,14 +311,14 @@
             }
           </tbody>
         </table>
-        <app-pagination
+      <app-pagination
           [page]="issuancePage()"
           [pageSize]="issuancePageSize()"
           [total]="issuanceTotal()"
           (pageChange)="issuancePage.set($event); loadIssuances()"
           (pageSizeChange)="issuancePageSize.set($event); issuancePage.set(1); loadIssuances()"
         />
-      </div>
+    </div>
     }
   }
 

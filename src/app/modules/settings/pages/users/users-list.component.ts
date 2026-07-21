@@ -69,6 +69,14 @@ export class UsersListComponent implements OnInit {
     return user.department_name ?? '—';
   }
 
+  companySummary(user: User): string {
+    const companies = user.companies ?? [];
+    if (!companies.length) {
+      return 'Not activated';
+    }
+    return companies.map((c) => c.company_name).join(', ');
+  }
+
   openCredentials(): void {
     this.credentialsOpen.set(true);
     this.credentialsLoading.set(true);

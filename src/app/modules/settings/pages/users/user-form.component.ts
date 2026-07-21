@@ -6,6 +6,7 @@ import { finalize } from 'rxjs/operators';
 
 import { Permission, Role, User, UserDepartmentWrite } from '../../../../core/models/auth.models';
 import { Department } from '../../../../core/models/procurement.model';
+import { CompaniesService, CompanyOption } from '../../../../core/services/companies.service';
 import { DepartmentsService } from '../../../../core/services/departments.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import {
@@ -23,6 +24,12 @@ interface AssignmentRow {
   is_primary: boolean;
 }
 
+interface CompanyRow {
+  company: number;
+  default_company: boolean;
+  selected: boolean;
+}
+
 @Component({
   selector: 'app-user-form',
   imports: [FormsModule, RouterLink, PageHeaderComponent, SettingsAdminNavComponent],
@@ -34,6 +41,7 @@ export class UserFormComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly users = inject(UsersService);
   private readonly departments = inject(DepartmentsService);
+  private readonly companies = inject(CompaniesService);
   private readonly notification = inject(NotificationService);
 
   readonly userId = Number(this.route.snapshot.paramMap.get('id'));
@@ -43,6 +51,8 @@ export class UserFormComponent implements OnInit {
   readonly deptOptions = signal<Department[]>([]);
   readonly rolesByDept = signal<Record<number, Role[]>>({});
   readonly assignments = signal<AssignmentRow[]>([]);
+  readonly companyRows = signal<CompanyRow[]>([]);
+  readonly companyOptions = signal<CompanyOption[]>([]);
   readonly previewPermissions = signal<Permission[]>([]);
 
   readonly permissionModules = PERMISSION_MODULES;
@@ -61,12 +71,14 @@ export class UserFormComponent implements OnInit {
     forkJoin({
       user: this.users.getUser(this.userId),
       departments: this.departments.getDepartments(),
+      companies: this.companies.listCompanies(),
     })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
-        next: ({ user, departments }) => {
+        next: ({ user, departments, companies }) => {
           this.user.set(user);
           this.deptOptions.set(departments);
+          this.companyOptions.set(companies);
           this.firstName.set(user.first_name);
           this.lastName.set(user.last_name);
           this.phone.set(user.phone ?? '');
@@ -83,6 +95,17 @@ export class UserFormComponent implements OnInit {
               this.loadRolesForDepartment(row.department);
             }
           }
+          const userCompanies = user.companies ?? [];
+          this.companyRows.set(
+            companies.map((c) => {
+              const match = userCompanies.find((uc) => uc.company_id === c.id);
+              return {
+                company: c.id,
+                default_company: match?.default_company ?? false,
+                selected: Boolean(match),
+              };
+            }),
+          );
         },
         error: (err) => this.notification.error(getApiErrorMessage(err, 'Failed to load user')),
       });
@@ -129,6 +152,32 @@ export class UserFormComponent implements OnInit {
     return this.rolesByDept()[deptId] ?? [];
   }
 
+  companyName(companyId: number): string {
+    return this.companyOptions().find((c) => c.id === companyId)?.name ?? 'Company';
+  }
+
+  toggleCompany(companyId: number, selected: boolean): void {
+    this.companyRows.update((rows) =>
+      rows.map((row) => {
+        if (row.company !== companyId) return row;
+        return { ...row, selected, default_company: selected ? row.default_company : false };
+      }),
+    );
+    const selectedRows = this.companyRows().filter((r) => r.selected);
+    if (selectedRows.length && !selectedRows.some((r) => r.default_company)) {
+      this.setDefaultCompany(selectedRows[0].company);
+    }
+  }
+
+  setDefaultCompany(companyId: number): void {
+    this.companyRows.update((rows) =>
+      rows.map((row) => ({
+        ...row,
+        default_company: row.selected && row.company === companyId,
+      })),
+    );
+  }
+
   resetPassword(): void {
     const password = this.newPassword().trim();
     if (!password) {
@@ -162,6 +211,18 @@ export class UserFormComponent implements OnInit {
       return;
     }
 
+    const companyAssignments = this.companyRows()
+      .filter((r) => r.selected)
+      .map((r) => ({ company: r.company, default_company: r.default_company }));
+
+    if (!companyAssignments.length) {
+      this.notification.error('Select at least one accessible company.');
+      return;
+    }
+    if (!companyAssignments.some((r) => r.default_company)) {
+      companyAssignments[0].default_company = true;
+    }
+
     this.saving.set(true);
     this.users
       .updateUser(this.userId, {
@@ -171,6 +232,7 @@ export class UserFormComponent implements OnInit {
         is_active: this.isActive(),
         is_multi_department: payloadAssignments.length > 1,
         department_assignments: payloadAssignments,
+        company_assignments: companyAssignments,
       })
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({

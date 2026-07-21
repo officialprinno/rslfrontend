@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { Label } from '../../../core/models/email.model';
+import { ConfirmDialogService } from '../../../core/services/confirm-dialog.service';
 import { EmailService } from '../../../core/services/email.service';
 import { PageHeaderComponent } from '../../../shared/components/page-header/page-header.component';
 
@@ -56,6 +57,7 @@ const COLORS = ['blue', 'green', 'yellow', 'red', 'purple', 'orange', 'teal', 'g
 })
 export class EmailLabelsSettingsComponent implements OnInit {
   private readonly email = inject(EmailService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
 
   readonly labels = signal<Label[]>([]);
   readonly colors = COLORS;
@@ -78,7 +80,14 @@ export class EmailLabelsSettingsComponent implements OnInit {
   }
 
   remove(lbl: Label): void {
-    if (!confirm(`Delete label "${lbl.name}"?`)) return;
-    this.email.deleteLabel(lbl.id).subscribe(() => this.load());
+    this.confirmDialog.open({
+      title: 'Delete Email Label',
+      message: `Delete the label "${lbl.name}"? This will not delete any emails.`,
+      confirmLabel: 'Delete Label',
+      confirmDanger: true,
+    }).subscribe((confirmed) => {
+      if (!confirmed) return;
+      this.email.deleteLabel(lbl.id).subscribe(() => this.load());
+    });
   }
 }

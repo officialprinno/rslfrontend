@@ -1,7 +1,9 @@
 <div class="page-container">
-  <app-procurement-nav />
+  @if (!isStorekeeperView()) {
+    <app-procurement-nav />
+  }
   <app-page-header [title]="editId() ? 'Edit GRN' : 'New GRN'">
-    <a routerLink="/procurement/grn" class="btn-secondary">Back</a>
+    <a [routerLink]="backRoute()" class="btn-secondary">Back</a>
   </app-page-header>
 
   <form [formGroup]="form" class="card p-6 space-y-6">
@@ -14,81 +16,230 @@
             <option [ngValue]="po.id">{{ po.po_number }} — {{ po.supplier_name }}</option>
           }
         </select>
+        @if (!pos().length) {
+          <p class="text-xs text-amber-700 mt-1">
+            No purchase orders ready for receiving. PO must be sent and supplier tracking must show Delivered.
+          </p>
+        }
       </div>
       @if (selectedPo(); as po) {
         <div class="text-sm text-gray-600">
           <p><strong>Supplier:</strong> {{ po.supplier_name }}</p>
+          <p><strong>Payment mode:</strong> {{ po.payment_mode }}</p>
+          @if (po.warehouse_name) {
+            <p><strong>PO warehouse:</strong> {{ po.warehouse_name }}</p>
+          }
+          @if (po.supplier_tracking_status) {
+            <p><strong>Tracking:</strong> {{ po.supplier_tracking_status }}</p>
+          }
+        </div>
+        @if (!po.can_receive_goods) {
+          <div class="md:col-span-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+            <strong>GRN not allowed yet.</strong>
+            Supplier order tracking must be <strong>Delivered</strong> before goods can be received.
+            Use Order Tracking to email the supplier or update status manually after their reply.
+          </div>
+        }
+        @if (isStorekeeperView()) {
+          <div class="md:col-span-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+            <strong>Inventory receiving:</strong> Compare supplier delivery note with this PO, enter quantities received, then confirm GRN to update stock.
+            Procurement will record the supplier invoice and run three-way match on this GRN.
+          </div>
+        }
+        <div class="md:col-span-2 p-3 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-900">
+          {{ grnPaymentHint(po.payment_mode) }}
+        </div>
+      }
+      @if (allLinesFullyReceived()) {
+        <div class="md:col-span-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+          All quantities on this PO are already received. You cannot create another GRN unless
+          a partial delivery was recorded in error — contact Procurement to adjust the PO.
         </div>
       }
       <div>
-        <label class="input-label">Warehouse *</label>
+        <label class="input-label">{{ locationLabel() }} *</label>
         <select formControlName="warehouse" class="input-field">
-          <option [ngValue]="null">Select warehouse</option>
-          @for (w of warehouses(); track w.id) { <option [ngValue]="w.id">{{ w.name }}</option> }
+          <option [ngValue]="null">Select {{ locationLabel().toLowerCase() }}</option>
+          @for (w of warehouses(); track w.id) {
+            <option [ngValue]="w.id">{{ warehouseLabel(w) }}</option>
+          }
         </select>
+        @if (poWarehouseName()) {
+          <p class="text-xs text-gray-500 mt-1">
+            Default from Purchase Order: <strong>{{ poWarehouseName() }}</strong>. You may change if goods were delivered elsewhere.
+          </p>
+        }
+        @if (!warehouses().length) {
+          <p class="text-xs text-amber-700 mt-1">
+            No {{ locationLabel().toLowerCase() }} configured for your company. Contact your administrator.
+          </p>
+        }
       </div>
       <div><label class="input-label">Received Date</label><input type="date" formControlName="received_date" class="input-field" /></div>
       <div><label class="input-label">Received By</label><input type="text" class="input-field bg-gray-50" [value]="receivedByName()" readonly /></div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" formControlName="is_final_delivery" id="finalDelivery" />
+        <label for="finalDelivery" class="text-sm">This is the final delivery (all PO quantities fulfilled)</label>
+      </div>
+      <div class="md:col-span-2"><label class="input-label">Discrepancy Notes</label><textarea formControlName="discrepancy_notes" rows="2" class="input-field resize-none" placeholder="Note any quantity or quality discrepancies"></textarea></div>
       <div class="md:col-span-2"><label class="input-label">Notes</label><textarea formControlName="notes" rows="2" class="input-field resize-none"></textarea></div>
     </div>
 
     <div formArrayName="lineItems">
       <h4 class="font-semibold mb-3">Items</h4>
-      <table class="w-full text-sm">
-        <thead>
-          <tr>
-            <th class="table-th">Item</th>
-            <th class="table-th">Ordered</th>
-            <th class="table-th">Prev. Rcvd</th>
-            <th class="table-th">Qty Now</th>
-            <th class="table-th">Unit Cost</th>
-            @if (needsSerialColumn()) { <th class="table-th">Serial No.</th> }
-            @if (needsExpiryColumn()) { <th class="table-th">Expiry</th> }
-            <th class="table-th">Condition</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (line of lineItems().controls; track $index; let i = $index) {
-            <tr [formGroupName]="i" class="table-row">
-              <td class="table-td">{{ line.value.item_name }}</td>
-              <td class="table-td">{{ line.value.quantity_ordered }}</td>
-              <td class="table-td">{{ line.value.quantity_previously_received }}</td>
-              <td class="table-td"><input type="number" formControlName="quantity_received" class="input-field !py-1" min="0" step="0.01" /></td>
-              <td class="table-td"><input type="number" formControlName="unit_cost" class="input-field !py-1" step="0.01" /></td>
-              @if (needsSerialColumn()) {
-                <td class="table-td">
-                  @if (line.value.has_serial_number) {
-                    <input type="text" formControlName="serial_number" class="input-field !py-1" placeholder="Required" />
-                  } @else {
-                    <span class="text-gray-400">—</span>
-                  }
-                </td>
-              }
-              @if (needsExpiryColumn()) {
-                <td class="table-td">
-                  @if (line.value.has_expiry_date) {
-                    <input type="date" formControlName="expiry_date" class="input-field !py-1" />
-                  } @else {
-                    <span class="text-gray-400">—</span>
-                  }
-                </td>
-              }
-              <td class="table-td">
-                <select formControlName="condition" class="input-field !py-1">
-                  <option value="GOOD">Good</option>
-                  <option value="DAMAGED">Damaged</option>
-                  <option value="REJECTED">Rejected</option>
-                </select>
-              </td>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[56rem]">
+          <thead>
+            <tr>
+              <th class="table-th">Item</th>
+              <th class="table-th">Ordered</th>
+              <th class="table-th">Prev. Rcvd</th>
+              <th class="table-th">Remaining</th>
+              <th class="table-th">Good</th>
+              <th class="table-th">Damaged</th>
+              <th class="table-th">Missing</th>
+              <th class="table-th">Unit Cost</th>
+              @if (needsSerialColumn()) { <th class="table-th">Serial No.</th> }
+              @if (needsExpiryColumn()) { <th class="table-th">Expiry</th> }
+              <th class="table-th">Notes</th>
             </tr>
-          }
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            @for (line of lineItems().controls; track $index; let i = $index) {
+              <tr [formGroupName]="i" class="table-row">
+                <td class="table-td">
+                  {{ line.value.item_name }}
+                  <span class="block text-xs text-gray-500">Unit: {{ line.value.unit_of_measure || 'unit' }}</span>
+                </td>
+                <td class="table-td">{{ line.value.quantity_ordered }} {{ line.value.unit_of_measure }}</td>
+                <td class="table-td">{{ line.value.quantity_previously_received }} {{ line.value.unit_of_measure }}</td>
+                <td class="table-td font-medium">{{ formatNumber(lineRemaining(i)) }} {{ line.value.unit_of_measure }}</td>
+                <td class="table-td">
+                  <input
+                    type="number"
+                    formControlName="quantity_received"
+                    class="input-field !py-1 w-24"
+                    min="0"
+                    step="0.01"
+                    [disabled]="lineRemaining(i) <= 0"
+                    (input)="onReceiptQtyChange(i, 'good')"
+                  />
+                  <span class="text-xs text-gray-500">{{ line.value.unit_of_measure }}</span>
+                </td>
+                <td class="table-td">
+                  <input
+                    type="number"
+                    formControlName="quantity_damaged"
+                    class="input-field !py-1 w-24"
+                    min="0"
+                    step="0.01"
+                    [disabled]="lineRemaining(i) <= 0"
+                    (input)="onReceiptQtyChange(i, 'damaged')"
+                  />
+                  <span class="text-xs text-gray-500">{{ line.value.unit_of_measure }}</span>
+                </td>
+                <td class="table-td">
+                  <input
+                    type="number"
+                    formControlName="quantity_missing"
+                    class="input-field !py-1 w-24"
+                    min="0"
+                    step="0.01"
+                    [disabled]="lineRemaining(i) <= 0"
+                    (input)="onReceiptQtyChange(i, 'missing')"
+                  />
+                  <span class="text-xs text-gray-500">{{ line.value.unit_of_measure }}</span>
+                </td>
+                <td class="table-td"><input type="number" formControlName="unit_cost" class="input-field !py-1 w-28" step="0.01" /></td>
+                @if (needsSerialColumn()) {
+                  <td class="table-td">
+                    @if (line.value.has_serial_number) {
+                      <input type="text" formControlName="serial_number" class="input-field !py-1" placeholder="Required" />
+                    } @else {
+                      <span class="text-gray-400">—</span>
+                    }
+                  </td>
+                }
+                @if (needsExpiryColumn()) {
+                  <td class="table-td">
+                    @if (line.value.has_expiry_date) {
+                      <input type="date" formControlName="expiry_date" class="input-field !py-1" />
+                    } @else {
+                      <span class="text-gray-400">—</span>
+                    }
+                  </td>
+                }
+                <td class="table-td">
+                  <input type="text" formControlName="notes" class="input-field !py-1 min-w-[8rem]" placeholder="Line notes" />
+                </td>
+              </tr>
+              @if (lineAccounted(i) > lineRemaining(i)) {
+                <tr>
+                  <td [attr.colspan]="8 + (needsSerialColumn() ? 1 : 0) + (needsExpiryColumn() ? 1 : 0)" class="px-3 pb-2 text-xs text-red-600">
+                    Accounted {{ formatNumber(lineAccounted(i)) }} exceeds remaining {{ formatNumber(lineRemaining(i)) }}.
+                    Reduce Good, Damaged, or Missing so the total is at most remaining.
+                  </td>
+                </tr>
+              } @else if (lineHasDamageOrMissing(i)) {
+                <tr>
+                  <td [attr.colspan]="8 + (needsSerialColumn() ? 1 : 0) + (needsExpiryColumn() ? 1 : 0)" class="px-3 pb-2 text-xs text-gray-500">
+                    Split of remaining {{ formatNumber(lineRemaining(i)) }}:
+                    Good {{ formatNumber(lineGood(i)) }}
+                    + Damaged {{ formatNumber(lineDamaged(i)) }}
+                    + Missing {{ formatNumber(lineMissing(i)) }}
+                    = {{ formatNumber(lineAccounted(i)) }}
+                    @if (lineOutstandingAfter(i) > 0) {
+                      <span>({{ formatNumber(lineOutstandingAfter(i)) }} still outstanding on PO)</span>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
     </div>
+
+    @if (receiptTotals(); as totals) {
+      <section class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <h4 class="font-semibold text-gray-900 mb-3">Receipt Summary</h4>
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 text-sm">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Lines with qty</p>
+            <p class="text-xl font-semibold text-gray-900">{{ totals.lineCount }}</p>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Good received</p>
+            <p class="text-xl font-semibold text-emerald-700">{{ formatNumber(totals.good) }}</p>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Damaged</p>
+            <p class="text-xl font-semibold text-amber-700">{{ formatNumber(totals.damaged) }}</p>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Missing</p>
+            <p class="text-xl font-semibold text-rose-700">{{ formatNumber(totals.missing) }}</p>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Total accounted</p>
+            <p class="text-xl font-semibold text-[#1B3A6B]">{{ formatNumber(totals.accounted) }}</p>
+          </div>
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">Physical received</p>
+            <p class="text-xl font-semibold text-gray-900">{{ formatNumber(totals.physical) }}</p>
+          </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">
+          Good + Damaged + Missing must not exceed remaining on the PO line.
+          Entering Damaged or Missing automatically reduces Good.
+          Good and Damaged update stock; Missing is recorded for follow-up and does not add to inventory.
+        </p>
+      </section>
+    }
 
     <div class="flex justify-end gap-3 border-t pt-4">
       <button type="button" class="btn-secondary" [disabled]="saving()" (click)="saveDraft()">Save Draft</button>
-      <button type="button" class="btn-primary" [disabled]="saving()" (click)="confirmGrn()">Confirm GRN</button>
+      <button type="button" class="btn-primary" [disabled]="saving() || allLinesFullyReceived()" (click)="confirmGrn()">Confirm GRN</button>
     </div>
   </form>
 </div>

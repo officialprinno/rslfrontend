@@ -62,11 +62,11 @@
 
     @if (!filteredAging().length) {
       <div class="card">
-        <app-empty-state title="No receivables" message="No outstanding customer balances match your filters." />
+        <app-empty-state moduleName="Receivables" (companySwitched)="load()" />
       </div>
     } @else {
       <div class="table-container">
-        <div class="overflow-x-auto">
+        <div class="table-scroll-viewport">
           <table class="w-full">
             <thead>
               <tr>
@@ -97,8 +97,8 @@
               }
             </tbody>
           </table>
-        </div>
       </div>
+    </div>
     }
   }
 </div>

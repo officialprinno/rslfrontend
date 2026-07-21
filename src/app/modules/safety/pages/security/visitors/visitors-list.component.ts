@@ -118,7 +118,7 @@ export class VisitorsListComponent implements OnInit {
       [
         { key: 'visitor_number', label: 'Number' },
         { key: 'full_name', label: 'Name' },
-        { key: 'company', label: 'Company' },
+        { key: 'organization_name', label: 'Company' },
         { key: 'location_name', label: 'Location' },
         { key: 'status', label: 'Status' },
         { key: 'actual_time_in', label: 'Time In' },

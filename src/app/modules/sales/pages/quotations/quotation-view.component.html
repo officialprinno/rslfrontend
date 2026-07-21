@@ -1,110 +1,90 @@
 <div class="page-container">
   <app-sales-nav />
-  @if (quotation(); as q) {
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (quotation(); as q) {
     <app-page-header [title]="q.quotation_number" [subtitle]="q.customer_name">
-      <button type="button" class="btn-ghost" (click)="printQuotation()">Print</button>
-      <button type="button" class="btn-primary" (click)="exportPdf()">Export PDF</button>
-      <a routerLink="/sales/quotations" class="btn-secondary">Back</a>
+      <button type="button" class="btn-ghost no-print" (click)="printQuotation()">Print</button>
+      <button type="button" class="btn-primary no-print" [disabled]="exporting()" (click)="exportPdf()">
+        {{ exporting() ? 'Generating…' : 'Export PDF' }}
+      </button>
+      <a routerLink="/sales/quotations" class="btn-secondary no-print">Back</a>
     </app-page-header>
 
-    <app-workflow-stepper [steps]="quotationSteps" [activeIndex]="workflowIndex(q.status)" />
+    <app-workflow-stepper class="no-print" [steps]="quotationSteps" [activeIndex]="workflowIndex(q.status)" />
 
-    <div id="quotation-print-area" class="card p-6 mb-6">
-      <div class="border-b border-gray-200 pb-4 mb-6">
-        <div class="flex justify-between items-start">
-          <div>
-            <h1 class="text-xl font-bold text-[#1B3A6B]">{{ company.name }}</h1>
-            <p class="text-sm text-gray-500">{{ company.address }}</p>
-            <p class="text-sm text-gray-500">TIN: {{ company.tin }} | VAT: {{ company.vat }}</p>
-          </div>
-          <div class="text-right">
-            <h2 class="text-lg font-bold text-[#1B3A6B]">QUOTATION</h2>
-            <p class="text-sm font-medium">{{ q.quotation_number }}</p>
-            <p class="text-sm text-gray-500">Date: {{ formatDate(q.created_at) }}</p>
-            <p class="text-sm text-gray-500">Valid Until: {{ formatDate(q.valid_until) }}</p>
-          </div>
-        </div>
+    @if (document(); as doc) {
+      <div id="quotation-print-area" class="card p-6 mb-6">
+        <app-quotation-document [document]="doc" />
       </div>
+    }
 
-      <div class="grid grid-cols-2 gap-6 mb-6 text-sm">
-        <div>
-          <h4 class="font-semibold text-gray-700 mb-2">Bill To</h4>
-          <p class="font-medium">{{ q.customer_name }}</p>
-          <p class="text-gray-500">Mine: {{ q.mine_name }}</p>
-        </div>
-        <div class="text-right">
-          <p><span class="text-gray-500">Status:</span> <app-status-badge [status]="q.status" /></p>
-          <p><span class="text-gray-500">Currency:</span> {{ q.currency_code }}</p>
-          <p><span class="text-gray-500">Prepared By:</span> {{ q.created_by_name }}</p>
-        </div>
-      </div>
-
-      <table class="w-full text-sm mb-4">
-        <thead>
-          <tr>
-            <th class="table-th">#</th>
-            <th class="table-th">Item</th>
-            <th class="table-th">Qty</th>
-            <th class="table-th">Unit Price</th>
-            <th class="table-th">Disc%</th>
-            <th class="table-th">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (item of q.items; track item.id ?? $index; let i = $index) {
-            <tr class="table-row">
-              <td class="table-td">{{ i + 1 }}</td>
-              <td class="table-td">{{ item.item_code }} — {{ item.item_name ?? item.description }}</td>
-              <td class="table-td">{{ item.quantity }}</td>
-              <td class="table-td">{{ formatCurrency(item.unit_price, q.currency_code) }}</td>
-              <td class="table-td">{{ item.discount_percent }}%</td>
-              <td class="table-td font-semibold">{{ formatCurrency(item.total_price ?? 0, q.currency_code) }}</td>
-            </tr>
+    @if (q.customer_response) {
+      <div
+        class="no-print rounded-lg border p-4 text-sm mb-4"
+        [class]="q.customer_response === 'ACCEPTED' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : q.customer_response === 'REVISION' ? 'bg-amber-50 border-amber-200 text-amber-900' : q.customer_response === 'REJECTED' ? 'bg-red-50 border-red-200 text-red-900' : 'bg-gray-50 border-gray-200 text-gray-800'"
+      >
+        <p>
+          <span class="font-semibold">Customer response:</span>
+          {{ customerResponseLabel(q.customer_response) }}
+          @if (q.customer_responded_at) {
+            <span class="opacity-80"> — {{ formatDateTime(q.customer_responded_at) }}</span>
           }
-        </tbody>
-      </table>
-
-      <div class="text-right text-sm space-y-1 mb-6">
-        <p>Subtotal: {{ formatCurrency(q.subtotal, q.currency_code) }}</p>
-        @if (q.discount_amount) {
-          <p>Discount: {{ formatCurrency(q.discount_amount, q.currency_code) }}</p>
+        </p>
+        @if (q.customer_response_notes) {
+          <div class="mt-3 pt-3 border-t border-current/20">
+            <p class="text-xs font-semibold uppercase tracking-wide opacity-80 mb-1">Customer message</p>
+            <p class="whitespace-pre-wrap">{{ q.customer_response_notes }}</p>
+          </div>
         }
-        <p>VAT: {{ formatCurrency(q.tax_amount, q.currency_code) }}</p>
-        @if (q.delivery_cost) {
-          <p>Delivery Cost: {{ formatCurrency(q.delivery_cost, q.currency_code) }}</p>
-        }
-        <p class="text-lg font-bold text-[#1B3A6B]">Grand Total: {{ formatCurrency(q.total_amount, q.currency_code) }}</p>
       </div>
+    }
 
-      @if (q.terms_conditions || q.notes) {
-        <div class="text-sm border-t pt-4">
-          <h4 class="font-semibold mb-2">Terms & Conditions</h4>
-          <p class="text-gray-600 whitespace-pre-line">{{ q.terms_conditions || q.notes }}</p>
-        </div>
-      }
-    </div>
+    @if (hasCustomerFeedback(q) && canManage()) {
+      <div class="no-print card p-5 mb-4">
+        <h3 class="font-semibold text-[#1B3A6B] mb-2">Reply to Customer</h3>
+        @if (q.sales_reply && !needsSalesReply(q)) {
+          <p class="text-xs text-gray-500 mb-3">
+            Last reply
+            @if (q.sales_replied_by_name) { by {{ q.sales_replied_by_name }} }
+            @if (q.sales_replied_at) { on {{ formatDateTime(q.sales_replied_at) }} }
+          </p>
+        } @else {
+          <p class="text-sm text-gray-600 mb-3">
+            The customer left feedback on this quotation. Write your response — they will see it when they open the quotation portal link.
+          </p>
+        }
+        <textarea
+          class="input-field min-h-[120px] mb-3"
+          [(ngModel)]="salesReplyMessage"
+          placeholder="Thank the customer, explain next steps, or address their requested changes…"
+        ></textarea>
+        <button type="button" class="btn-primary" [disabled]="replying()" (click)="submitSalesReply()">
+          {{ replying() ? 'Saving…' : (q.sales_reply ? 'Update Reply' : 'Send Reply to Customer') }}
+        </button>
+      </div>
+    }
 
-    <p class="text-xs text-gray-500 mb-4">Created {{ formatDateTime(q.created_at) }}</p>
+    <p class="text-xs text-gray-500 mb-4 no-print">Created {{ formatDateTime(q.created_at) }}</p>
 
-    <div class="flex gap-2 flex-wrap">
-      @if (q.status === 'DRAFT' && canManage()) {
+    <div class="flex gap-2 flex-wrap no-print">
+      @if (isDraft(q) && canManage()) {
         <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-secondary">Edit</a>
         <button type="button" class="btn-primary" (click)="send()">Send to Customer</button>
         @if (canDelete()) {
           <button type="button" class="btn-secondary !text-red-600" (click)="deleteQuotation()">Delete</button>
         }
       }
-      @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canManage() && !q.has_sales_order) {
-        <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-secondary">Edit</a>
-        @if (canDelete()) {
-          <button type="button" class="btn-secondary !text-red-600" (click)="deleteQuotation()">Delete</button>
-        }
-      }
-      @if (q.status === 'SENT' && canManage()) {
+      @if (isAwaitingCustomer(q.status) && canManage()) {
         <button type="button" class="btn-primary" (click)="accept()">Mark Accepted</button>
         <button type="button" class="btn-secondary !text-red-600" (click)="reject()">Mark Rejected</button>
       }
-      @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canConvert()) {
+      @if (q.has_sales_order && q.sales_order_id) {
+        <a [routerLink]="['/sales/orders', q.sales_order_id, 'view']" class="btn-primary">
+          View Sales Order {{ q.sales_order_number }}
+        </a>
+      }
+      @if (isConvertible(q) && canConvert()) {
         <button type="button" class="btn-primary" (click)="convert()">Convert to Sales Order</button>
       }
       @if (q.status === 'REJECTED' || q.status === 'EXPIRED') {
@@ -113,3 +93,25 @@
     </div>
   }
 </div>
+
+<app-modal [open]="showConvertModal()" title="Convert to Sales Order" (close)="showConvertModal.set(false)">
+  <div class="space-y-4 text-sm">
+    <p class="text-gray-600">
+      This quotation has no delivery type yet. Choose how the order will be fulfilled before creating the sales order.
+    </p>
+    <div>
+      <label class="input-label">Delivery Type *</label>
+      <select class="input-field" [(ngModel)]="convertDeliveryMethod">
+        @for (m of deliveryMethods; track m.value) {
+          <option [ngValue]="m.value">{{ m.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showConvertModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="converting()" (click)="submitConvert()">
+      Create Sales Order
+    </button>
+  </div>
+</app-modal>

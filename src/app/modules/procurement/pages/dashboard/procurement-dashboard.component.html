@@ -1,135 +1,215 @@
-<div class="page-container">
-  <app-procurement-nav />
-  <app-page-header
-    title="Procurement Dashboard"
-    subtitle="Rock Solutions Limited — Sourcing, Purchasing & Supplier Management"
-  />
+<app-dashboard-layout
+  title="Procurement Dashboard"
+  [subtitle]="dashboardSubtitle()"
+  [loading]="loading()"
+  [error]="error()"
+  [lastUpdated]="lastUpdated()"
+  [refreshing]="refreshing()"
+  [showExport]="false"
+  [skeletonKpis]="4"
+  [skeletonCharts]="2"
+  (refresh)="onRefresh()"
+  (retry)="load()"
+  (dateRangeChange)="onDateRangeChange($event)"
+>
+  <app-procurement-nav dashNav />
 
-  @if (loading()) {
-    <app-table-skeleton [cols]="4" />
-  } @else if (error()) {
-    <app-error-state title="Unable to load dashboard" (retry)="load()" />
-  } @else if (data(); as d) {
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div class="card p-5">
-        <p class="text-sm text-gray-500">Pending Requisitions</p>
-        <p class="text-3xl font-bold text-[#1B3A6B]">{{ d.pending_requisitions }}</p>
-        <a routerLink="/procurement/requisitions" [queryParams]="{ status: 'PENDING' }" class="text-xs text-[#2E6DB4] mt-2 inline-block">
-          Review requisitions →
-        </a>
+  @if (data(); as d) {
+    <ng-container dashInsights>
+      <app-insight-banner [insights]="insights()" />
+    </ng-container>
+  }
+  @if (data(); as d) {
+    <ng-container dashKpis>
+      <div class="space-y-4">
+      <div class="dash-kpi-grid dash-kpi-grid--4">
+        <app-kpi-card
+          label="Pending Requisitions"
+          [value]="d.pending_requisitions"
+          icon="pending"
+          tone="warning"
+          [route]="['/procurement/requisitions']"
+          [queryParams]="{ status: 'PENDING' }"
+          comparison="Review requisitions"
+        />
+        <app-kpi-card
+          label="Open Purchase Orders"
+          [value]="d.open_purchase_orders"
+          icon="document"
+          tone="neutral"
+          [route]="['/procurement/purchase-orders']"
+          comparison="View all POs"
+        />
+        <app-kpi-card
+          label="Pending GRN"
+          [value]="d.pending_grn"
+          icon="inventory"
+          tone="warning"
+          [route]="['/procurement/grn']"
+          [queryParams]="{ status: 'DRAFT' }"
+          comparison="Process goods received"
+        />
+        <app-kpi-card
+          label="Monthly Spend"
+          [value]="formatCurrency(d.monthly_spend, 'TZS')"
+          icon="revenue"
+          tone="success"
+          [clickable]="false"
+          [comparison]="d.monthly_po_count + ' POs this month'"
+        />
       </div>
-      <div class="card p-5">
-        <p class="text-sm text-gray-500">Open Purchase Orders</p>
-        <p class="text-3xl font-bold text-[#1B3A6B]">{{ d.open_purchase_orders }}</p>
-        <a routerLink="/procurement/purchase-orders" class="text-xs text-[#2E6DB4] mt-2 inline-block">
-          View POs →
-        </a>
-      </div>
-      <div class="card p-5">
-        <p class="text-sm text-gray-500">Pending GRN</p>
-        <p class="text-3xl font-bold text-amber-600">{{ d.pending_grn }}</p>
-        <a routerLink="/procurement/grn" [queryParams]="{ status: 'DRAFT' }" class="text-xs text-[#2E6DB4] mt-2 inline-block">
-          Process GRN →
-        </a>
-      </div>
-      <div class="card p-5">
-        <p class="text-sm text-gray-500">Monthly Spend</p>
-        <p class="text-2xl font-bold text-green-700">{{ formatCurrency(d.monthly_spend, 'TZS') }}</p>
-        <p class="text-xs text-gray-500 mt-1">{{ d.monthly_po_count }} POs this month</p>
+
+      <div class="dash-kpi-grid">
+        <app-kpi-card
+          label="Suppliers"
+          [value]="d.total_suppliers"
+          icon="people"
+          tone="neutral"
+          [route]="['/procurement/suppliers']"
+          [clickable]="true"
+        />
+        <app-kpi-card
+          label="Open RFQs"
+          [value]="d.open_rfqs"
+          icon="document"
+          tone="info"
+          [route]="['/procurement/rfq']"
+        />
+        <app-kpi-card
+          label="Winners Awaiting PO"
+          [value]="d.pending_quotations"
+          icon="pending"
+          tone="accent"
+          [route]="['/procurement/rfq']"
+        />
+        <app-kpi-card
+          label="PO Approvals"
+          [value]="d.pending_po_approvals"
+          icon="alert"
+          tone="warning"
+          [route]="['/procurement/purchase-orders']"
+        />
+        <app-kpi-card
+          label="Pending Invoices"
+          [value]="d.pending_invoices"
+          icon="expense"
+          tone="neutral"
+          [route]="['/procurement/invoices']"
+        />
+        <app-kpi-card
+          label="Pending GM Review"
+          [value]="d.pending_gm_review ?? 0"
+          icon="alert"
+          tone="warning"
+          [route]="['/procurement/purchase-orders']"
+          [queryParams]="{ status: 'PENDING' }"
+        />
+        <app-kpi-card
+          label="Pending Payment"
+          [value]="d.pending_payment ?? 0"
+          icon="revenue"
+          tone="success"
+          [route]="['/finance/payment-requests']"
+        />
       </div>
     </div>
-
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-      <div class="card p-4 text-center">
-        <p class="text-xs text-gray-500">Suppliers</p>
-        <p class="text-xl font-bold text-[#1B3A6B]">{{ d.total_suppliers }}</p>
-      </div>
-      <div class="card p-4 text-center">
-        <p class="text-xs text-gray-500">Open RFQs</p>
-        <p class="text-xl font-bold text-[#1B3A6B]">{{ d.open_rfqs }}</p>
-      </div>
-      <div class="card p-4 text-center">
-        <p class="text-xs text-gray-500">Pending Quotes</p>
-        <p class="text-xl font-bold text-[#1B3A6B]">{{ d.pending_quotations }}</p>
-      </div>
-      <div class="card p-4 text-center">
-        <p class="text-xs text-gray-500">PO Approvals</p>
-        <p class="text-xl font-bold text-amber-600">{{ d.pending_po_approvals }}</p>
-      </div>
-      <div class="card p-4 text-center">
-        <p class="text-xs text-gray-500">Pending Invoices</p>
-        <p class="text-xl font-bold text-[#1B3A6B]">{{ d.pending_invoices }}</p>
-      </div>
-      <div class="card p-4 text-center">
-        <p class="text-xs text-gray-500">Overdue Invoices</p>
-        <p class="text-xl font-bold text-red-600">{{ d.overdue_invoices }}</p>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-      <div class="card p-6 lg:col-span-2">
-        <h4 class="font-semibold mb-4">Monthly Purchase Spend</h4>
-        @if (d.monthly_chart.length) {
-          <div class="flex items-end gap-3 h-40">
-            @for (m of d.monthly_chart; track m.month) {
-              <div class="flex-1 flex flex-col items-center gap-1">
-                <div
-                  class="w-full bg-[#2E6DB4] rounded-t-md min-h-[4px] transition-all"
-                  [style.height.%]="(+m.spend / maxMonthlySpend()) * 100"
-                ></div>
-                <span class="text-xs text-gray-500">{{ m.month }}</span>
-                <span class="text-[10px] text-gray-400">{{ m.po_count }} PO</span>
-              </div>
-            }
+    </ng-container>
+  }
+  @if (data(); as d) {
+    @if (governance() && showGovernance()) {
+      <div class="card p-6">
+      <app-dashboard-section
+        title="Governance Review Queue"
+        subtitle="GM and finance approvals requiring action"
+        [hasActions]="false"
+      >
+        <app-approval-queue
+          [items]="approvalQueueItems()"
+          emptyMessage="No governance items pending."
+        />
+        @if (governanceAlerts().length) {
+          <div class="mt-4">
+            <app-activity-feed
+              [items]="governanceAlerts()"
+              emptyMessage="No governance alerts."
+            />
           </div>
-        } @else {
-          <p class="text-sm text-gray-500">No purchase orders recorded in the last six months.</p>
         }
+      </app-dashboard-section>
+      </div>
+    }
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2">
+        <app-chart-card
+          title="Monthly Purchase Spend"
+          subtitle="Last six months — purchase order value"
+          [empty]="!d.monthly_chart.length"
+          emptyTitle="No spend data"
+          emptyMessage="No purchase orders recorded in the last six months."
+          [legend]="[{ label: 'Spend (TZS)', color: 'var(--color-secondary-500)' }]"
+        >
+        <div class="flex items-end gap-3 h-44 px-1" role="list" aria-label="Monthly purchase spend chart">
+          @for (m of d.monthly_chart; track m.month) {
+            <div class="flex-1 flex flex-col items-center gap-1 min-w-0" role="listitem">
+              <div
+                class="w-full bg-[var(--color-secondary-500)] rounded-t-md min-h-[4px] transition-all duration-200 hover:opacity-80"
+                [style.height.%]="(+m.spend / maxMonthlySpend()) * 100"
+                [attr.title]="formatCurrency(m.spend, 'TZS') + ' · ' + m.po_count + ' PO(s)'"
+              ></div>
+              <span class="text-xs text-gray-500 truncate w-full text-center">{{ m.month }}</span>
+              <span class="text-[10px] text-gray-400">{{ m.po_count }} PO</span>
+            </div>
+          }
+        </div>
+      </app-chart-card>
       </div>
 
       <div class="card p-6">
-        <h4 class="font-semibold mb-4">Quick Actions</h4>
+      <app-dashboard-section title="Quick Actions" subtitle="Common procurement tasks" [hasActions]="false">
         <ul class="space-y-2">
           @for (action of quickActions; track action.route) {
             <li>
               <a
                 [routerLink]="action.route"
-                class="block px-3 py-2 rounded-lg text-sm font-medium text-[#1B3A6B] bg-gray-50 hover:bg-gray-100 transition-colors"
+                class="block px-3 py-2.5 rounded-xl text-sm font-medium text-[var(--color-primary-500)] bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
               >
                 {{ action.label }}
               </a>
             </li>
           }
         </ul>
+      </app-dashboard-section>
       </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="card p-6">
-        <h4 class="font-semibold mb-4">Top Suppliers (This Month)</h4>
+      <app-dashboard-section title="Top Suppliers" subtitle="Highest spend this month" [hasActions]="false">
         @if (d.top_suppliers.length) {
           <ul class="space-y-2 text-sm">
             @for (s of d.top_suppliers; track s.name) {
-              <li class="flex justify-between border-b border-gray-100 pb-2">
-                <span>
+              <li class="flex justify-between border-b border-gray-100 pb-2 gap-4">
+                <span class="min-w-0">
                   {{ s.name }}
                   <span class="text-gray-400 text-xs">({{ s.order_count }} PO)</span>
                 </span>
-                <span class="font-medium">{{ formatCurrency(s.total, 'TZS') }}</span>
+                <span class="font-medium shrink-0">{{ formatCurrency(s.total, 'TZS') }}</span>
               </li>
             }
           </ul>
         } @else {
           <p class="text-sm text-gray-500">No supplier spend recorded this month.</p>
         }
+      </app-dashboard-section>
       </div>
 
       <div class="card p-6">
-        <h4 class="font-semibold mb-4">PO Status Overview</h4>
+      <app-dashboard-section title="PO Status Overview" subtitle="Purchase orders by status" [hasActions]="false">
         @if (d.po_status_breakdown.length) {
           <dl class="space-y-3 text-sm">
             @for (row of d.po_status_breakdown; track row.status) {
-              <div class="flex justify-between">
+              <div class="flex justify-between gap-4">
                 <dt class="text-gray-500">{{ row.status }}</dt>
                 <dd class="font-medium">{{ row.count }}</dd>
               </div>
@@ -138,51 +218,28 @@
         } @else {
           <p class="text-sm text-gray-500">No purchase orders yet.</p>
         }
+      </app-dashboard-section>
       </div>
     </div>
 
-    <div class="card p-6 mt-6">
-      <h4 class="font-semibold mb-4">Recent Activity</h4>
-      @if (d.recent_activities.length) {
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="text-left text-gray-500 border-b">
-                <th class="pb-2 pr-4">Type</th>
-                <th class="pb-2 pr-4">Reference</th>
-                <th class="pb-2 pr-4">Status</th>
-                <th class="pb-2 pr-4">Detail</th>
-                <th class="pb-2 pr-4">Amount</th>
-                <th class="pb-2">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (a of d.recent_activities; track a.reference + a.created_at) {
-                <tr class="border-b border-gray-50">
-                  <td class="py-2 pr-4">{{ activityLabel(a.type) }}</td>
-                  <td class="py-2 pr-4">
-                    <a [routerLink]="activityRoute(a.type)" class="text-[#2E6DB4] hover:underline">
-                      {{ a.reference }}
-                    </a>
-                  </td>
-                  <td class="py-2 pr-4">{{ a.status }}</td>
-                  <td class="py-2 pr-4 text-gray-600">{{ a.detail }}</td>
-                  <td class="py-2 pr-4">
-                    @if (a.amount) {
-                      {{ formatCurrency(a.amount, 'TZS') }}
-                    } @else {
-                      —
-                    }
-                  </td>
-                  <td class="py-2 text-gray-500">{{ formatDateTime(a.created_at) }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+    <div class="card p-6">
+    <app-dashboard-section
+      dashActivity
+      title="Recent Activity"
+      subtitle="Latest requisitions, purchase orders, and goods received"
+      [hasActions]="false"
+    >
+      @if (activityTableRows().length) {
+        <app-dashboard-table
+          [columns]="activityColumns"
+          [rows]="activityTableRows()"
+          [rowLink]="activityRowLink"
+          trackByKey="id"
+        />
       } @else {
         <p class="text-sm text-gray-500">No recent procurement activity.</p>
       }
+    </app-dashboard-section>
     </div>
   }
-</div>
+</app-dashboard-layout>

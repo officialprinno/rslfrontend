@@ -1,0 +1,113 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header title="All Bills" subtitle="Record vendor bills and track payments">
+    <a routerLink="/finance/bills/new" class="btn-primary">+ New Bill</a>
+  </app-page-header>
+
+  @if (!loading() && !bills().length && !search() && !statusFilter()) {
+    <div class="card p-8 md:p-12 text-center max-w-3xl mx-auto mb-8">
+      <h2 class="text-xl font-semibold text-[#1B3A6B] mb-2">Owe money? It's good to pay bills on time!</h2>
+      <p class="text-gray-600 mb-6">
+        If you've purchased something for your business and you don't have to repay it immediately,
+        record it as a bill.
+      </p>
+      <a routerLink="/finance/bills/new" class="btn-primary inline-block mb-4">Create a Bill</a>
+
+      <div class="mt-10 pt-8 border-t border-gray-200">
+        <h3 class="font-semibold text-gray-800 mb-6">Life cycle of a Bill</h3>
+        <div class="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-600">
+          <div class="p-4 bg-gray-50 rounded-xl min-w-[120px]">
+            <div class="text-2xl mb-2">🛍️</div>
+            <strong class="block text-gray-800">Purchase Items</strong>
+          </div>
+          <span class="text-gray-400">→</span>
+          <div class="p-4 bg-gray-50 rounded-xl min-w-[120px]">
+            <div class="text-2xl mb-2">📄</div>
+            <strong class="block text-gray-800">Record Bill</strong>
+          </div>
+          <span class="text-gray-400">→</span>
+          <div class="p-4 bg-blue-50 rounded-xl min-w-[120px]">
+            <strong class="block text-[#1B3A6B]">Convert to Open</strong>
+          </div>
+          <span class="text-gray-400">→</span>
+          <div class="flex flex-col gap-2">
+            <div class="p-3 bg-amber-50 rounded-lg text-xs">Record Partial Payment</div>
+            <div class="p-3 bg-green-50 rounded-lg text-xs">Record Payment</div>
+          </div>
+        </div>
+        <ul class="text-left text-sm text-gray-600 mt-8 space-y-2 max-w-md mx-auto">
+          <li>✓ Create bills and record payments</li>
+          <li>✓ Track open and partially paid balances</li>
+          <li>✓ Link expenses to GL accounts and taxes</li>
+        </ul>
+      </div>
+    </div>
+  }
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search bill or vendor..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-40"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      <option value="DRAFT">Draft</option>
+      <option value="OPEN">Open</option>
+      <option value="PARTIAL">Partial</option>
+      <option value="PAID">Paid</option>
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!bills().length) {
+    <app-empty-state moduleName="Bills" actionLabel="Create Bill" (companySwitched)="load()" />
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Bill #</th>
+            <th class="table-th">Vendor Bill #</th>
+            <th class="table-th">Vendor</th>
+            <th class="table-th">Date</th>
+            <th class="table-th">Due</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Balance</th>
+            <th class="table-th">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (bill of bills(); track bill.id) {
+            <tr
+              class="table-row cursor-pointer hover:!bg-blue-50"
+              [routerLink]="['/finance/bills', bill.id, 'view']"
+            >
+              <td class="table-td font-medium text-[#1B3A6B]">{{ bill.bill_number }}</td>
+              <td class="table-td">{{ bill.vendor_bill_number || '—' }}</td>
+              <td class="table-td">{{ bill.vendor_name }}</td>
+              <td class="table-td">{{ formatDate(bill.bill_date) }}</td>
+              <td class="table-td">{{ formatDate(bill.due_date) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(bill.total_amount, bill.currency_code) }}</td>
+              <td class="table-td">{{ formatCurrency(bill.balance_due, bill.currency_code) }}</td>
+              <td class="table-td"><app-status-badge [status]="bill.status" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="15"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

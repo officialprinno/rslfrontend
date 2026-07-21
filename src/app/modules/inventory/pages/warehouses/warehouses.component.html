@@ -13,7 +13,7 @@
   } @else if (error()) {
     <app-error-state (retry)="load()" />
   } @else if (!warehouses().length) {
-    <div class="card"><app-empty-state title="No warehouses" message="Add a warehouse to start tracking stock locations." actionLabel="Add Warehouse" (actionClick)="openAdd()" /></div>
+    <div class="card"><app-empty-state moduleName="Warehouses" actionLabel="Add Warehouse" (actionClick)="openAdd()" (companySwitched)="load()" /></div>
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
       @for (w of warehouses(); track w.id) {

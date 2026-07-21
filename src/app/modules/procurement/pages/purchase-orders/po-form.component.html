@@ -20,47 +20,214 @@
             @for (c of currencies(); track c.id) { <option [ngValue]="c.id">{{ c.code }}</option> }
           </select>
         </div>
-        <div><label class="input-label">Exchange Rate</label><input type="number" formControlName="exchange_rate" step="0.0001" class="input-field" /></div>
         <div>
-          <label class="input-label">Payment Terms</label>
+          <label class="input-label">Exchange Rate</label>
+          <input type="number" formControlName="exchange_rate" step="0.0001" class="input-field bg-gray-50" readonly />
+          <p class="text-xs text-gray-500 mt-1">Finance-managed system rate</p>
+        </div>
+        <div>
+          <label class="input-label">Supplier Payment Terms</label>
           <select formControlName="payment_terms" class="input-field">
             @for (t of paymentTerms; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+            @if (form.controls.payment_terms.value; as currentTerm) {
+              @if (!isStandardPaymentTerm(currentTerm)) {
+                <option [value]="currentTerm">Custom — {{ paymentTermLabel(currentTerm) }}</option>
+              }
+            }
           </select>
         </div>
+        <div>
+          <label class="input-label">Payment Mode *</label>
+          <select formControlName="payment_mode" class="input-field">
+            @for (m of paymentModes; track m.value) {
+              <option [value]="m.value">{{ m.label }} — {{ m.description }}</option>
+            }
+          </select>
+        </div>
+        @if (showAdvancePercent()) {
+          <div>
+            <label class="input-label">Advance % *</label>
+            <div class="flex items-stretch overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-[#1B3A6B] focus-within:ring-1 focus-within:ring-[#1B3A6B]">
+              <input type="number" formControlName="advance_percent" min="0.01" max="100" step="0.01" class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 outline-none" placeholder="e.g. 30" />
+              <span class="flex items-center justify-center border-l border-gray-200 bg-blue-50 px-3 text-xs font-semibold text-[#1B3A6B]">%</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">Advance to pay before delivery (partial payment).</p>
+          </div>
+        }
         <div class="md:col-span-2">
           <label class="input-label">Notes / Terms</label>
           <textarea formControlName="notes" rows="3" class="input-field resize-none"></textarea>
-        </div>
-        <div class="flex items-center gap-2">
-          <input type="checkbox" formControlName="apply_vat" id="vat" />
-          <label for="vat" class="text-sm">Apply 18% VAT</label>
         </div>
       </div>
     </div>
 
     <div>
-      <div class="flex justify-between mb-3">
-        <h4 class="font-semibold">Items</h4>
-        <button type="button" class="btn-ghost !text-xs" (click)="addLine()">+ Add Item</button>
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h4 class="text-sm font-semibold text-[#1B3A6B]">Items *</h4>
+          <p class="text-xs text-gray-500 mt-0.5">
+            Add inventory or manual lines. Mark VAT per item — totals update automatically.
+          </p>
+        </div>
+        <button type="button" class="btn-secondary !text-xs !py-1.5" (click)="addLine()">+ Add Item</button>
       </div>
-      <div formArrayName="lineItems" class="space-y-2">
+
+      <div formArrayName="lineItems" class="space-y-3">
         @for (line of lineItems().controls; track $index; let i = $index) {
-          <div [formGroupName]="i" class="grid grid-cols-12 gap-2 items-end p-3 bg-gray-50 rounded-xl">
-            <div class="col-span-4">
-              <app-searchable-select [options]="itemOptions()" [value]="line.value.item" (valueChange)="onItemSelect(i, $event)" />
+          <div [formGroupName]="i" class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
+              <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                Line {{ i + 1 }}
+              </span>
+              <button
+                type="button"
+                class="btn-ghost !text-red-600 !text-xs !py-1"
+                (click)="removeLine(i)"
+                [disabled]="lineItems().length <= 1"
+              >
+                Remove
+              </button>
             </div>
-            <div class="col-span-2"><input type="number" formControlName="quantity_ordered" class="input-field" placeholder="Qty" /></div>
-            <div class="col-span-2"><input type="number" formControlName="unit_price" class="input-field" placeholder="Price" /></div>
-            <div class="col-span-2"><input type="number" formControlName="discount_percent" class="input-field" placeholder="Disc %" /></div>
-            <div class="col-span-1 font-semibold text-sm">{{ formatCurrency(lineTotal(i)) }}</div>
-            <div class="col-span-1"><button type="button" class="btn-ghost !text-red-600" (click)="removeLine(i)">×</button></div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-3">
+              <!-- Type -->
+              <div class="xl:col-span-2">
+                <label class="input-label">Type</label>
+                <select
+                  formControlName="line_type"
+                  class="input-field"
+                  (change)="onLineTypeChange(i, $any($event.target).value)"
+                >
+                  @for (opt of lineTypeOptions; track opt.value) {
+                    <option [value]="opt.value">{{ opt.label }}</option>
+                  }
+                </select>
+              </div>
+
+              <!-- Item / Description -->
+              @if (isInventoryLine(i)) {
+                <div class="md:col-span-2 xl:col-span-3">
+                  <label class="input-label">Inventory Item *</label>
+                  <app-searchable-select
+                    [options]="itemOptions()"
+                    [value]="line.value.item"
+                    [wideDropdown]="true"
+                    placeholder="Search inventory item..."
+                    (valueChange)="onItemSelect(i, $event)"
+                  />
+                </div>
+              } @else {
+                <div class="md:col-span-2 xl:col-span-3">
+                  <label class="input-label">Description *</label>
+                  <input
+                    type="text"
+                    formControlName="description"
+                    class="input-field"
+                    placeholder="e.g. Freight, installation, service"
+                  />
+                </div>
+              }
+
+              <!-- Qty + Unit -->
+              <div class="xl:col-span-2">
+                <label class="input-label">Qty / Unit</label>
+                <div
+                  class="flex items-stretch overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-[#1B3A6B] focus-within:ring-1 focus-within:ring-[#1B3A6B]"
+                >
+                  <input
+                    type="number"
+                    formControlName="quantity_ordered"
+                    class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 outline-none"
+                    placeholder="Qty"
+                    min="0.0001"
+                    step="any"
+                  />
+                  @if (isInventoryLine(i)) {
+                    <span
+                      class="flex min-w-14 max-w-24 items-center justify-center whitespace-nowrap border-l border-gray-200 bg-blue-50 px-2.5 text-xs font-semibold text-[#1B3A6B]"
+                      [title]="lineUnit(i)"
+                    >
+                      {{ lineUnit(i) }}
+                    </span>
+                  } @else {
+                    <input
+                      type="text"
+                      formControlName="unit_of_measure"
+                      class="w-16 border-0 border-l border-gray-200 bg-blue-50 px-2 text-center text-xs font-semibold text-[#1B3A6B] outline-none"
+                      placeholder="pcs"
+                    />
+                  }
+                </div>
+              </div>
+
+              <!-- Unit price -->
+              <div class="xl:col-span-2">
+                <label class="input-label">Unit Price</label>
+                <input type="number" formControlName="unit_price" class="input-field" min="0" step="0.01" placeholder="0.00" />
+              </div>
+
+              <!-- Discount -->
+              <div class="xl:col-span-1">
+                <label class="input-label">Disc %</label>
+                <input type="number" formControlName="discount_percent" class="input-field" min="0" max="100" step="0.01" placeholder="0" />
+              </div>
+
+              <!-- VAT toggle -->
+              <div class="xl:col-span-2">
+                <label class="input-label">Apply VAT</label>
+                <label
+                  class="flex h-10 cursor-pointer items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3"
+                  [class.border-amber-300]="line.value.vat_enabled"
+                  [class.bg-amber-50]="line.value.vat_enabled"
+                >
+                  <span class="text-sm font-medium" [class.text-amber-800]="line.value.vat_enabled">
+                    {{ line.value.vat_enabled ? 'VAT 18%' : 'No VAT' }}
+                  </span>
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4"
+                    [checked]="line.value.vat_enabled"
+                    (change)="onVatToggle(i, $any($event.target).checked)"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <!-- Amounts -->
+            <div class="mt-3 grid grid-cols-3 gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-3">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Net</p>
+                <p class="mt-1 text-sm font-semibold text-gray-800">{{ formatCurrency(lineNetTotal(i)) }}</p>
+                <p class="text-[11px] text-gray-400">Qty × price − discount</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">VAT</p>
+                <p class="mt-1 text-sm font-semibold text-amber-700">{{ formatCurrency(lineVatAmount(i)) }}</p>
+                <p class="text-[11px] text-gray-400">{{ line.value.vat_enabled ? '18% of net' : 'Not applied' }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Total</p>
+                <p class="mt-1 text-base font-bold text-[#1B3A6B]">{{ formatCurrency(lineTotal(i)) }}</p>
+                <p class="text-[11px] text-gray-400">Net + VAT</p>
+              </div>
+            </div>
           </div>
         }
       </div>
-      <div class="mt-4 text-right space-y-1 text-sm">
-        <p>Subtotal: <strong>{{ formatCurrency(subtotal()) }}</strong></p>
-        <p>VAT (18%): <strong>{{ formatCurrency(taxAmount()) }}</strong></p>
-        <p class="text-lg">Grand Total: <strong class="text-[#1B3A6B]">{{ formatCurrency(grandTotal()) }}</strong></p>
+
+      <div class="mt-4 flex flex-wrap items-center justify-end gap-x-6 gap-y-2 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3">
+        <div class="text-sm text-gray-500">
+          Subtotal
+          <span class="ml-2 font-semibold text-gray-800">{{ formatCurrency(subtotal()) }}</span>
+        </div>
+        <div class="text-sm text-gray-500">
+          VAT
+          <span class="ml-2 font-semibold text-amber-700">{{ formatCurrency(taxAmount()) }}</span>
+        </div>
+        <div class="text-sm text-gray-500">
+          Grand Total
+          <span class="ml-2 text-lg font-bold text-[#1B3A6B]">{{ formatCurrency(grandTotal()) }}</span>
+        </div>
       </div>
     </div>
 

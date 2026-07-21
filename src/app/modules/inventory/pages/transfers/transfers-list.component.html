@@ -8,14 +8,17 @@
 
   @if (loading()) { <app-table-skeleton [cols]="8" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (workspaceEmpty()) {
+    <div class="card"><app-empty-state moduleName="Stock Transfers" [actionLabel]="canAdd() ? 'New Transfer' : ''" (actionClick)="openNew()" (companySwitched)="load()" /></div>
+  }
   @else if (!transfers().length) {
-    <div class="card"><app-empty-state title="No stock transfers" message="Move stock between warehouses with approval workflow." [actionLabel]="canAdd() ? 'New Transfer' : ''" (actionClick)="openNew()" /></div>
+    <div class="card"><app-empty-state moduleName="Stock Transfers" [actionLabel]="canAdd() ? 'New Transfer' : ''" (actionClick)="openNew()" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
       <div class="flex justify-end px-4 pt-3">
         <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
       </div>
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
@@ -38,7 +41,7 @@
                 <td class="table-td">{{ t.destination_warehouse_name }}</td>
                 <td class="table-td text-sm">
                   @for (line of t.lines; track line.id) {
-                    <div>{{ line.item_name }} × {{ formatNumber(line.quantity) }}</div>
+                    <div>{{ line.item_name }} × {{ formatNumber(line.quantity) }} {{ line.unit_of_measure || 'unit' }}</div>
                   }
                 </td>
                 <td class="table-td"><app-status-badge [status]="t.status" /></td>
@@ -87,7 +90,7 @@
       <app-searchable-select [options]="itemOptions()" [value]="form.controls.item.value" placeholder="Search items..." (valueChange)="form.controls.item.setValue($event != null ? +$event : null)" />
     </div>
     <div>
-      <label class="input-label">Quantity *</label>
+      <label class="input-label">Quantity * ({{ selectedUnit() }})</label>
       <input type="number" formControlName="quantity" min="0.0001" step="0.01" class="input-field" />
     </div>
     <div>

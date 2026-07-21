@@ -4,21 +4,25 @@ import autoTable from 'jspdf-autotable';
 import { Invoice, Quotation } from '../models/sales.model';
 import { COMPANY_DETAILS } from '../../modules/sales/constants/sales.constants';
 import { formatCurrency, formatDate } from './format.util';
+import { generateQrDataUrl } from './qr.util';
+import { drawPdfHeaderLogo, drawPdfWatermark } from './brand.util';
 
 const BRAND_RGB: [number, number, number] = [27, 58, 107];
 const MARGIN = 14;
+const HEADER_TEXT_X = MARGIN + 38;
 
 function addHeader(doc: jsPDF, title: string, docNumber: string): number {
   doc.setFillColor(...BRAND_RGB);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 32, 'F');
+  drawPdfHeaderLogo(doc, MARGIN, 6, 34, 20);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(COMPANY_DETAILS.name, MARGIN, 11);
+  doc.text(COMPANY_DETAILS.name, HEADER_TEXT_X, 11);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`TIN: ${COMPANY_DETAILS.tin} | VRN: ${COMPANY_DETAILS.vat}`, MARGIN, 17);
-  doc.text(COMPANY_DETAILS.address, MARGIN, 22);
+  doc.text(`TIN: ${COMPANY_DETAILS.tin} | VRN: ${COMPANY_DETAILS.vat}`, HEADER_TEXT_X, 17);
+  doc.text(COMPANY_DETAILS.address, HEADER_TEXT_X, 22);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(title, doc.internal.pageSize.getWidth() - MARGIN, 12, { align: 'right' });
@@ -67,16 +71,22 @@ export function exportQuotationPdf(quotation: Quotation): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = addHeader(doc, 'QUOTATION', quotation.quotation_number);
 
-  y = addMetaGrid(doc, y, [
+  const meta: [string, string][] = [
     ['Customer', quotation.customer_name],
     ['Mine', quotation.mine_name],
     ['Valid Until', formatDate(quotation.valid_until)],
     ['Status', quotation.status],
     ['Currency', quotation.currency_code],
-    ['Exchange Rate', String(quotation.exchange_rate)],
+  ];
+  if (quotation.currency_code?.toUpperCase() !== 'TZS') {
+    meta.push(['Exchange Rate', `1 ${quotation.currency_code} = ${quotation.exchange_rate} TZS`]);
+  }
+  meta.push(
     ['Prepared By', quotation.created_by_name],
     ['Date', formatDate(quotation.created_at)],
-  ]);
+  );
+
+  y = addMetaGrid(doc, y, meta);
 
   autoTable(doc, {
     startY: y,
@@ -102,16 +112,7 @@ export function exportQuotationPdf(quotation: Quotation): void {
   doc.text(`VAT: ${formatCurrency(quotation.tax_amount, quotation.currency_code)}`, summaryX, finalY + 14, {
     align: 'right',
   });
-  let totalY = finalY + 22;
-  if (quotation.delivery_cost) {
-    doc.text(
-      `Delivery: ${formatCurrency(quotation.delivery_cost, quotation.currency_code)}`,
-      summaryX,
-      finalY + 20,
-      { align: 'right' },
-    );
-    totalY = finalY + 28;
-  }
+  const totalY = finalY + 22;
   doc.setFont('helvetica', 'bold');
   doc.text(
     `Grand Total: ${formatCurrency(quotation.total_amount, quotation.currency_code)}`,
@@ -130,24 +131,50 @@ export function exportQuotationPdf(quotation: Quotation): void {
     doc.text(split, MARGIN, totalY + 16);
   }
 
+  drawPdfWatermark(doc);
   addFooter(doc);
   doc.save(`${quotation.quotation_number}.pdf`);
 }
 
-export function exportInvoicePdf(invoice: Invoice): void {
+export async function exportInvoicePdf(invoice: Invoice): Promise<void> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   let y = addHeader(doc, 'TAX INVOICE', invoice.invoice_number);
 
-  y = addMetaGrid(doc, y, [
+  if (invoice.public_view_url) {
+    const qr = await generateQrDataUrl(invoice.public_view_url, 140);
+    if (qr) {
+      const qrSize = 22;
+      const qrX = doc.internal.pageSize.getWidth() - MARGIN - qrSize;
+      doc.addImage(qr, 'PNG', qrX, 34, qrSize, qrSize);
+      doc.setFontSize(7);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Scan to view invoice', qrX + qrSize / 2, 34 + qrSize + 3, { align: 'center' });
+      doc.setTextColor(40, 40, 40);
+    }
+  }
+
+  const meta: [string, string][] = [
     ['Customer', invoice.customer_name],
     ['Customer TIN', invoice.customer_tin],
     ['Sales Order', invoice.so_number ?? '—'],
     ['Invoice Date', formatDate(invoice.invoice_date)],
     ['Due Date', formatDate(invoice.due_date)],
+    ['Payment Terms', invoice.payment_term_display || invoice.payment_term || '—'],
     ['TRA Receipt No.', invoice.tra_receipt_number || '—'],
     ['Currency', invoice.currency_code],
-    ['Status', invoice.status],
-  ]);
+  ];
+  if (invoice.deposit_amount) {
+    meta.push(['Deposit Required', formatCurrency(invoice.deposit_amount, invoice.currency_code)]);
+  }
+  if (invoice.credit_days) {
+    meta.push(['Credit Days', String(invoice.credit_days)]);
+  }
+  if (invoice.currency_code?.toUpperCase() !== 'TZS') {
+    meta.push(['Exchange Rate', `1 ${invoice.currency_code} = ${invoice.exchange_rate} TZS`]);
+  }
+  meta.push(['Status', invoice.status]);
+
+  y = addMetaGrid(doc, y, meta);
 
   autoTable(doc, {
     startY: y,
@@ -165,7 +192,26 @@ export function exportInvoicePdf(invoice: Invoice): void {
     theme: 'striped',
   });
 
-  const finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y + 20;
+  let finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y + 20;
+
+  if (invoice.other_costs?.length) {
+    autoTable(doc, {
+      startY: finalY + 4,
+      head: [['Other Cost', 'Category', 'Notes', 'Amount']],
+      body: invoice.other_costs.map((cost) => [
+        cost.cost_name,
+        cost.category ?? '—',
+        cost.description ?? '—',
+        formatCurrency(cost.amount, invoice.currency_code),
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: BRAND_RGB, textColor: 255 },
+      theme: 'striped',
+    });
+    finalY =
+      (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? finalY + 20;
+  }
+
   const summaryX = doc.internal.pageSize.getWidth() - MARGIN;
   doc.setFontSize(10);
   doc.text(`Subtotal: ${formatCurrency(invoice.subtotal, invoice.currency_code)}`, summaryX, finalY + 8, {
@@ -174,19 +220,26 @@ export function exportInvoicePdf(invoice: Invoice): void {
   doc.text(`VAT: ${formatCurrency(invoice.tax_amount, invoice.currency_code)}`, summaryX, finalY + 14, {
     align: 'right',
   });
-  let totalY = finalY + 22;
-  if (invoice.delivery_cost) {
+  let lineY = finalY + 20;
+  doc.text(
+    `Line Items: ${formatCurrency(invoice.total_amount, invoice.currency_code)}`,
+    summaryX,
+    lineY,
+    { align: 'right' },
+  );
+  if (invoice.other_costs_total) {
+    lineY += 6;
     doc.text(
-      `Delivery: ${formatCurrency(invoice.delivery_cost, invoice.currency_code)}`,
+      `Other Costs: ${formatCurrency(invoice.other_costs_total, invoice.currency_code)}`,
       summaryX,
-      finalY + 20,
+      lineY,
       { align: 'right' },
     );
-    totalY = finalY + 28;
   }
+  const totalY = lineY + 8;
   doc.setFont('helvetica', 'bold');
   doc.text(
-    `Total: ${formatCurrency(invoice.total_amount, invoice.currency_code)}`,
+    `Grand Total: ${formatCurrency(invoice.grand_total || invoice.total_amount, invoice.currency_code)}`,
     summaryX,
     totalY,
     { align: 'right' },
@@ -208,6 +261,7 @@ export function exportInvoicePdf(invoice: Invoice): void {
     finalY + 46,
   );
 
+  drawPdfWatermark(doc);
   addFooter(doc);
   doc.save(`${invoice.invoice_number}.pdf`);
 }

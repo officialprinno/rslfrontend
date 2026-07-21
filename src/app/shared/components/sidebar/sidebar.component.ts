@@ -23,6 +23,8 @@ import { AuthService } from '../../../core/services/auth.service';
 import { isMachineOperatorOnly } from '../../../core/utils/operator-access.util';
 import { LayoutService } from '../../../core/services/layout.service';
 import { NotificationCountsService } from '../../../core/services/notification-counts.service';
+import { CompanyContextService } from '../../../core/services/company-context.service';
+import { shouldHideProcurementModule, canViewInventoryPurchaseOrders } from '../../../modules/inventory/utils/inventory-permissions.util';
 
 const OPERATOR_PRODUCTION_ROUTES = new Set([
   '/production/operator',
@@ -53,6 +55,7 @@ export class SidebarComponent {
   readonly navItemClick = output<void>();
 
   readonly auth = inject(AuthService);
+  readonly companyContext = inject(CompanyContextService);
   readonly layout = inject(LayoutService);
   readonly counts = inject(NotificationCountsService);
   private readonly router = inject(Router);
@@ -75,6 +78,12 @@ export class SidebarComponent {
     if (item.module === 'inventory' && this.isMachineOperatorOnly()) {
       return false;
     }
+    if (item.module === 'procurement' && shouldHideProcurementModule(this.auth, this.companyContext)) {
+      return false;
+    }
+    if (item.route === '/my-leave' || item.route === '/my-payment-requests') {
+      return !!this.auth.getCurrentUser();
+    }
     if (!item.module) {
       return true;
     }
@@ -82,6 +91,9 @@ export class SidebarComponent {
   }
 
   private visibleChild(child: NavChildItem): boolean {
+    if (child.route === '/inventory/purchase-orders') {
+      return canViewInventoryPurchaseOrders(this.auth, this.companyContext);
+    }
     if (child.module === 'safety' && this.auth.hasRole(ROLES.STOREKEEPER)) {
       return false;
     }
@@ -183,14 +195,12 @@ export class SidebarComponent {
   toggleGroup(route: string, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
+    // Accordion behaviour: opening one group collapses any other open group.
     this.expandedGroups.update((set) => {
-      const next = new Set(set);
-      if (next.has(route)) {
-        next.delete(route);
-      } else {
-        next.add(route);
+      if (set.has(route)) {
+        return new Set<string>();
       }
-      return next;
+      return new Set<string>([route]);
     });
   }
 
@@ -216,13 +226,11 @@ export class SidebarComponent {
         url.startsWith(item.route) ||
         item.children.some((c) => url === c.route || url.startsWith(c.route + '/'));
       if (match) {
-        this.expandedGroups.update((set) => {
-          if (set.has(item.route)) return set;
-          const next = new Set(set);
-          next.add(item.route);
-          return next;
-        });
-        break;
+        // Accordion: only the group matching the active route stays open.
+        this.expandedGroups.update((set) =>
+          set.has(item.route) && set.size === 1 ? set : new Set<string>([item.route]),
+        );
+        return;
       }
     }
   }
@@ -232,7 +240,8 @@ export class SidebarComponent {
       const raw = localStorage.getItem(EXPANDED_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as string[];
-        return new Set(parsed);
+        // Accordion: restore at most one open group.
+        return new Set(parsed.slice(0, 1));
       }
     } catch {
       /* ignore */

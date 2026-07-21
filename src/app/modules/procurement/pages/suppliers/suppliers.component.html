@@ -6,90 +6,82 @@
     }
   </app-page-header>
 
-  <div class="card p-4 mb-4">
-    <div class="flex flex-wrap gap-3 items-end">
-      <div class="flex-1 min-w-[200px]">
+  <div class="card mb-4">
+    <app-list-filter-bar>
+      <div filterSearch class="flex-1 min-w-[12rem]">
         <label class="input-label">Search</label>
-        <input type="text" class="input-field" placeholder="Name, TIN, email..." [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1); load()" />
+        <input type="search" class="input-field" placeholder="Name, TIN, email..." [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1); load()" />
       </div>
-      <div class="w-40">
-        <label class="input-label">Country</label>
-        <select class="input-field" [ngModel]="countryFilter()" (ngModelChange)="countryFilter.set($event); page.set(1); load()">
-          <option value="">All</option>
-          @for (c of countries; track c) { <option [value]="c">{{ c }}</option> }
-        </select>
-      </div>
-      <div class="w-36">
-        <label class="input-label">Status</label>
-        <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-      </div>
-      <div class="w-28">
-        <label class="input-label">Rating</label>
-        <select class="input-field" [ngModel]="ratingFilter()" (ngModelChange)="ratingFilter.set($event ? +$event : ''); page.set(1); load()">
-          <option value="">All</option>
-          @for (r of [1,2,3,4,5]; track r) { <option [value]="r">{{ r }} ★</option> }
-        </select>
-      </div>
-      <button type="button" class="btn-ghost" (click)="exportExcel()">Export to Excel</button>
-    </div>
+      <ng-container filterFields>
+        <div class="w-36">
+          <label class="input-label">Country</label>
+          <select class="input-field" [ngModel]="countryFilter()" (ngModelChange)="countryFilter.set($event); page.set(1); load()">
+            <option value="">All</option>
+            @for (c of countries; track c) { <option [value]="c">{{ c }}</option> }
+          </select>
+        </div>
+        <div class="w-32">
+          <label class="input-label">Status</label>
+          <select class="input-field" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); page.set(1); load()">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="w-28">
+          <label class="input-label">Rating</label>
+          <select class="input-field" [ngModel]="ratingFilter()" (ngModelChange)="ratingFilter.set($event ? +$event : ''); page.set(1); load()">
+            <option value="">All</option>
+            @for (r of [1,2,3,4,5]; track r) { <option [value]="r">{{ r }} ★</option> }
+          </select>
+        </div>
+      </ng-container>
+      <ng-container filterActions>
+        <button type="button" class="btn-ghost" (click)="exportExcel()">Export</button>
+      </ng-container>
+    </app-list-filter-bar>
   </div>
 
   @if (loading()) { <app-table-skeleton [cols]="9" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
   @else if (!suppliers().length) {
-    <div class="card"><app-empty-state title="No suppliers" message="Register suppliers to begin procurement." [actionLabel]="canAdd() ? 'Add Supplier' : ''" (actionClick)="openAdd()" /></div>
+    <div class="card"><app-empty-state moduleName="Suppliers" [actionLabel]="canAdd() ? 'Add Supplier' : ''" (actionClick)="openAdd()" (companySwitched)="load()" /></div>
   } @else {
-    <div class="table-container">
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr>
-              <th class="table-th">Name</th>
-              <th class="table-th">TIN Number</th>
-              <th class="table-th">Email</th>
-              <th class="table-th">Phone</th>
-              <th class="table-th">Country</th>
-              <th class="table-th">Currency</th>
-              <th class="table-th">Payment Terms</th>
-              <th class="table-th">Rating</th>
-              <th class="table-th">Status</th>
-              <th class="table-th">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (s of suppliers(); track s.id) {
-              <tr class="table-row">
-                <td class="table-td font-medium">{{ s.name }}</td>
-                <td class="table-td">{{ s.tin_number }}</td>
-                <td class="table-td">{{ s.email }}</td>
-                <td class="table-td">{{ s.phone }}</td>
-                <td class="table-td">{{ s.country }}</td>
-                <td class="table-td">{{ s.currency_code }}</td>
-                <td class="table-td"><app-payment-terms-badge [terms]="s.payment_terms" /></td>
-                <td class="table-td"><app-star-rating [value]="s.rating" /></td>
-                <td class="table-td"><app-status-badge [status]="s.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="s.is_active ? 'Active' : 'Inactive'" /></td>
-                <td class="table-td">
-                  <div class="flex gap-1">
-                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(s)">View</button>
-                    @if (canAdd()) {
-                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(s)">Edit</button>
-                    }
-                    @if (canDelete()) {
-                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(s)">Delete</button>
-                    }
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      <app-pagination [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
-    </div>
+    <app-enterprise-data-table>
+      <thead>
+        <tr>
+          <th class="table-th table-col-lg">Name</th>
+          <th class="table-th table-col-md">TIN Number</th>
+          <th class="table-th table-col-lg">Email</th>
+          <th class="table-th table-col-md">Phone</th>
+          <th class="table-th table-col-sm">Country</th>
+          <th class="table-th table-col-sm">Currency</th>
+          <th class="table-th table-col-md">Payment Terms</th>
+          <th class="table-th table-col-sm">Rating</th>
+          <th class="table-th table-col-status">Status</th>
+          <th class="table-th table-col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of suppliers(); track s.id) {
+          <tr class="table-row">
+            <td class="table-td table-col-lg"><app-table-cell-text [value]="s.name" weight="medium" /></td>
+            <td class="table-td table-col-md"><app-table-cell-text [value]="s.tin_number" /></td>
+            <td class="table-td table-col-lg"><app-table-cell-text [value]="s.email" /></td>
+            <td class="table-td table-col-md"><app-table-cell-text [value]="s.phone" /></td>
+            <td class="table-td table-col-sm"><app-table-cell-text [value]="s.country" /></td>
+            <td class="table-td table-col-sm"><app-table-cell-text [value]="s.currency_code" /></td>
+            <td class="table-td table-col-md"><app-payment-terms-badge [terms]="s.payment_terms" /></td>
+            <td class="table-td table-col-sm"><app-star-rating [value]="s.rating" /></td>
+            <td class="table-td table-col-status"><app-status-badge [status]="s.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="s.is_active ? 'Active' : 'Inactive'" /></td>
+            <td class="table-td table-col-actions">
+              <app-table-actions [actions]="rowActions(s)" (actionClick)="onRowAction($event, s)" />
+            </td>
+          </tr>
+        }
+      </tbody>
+      <app-pagination tableFooter [page]="page()" [pageSize]="pageSize()" [total]="total()" (pageChange)="page.set($event); load()" (pageSizeChange)="pageSize.set($event); page.set(1); load()" />
+    </app-enterprise-data-table>
   }
 </div>
 
@@ -100,10 +92,13 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="md:col-span-2">
           <label class="input-label">Supplier Name *</label>
-          <input type="text" formControlName="name" class="input-field" />
+          <input type="text" formControlName="name" class="input-field" required />
+          @if (fieldError('name'); as err) {
+            <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+          }
         </div>
         <div><label class="input-label">Registration Number</label><input type="text" formControlName="registration_number" class="input-field" /></div>
-        <div><label class="input-label">TIN Number *</label><input type="text" formControlName="tin_number" class="input-field" /></div>
+        <div><label class="input-label">TIN Number</label><input type="text" formControlName="tin_number" class="input-field" /></div>
         <div><label class="input-label">VAT Number</label><input type="text" formControlName="vat_number" class="input-field" /></div>
         <div>
           <label class="input-label">Country *</label>
@@ -118,8 +113,20 @@
     <div>
       <h4 class="text-sm font-semibold text-gray-900 mb-3">Contact</h4>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><label class="input-label">Email *</label><input type="email" formControlName="email" class="input-field" /></div>
-        <div><label class="input-label">Phone *</label><input type="text" formControlName="phone" class="input-field" /></div>
+        <div>
+          <label class="input-label">Email *</label>
+          <input type="email" formControlName="email" class="input-field" required />
+          @if (fieldError('email'); as err) {
+            <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+          }
+        </div>
+        <div>
+          <label class="input-label">Phone *</label>
+          <input type="tel" formControlName="phone" class="input-field" required />
+          @if (fieldError('phone'); as err) {
+            <p class="text-xs text-red-600 mt-1">{{ err }}</p>
+          }
+        </div>
       </div>
     </div>
     <div>

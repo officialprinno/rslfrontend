@@ -64,7 +64,7 @@
         @if (!departments().length) {
           <app-empty-state title="No departments" message="Departments are managed in system settings." />
         } @else {
-          <div class="overflow-x-auto">
+          <div class="table-scroll-viewport">
             <table class="w-full">
               <thead>
                 <tr>
@@ -164,7 +164,7 @@
             (actionClick)="openHolidayForm()"
           />
         } @else {
-          <div class="overflow-x-auto">
+          <div class="table-scroll-viewport">
             <table class="w-full">
               <thead>
                 <tr>

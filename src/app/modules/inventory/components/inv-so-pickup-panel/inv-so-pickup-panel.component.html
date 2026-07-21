@@ -1,0 +1,108 @@
+<div class="card p-6 border-l-4 border-l-emerald-500">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+    <h4 class="font-semibold text-[#1B3A6B]">Customer Pickup — {{ order().so_number }}</h4>
+    <app-inv-so-workflow-print kind="pickup" [order]="order()" />
+  </div>
+  <p class="text-sm text-gray-500 mb-4">
+    Prepare items, mark ready at gate, then confirm collection when the customer collects.
+  </p>
+
+  @if (order().scheduled_pickup_date) {
+    <p class="text-sm text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4">
+      Logistics scheduled pickup: <strong>{{ order().scheduled_pickup_date }}</strong>
+    </p>
+  }
+
+  <div class="mb-4 overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr>
+          <th class="table-th">Item</th>
+          <th class="table-th">Qty Ordered</th>
+          <th class="table-th">Qty Reserved</th>
+          <th class="table-th">Qty to Dispatch</th>
+          <th class="table-th">Stock Outstanding</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of order().items; track line.id) {
+          <tr class="table-row">
+            <td class="table-td">{{ line.item_code }} — {{ line.item_name }}</td>
+            <td class="table-td">{{ line.quantity_ordered }}</td>
+            <td class="table-td">{{ line.quantity_reserved ?? 0 }}</td>
+            <td class="table-td font-semibold text-[#1B3A6B]">{{ line.dispatch_qty ?? line.quantity_reserved ?? 0 }}</td>
+            <td class="table-td">{{ line.stock_outstanding_qty ?? 0 }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (order().pickup_ready) {
+    <div class="p-3 bg-green-50 rounded-lg mb-4">
+      <p class="text-green-900 font-medium flex items-center gap-2">
+        <app-status-badge status="READY" label="Ready at Gate" />
+      </p>
+      @if (order().pickup_ready_by_name) {
+        <p class="text-sm text-green-800 mt-1">
+          Prepared by {{ order().pickup_ready_by_name }}
+          @if (order().pickup_ready_at) {
+            · {{ formatDateTime(order().pickup_ready_at!) }}
+          }
+        </p>
+      }
+    </div>
+  }
+
+  @if (!order().pickup_ready && order().status === 'READY_FOR_PICKUP') {
+    <div class="space-y-3 mb-6">
+      <div>
+        <label class="input-label">Preparation Notes (optional)</label>
+        <textarea
+          class="input-field resize-none"
+          rows="2"
+          [(ngModel)]="prepareNotes"
+          placeholder="e.g. Items picked and staged at dispatch bay"
+        ></textarea>
+      </div>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="markReady()">
+        Mark Ready at Gate
+      </button>
+    </div>
+  }
+
+  @if (order().pickup_ready && order().status === 'READY_FOR_PICKUP') {
+    <div class="space-y-3 border-t pt-4">
+      <p class="text-sm font-medium text-gray-700">Confirm Customer Collection</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label class="input-label">Collection Date *</label>
+          <input type="date" class="input-field" [(ngModel)]="pickupForm.pickup_date" />
+        </div>
+        <div>
+          <label class="input-label">Receiver Name *</label>
+          <input class="input-field" [(ngModel)]="pickupForm.receiver_name" />
+        </div>
+        <div>
+          <label class="input-label">Receiver Phone *</label>
+          <input class="input-field" [(ngModel)]="pickupForm.receiver_phone" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Notes (optional)</label>
+          <textarea
+            class="input-field resize-none"
+            rows="2"
+            [(ngModel)]="pickupForm.notes"
+            placeholder="ID verified, items collected in full"
+          ></textarea>
+        </div>
+      </div>
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="confirmCollection()">
+        Confirm Customer Collected Items
+      </button>
+      <p class="text-xs text-gray-500">
+        Releases stock and completes the order. Logistics is notified automatically.
+      </p>
+    </div>
+  }
+</div>

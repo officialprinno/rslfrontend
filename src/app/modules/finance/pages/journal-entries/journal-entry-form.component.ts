@@ -70,6 +70,17 @@ export class JournalEntryFormComponent implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
+    this.form.controls.currency.valueChanges.subscribe((currencyId) => {
+      if (this.editId()) return;
+      const currency = this.currencies().find((row) => row.id === currencyId);
+      if (currency) {
+        this.form.controls.exchange_rate.setValue(
+          currency.is_default || currency.code === 'TZS'
+            ? 1
+            : Number(currency.exchange_rate),
+        );
+      }
+    });
     forkJoin({
       accounts: this.finance.getAccounts({ page_size: 500, is_active: true }),
       currencies: this.currencyService.getCurrencies(),

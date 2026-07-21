@@ -35,4 +35,11 @@ export class NotificationCountsService {
       .pipe(catchError(() => of({ inbox: 0, total: 0 })))
       .subscribe((c) => this.unreadEmails.set(c.inbox));
   }
+
+  reset(): void {
+    this.unreadNotifications.set(0);
+    this.unreadMessages.set(0);
+    this.unreadEmails.set(0);
+    this.refresh();
+  }
 }

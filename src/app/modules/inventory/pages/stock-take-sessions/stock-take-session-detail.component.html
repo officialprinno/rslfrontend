@@ -1,0 +1,219 @@
+<div class="page-container">
+  <app-inventory-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error() || !session()) {
+    <app-error-state (retry)="loadSession()" />
+  } @else {
+    @if (session(); as s) {
+      <app-page-header [title]="s.session_number">
+        <div class="flex flex-wrap gap-2 items-center">
+          <a routerLink="/inventory/stock-take" class="btn-ghost !text-xs">← Sessions</a>
+          <app-status-badge [status]="s.status" />
+        </div>
+      </app-page-header>
+
+      <div class="grid gap-4 md:grid-cols-3 mb-6">
+        <div class="card p-4">
+          <div class="text-xs text-gray-500">Warehouse</div>
+          <div class="font-medium">{{ s.warehouse_name }}</div>
+          <div class="text-xs text-gray-500 mt-2">Period {{ s.period_month }}/{{ s.period_year }}</div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs text-gray-500">Window</div>
+          <div class="text-sm">{{ s.window_start }} → {{ s.window_end }}</div>
+          <div class="text-xs text-gray-500 mt-2">Created by {{ s.created_by_name }}</div>
+        </div>
+        <div class="card p-4">
+          <div class="text-xs text-gray-500">Progress</div>
+          <div class="text-sm">
+            Counted {{ s.counted_line_count ?? '—' }} / {{ s.line_count ?? '—' }}
+          </div>
+          @if (s.journal_entry_number) {
+            <div class="text-xs text-gray-500 mt-2 font-mono">JE {{ s.journal_entry_number }}</div>
+          }
+          @if (s.rejection_notes) {
+            <div class="text-xs text-red-600 mt-2">{{ s.rejection_notes }}</div>
+          }
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-4">
+        @if (canExport()) {
+          <button type="button" class="btn-secondary" [disabled]="busy()" (click)="exportCsv()">
+            Export blind CSV
+          </button>
+        }
+        @if (canUploadCsv()) {
+          <button type="button" class="btn-primary" [disabled]="busy()" (click)="pickFile()">
+            Upload CSV
+          </button>
+          <input
+            #fileInput
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden"
+            (change)="onFileSelected($event)"
+          />
+        }
+        <button type="button" class="btn-ghost" [disabled]="busy()" (click)="loadVariance()">
+          Variance review
+        </button>
+        @if (canMarkReviewed()) {
+          <button type="button" class="btn-secondary" [disabled]="busy()" (click)="markReviewed()">
+            Mark reviewed
+          </button>
+        }
+        @if (canSubmitGm()) {
+          <button type="button" class="btn-primary" [disabled]="busy()" (click)="submitForGm()">
+            Submit for GM
+          </button>
+        }
+        @if (canGmAct()) {
+          <button type="button" class="btn-primary !bg-green-700" [disabled]="busy()" (click)="gmApprove()">
+            GM Approve
+          </button>
+          <button type="button" class="btn-ghost !text-red-600" [disabled]="busy()" (click)="gmReject()">
+            GM Reject
+          </button>
+        }
+      </div>
+
+      @if (showVariance()) {
+        <div class="card mb-6 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-base font-semibold text-[#1B3A6B]">Variance review</h2>
+            <button type="button" class="btn-ghost !text-xs" (click)="showVariance.set(false)">Hide</button>
+          </div>
+          @if (varianceLoading()) {
+            <app-table-skeleton [cols]="6" [rows]="3" />
+          } @else if (variance(); as v) {
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 text-sm">
+              <div>
+                <div class="text-xs text-gray-500">Counted</div>
+                <div>{{ v.totals.counted_lines }} / {{ v.totals.total_lines }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">With variance</div>
+                <div>{{ v.totals.variance_count }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Surplus value</div>
+                <div class="text-green-700">{{ v.totals.positive_variance_value }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Shortage value</div>
+                <div class="text-red-600">{{ v.totals.negative_variance_value }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Net</div>
+                <div>{{ v.totals.net_variance_value }}</div>
+              </div>
+            </div>
+            @if (!v.variance_lines.length) {
+              <p class="text-sm text-gray-500">No non-zero variances.</p>
+            } @else {
+              <div class="table-scroll-viewport max-h-80 overflow-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th class="table-th">Item</th>
+                      <th class="table-th text-right">System</th>
+                      <th class="table-th text-right">Physical</th>
+                      <th class="table-th text-right">Qty Δ</th>
+                      <th class="table-th text-right">Value Δ</th>
+                      <th class="table-th">Dir</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (line of v.variance_lines; track line.id) {
+                      <tr class="table-row">
+                        <td class="table-td">
+                          <div class="font-mono text-xs">{{ line.item_code }}</div>
+                          <div class="text-xs text-gray-600">{{ line.item_name }}</div>
+                        </td>
+                        <td class="table-td text-right">{{ line.system_quantity }}</td>
+                        <td class="table-td text-right">{{ line.physical_quantity }}</td>
+                        <td class="table-td text-right">{{ line.variance_qty }}</td>
+                        <td
+                          class="table-td text-right"
+                          [class.text-green-700]="line.direction === 'SURPLUS'"
+                          [class.text-red-600]="line.direction === 'SHORTAGE'"
+                        >
+                          {{ line.variance_value }}
+                        </td>
+                        <td class="table-td text-xs">{{ line.direction }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          }
+        </div>
+      }
+
+      <div class="table-container">
+        <div class="px-4 pt-3 text-sm font-medium text-[#1B3A6B]">Session lines</div>
+        @if (linesLoading()) {
+          <div class="p-4"><app-table-skeleton [cols]="7" /></div>
+        } @else if (!lines().length) {
+          <div class="p-4">
+            <app-empty-state title="No lines" message="Snapshot is empty for this warehouse." />
+          </div>
+        } @else {
+          <div class="table-scroll-viewport">
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Code</th>
+                  <th class="table-th">Name</th>
+                  <th class="table-th text-right">System</th>
+                  <th class="table-th text-right">Physical</th>
+                  <th class="table-th text-right">Qty Δ</th>
+                  <th class="table-th text-right">Value Δ</th>
+                  <th class="table-th">Adj</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of lines(); track line.id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono text-sm">{{ line.item_code }}</td>
+                    <td class="table-td text-sm">{{ line.item_name }}</td>
+                    <td class="table-td text-right text-sm">{{ line.system_quantity }}</td>
+                    <td class="table-td text-right text-sm">
+                      {{ line.physical_quantity ?? '—' }}
+                    </td>
+                    <td
+                      class="table-td text-right text-sm"
+                      [class.text-green-700]="num(line.variance_qty) > 0"
+                      [class.text-red-600]="num(line.variance_qty) < 0"
+                    >
+                      {{ line.physical_quantity == null ? '—' : line.variance_qty }}
+                    </td>
+                    <td
+                      class="table-td text-right text-sm"
+                      [class.text-green-700]="num(line.variance_value) > 0"
+                      [class.text-red-600]="num(line.variance_value) < 0"
+                    >
+                      {{ line.physical_quantity == null ? '—' : line.variance_value }}
+                    </td>
+                    <td class="table-td text-xs">{{ line.adjustment_status }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <app-pagination
+            [page]="page()"
+            [pageSize]="pageSize()"
+            [total]="totalLines()"
+            (pageChange)="page.set($event); loadLines()"
+            (pageSizeChange)="pageSize.set($event); page.set(1); loadLines()"
+          />
+        }
+      </div>
+    }
+  }
+</div>

@@ -9,10 +9,10 @@
   @if (loading()) { <app-table-skeleton [cols]="4" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
   @else if (!categories().length) {
-    <div class="card"><app-empty-state title="No categories" message="Create categories to organize inventory items." [actionLabel]="canManage() ? 'Add Category' : ''" (actionClick)="openAdd()" /></div>
+    <div class="card"><app-empty-state moduleName="Stock Categories" [actionLabel]="canManage() ? 'Add Category' : ''" (actionClick)="openAdd()" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>

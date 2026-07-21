@@ -83,10 +83,16 @@ export class PreferencesService {
     return lang === 'en' ? '🇺🇸' : '🇹🇿';
   }
 
-  private saveRemote(payload: Partial<{ language: AppLanguage; theme: AppTheme }>): Observable<void> {
+  private saveRemote(
+    payload: Partial<{ language: AppLanguage; theme: AppTheme; default_company_id: number }>,
+  ): Observable<void> {
     return this.http.patch<ApiResponse<unknown>>(this.preferencesUrl, payload).pipe(
       map(() => undefined),
       catchError(() => of(undefined)),
     );
+  }
+
+  saveDefaultCompany(companyId: number): void {
+    this.saveRemote({ default_company_id: companyId }).subscribe();
   }
 }

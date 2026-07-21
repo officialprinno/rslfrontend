@@ -4,6 +4,8 @@ export interface ApiResponse<T> {
   data: T;
   message: string;
   errors: Record<string, string[]> | string[] | null;
+  warning?: string | null;
+  warnings?: unknown[] | null;
 }
 
 export interface AuthTokens {
@@ -45,6 +47,17 @@ export interface UserDepartmentAssignment {
   is_primary: boolean;
 }
 
+export interface UserCompanyAssignment {
+  company_id: number;
+  company_code: string;
+  company_name: string;
+  company_type: 'MANUFACTURING' | 'TRADING';
+  brand_color: string;
+  logo: string | null;
+  default_company: boolean;
+  is_active: boolean;
+}
+
 export interface User {
   id: number;
   email: string;
@@ -60,10 +73,15 @@ export interface User {
   is_multi_department?: boolean;
   primary_department?: string | null;
   departments?: UserDepartmentAssignment[];
+  companies?: UserCompanyAssignment[];
+  primary_company_id?: number | null;
+  is_multi_company?: boolean;
   permissions?: Permission[];
   modules?: string[];
   is_active: boolean;
   is_staff: boolean;
+  employee_id?: number | null;
+  employee_name?: string | null;
   language?: 'en' | 'sw';
   theme?: 'dark' | 'light';
   created_at: string;
@@ -86,6 +104,11 @@ export interface UserDepartmentWrite {
   is_primary: boolean;
 }
 
+export interface UserCompanyWrite {
+  company: number;
+  default_company: boolean;
+}
+
 export interface UserWritePayload {
   email?: string;
   password?: string;
@@ -97,6 +120,17 @@ export interface UserWritePayload {
   is_active?: boolean;
   is_multi_department?: boolean;
   department_assignments?: UserDepartmentWrite[];
+  company_assignments?: UserCompanyWrite[];
+}
+
+export interface CreateUserFromEmployeePayload {
+  employee: number;
+  email?: string;
+  password: string;
+  role: number;
+  is_active?: boolean;
+  department_assignments?: UserDepartmentWrite[];
+  company_assignments?: UserCompanyWrite[];
 }
 
 export interface LoginCredentials {

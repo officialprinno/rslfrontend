@@ -46,6 +46,7 @@ export class DeliveriesListComponent implements OnInit {
   readonly loading = signal(true);
   readonly total = signal(0);
   readonly page = signal(1);
+  readonly pageSize = signal(10);
   readonly search = signal('');
   readonly statusFilter = signal('');
   readonly dateFrom = signal('');
@@ -67,7 +68,7 @@ export class DeliveriesListComponent implements OnInit {
     this.loading.set(true);
     const params: Record<string, string | number | boolean> = {
       page: this.page(),
-      page_size: 10,
+      page_size: this.pageSize(),
       ordering: '-scheduled_date',
     };
     if (this.search()) params['search'] = this.search();
@@ -86,6 +87,17 @@ export class DeliveriesListComponent implements OnInit {
         },
         error: (e) => this.notification.error(getApiErrorMessage(e)),
       });
+  }
+
+  onPageChange(page: number): void {
+    this.page.set(page);
+    this.load();
+  }
+
+  onPageSizeChange(size: number): void {
+    this.pageSize.set(size);
+    this.page.set(1);
+    this.load();
   }
 
   isOverdue(d: DeliveryOrder): boolean {

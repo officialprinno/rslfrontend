@@ -34,7 +34,7 @@ export class VisitorFormComponent implements OnInit {
     id_type: 'NATIONAL_ID',
     id_number: '',
     phone: '',
-    company: '',
+    organization_name: '',
     email: '',
     purpose: 'MEETING',
     host_employee: 0,

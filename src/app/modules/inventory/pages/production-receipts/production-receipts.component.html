@@ -27,7 +27,7 @@
     />
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
@@ -128,9 +128,7 @@
           [ngModel]="notes()"
           (ngModelChange)="notes.set($event)"
         ></textarea>
-      </div>
-    </div>
-  }
+          </div>`n    </div>`n  }
   <div modalFooter>
     <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
     <button

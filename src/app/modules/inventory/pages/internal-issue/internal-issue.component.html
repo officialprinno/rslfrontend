@@ -10,7 +10,7 @@
   } @else if (error()) {
     <app-error-state title="Unable to load issue queue" (retry)="load()" />
   } @else if (!queue().length) {
-    <app-empty-state title="No approved requests" message="Approved requisitions awaiting issue appear here." />
+    <app-empty-state moduleName="Internal Issues" (companySwitched)="load()" />
   } @else {
     <div class="space-y-4">
       @for (req of queue(); track req.id) {
@@ -52,7 +52,7 @@
                         class="input w-24"
                         min="0"
                         step="0.0001"
-                        [value]="issueQty()[line.id] ?? line.remaining_qty ?? line.requested_qty ?? line.quantity"
+                        [value]="displayIssueQty(line)"
                         (input)="setIssueQty(line.id, +$any($event.target).value)"
                       />
                     </td>

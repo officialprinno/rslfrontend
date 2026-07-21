@@ -1,17 +1,24 @@
 <div class="page-container">
   <app-finance-nav />
-  <app-page-header title="Tax" subtitle="VAT returns, PAYE, NSSF and tax configuration">
-    @if (activeTab() !== 'settings') {
+  <app-page-header title="Tax" subtitle="Returns, statutory summaries, and configurable tax types with GL mapping">
+    @if (activeTab().kind !== 'settings') {
       <button type="button" class="btn-secondary" (click)="exportActiveTab()">Export PDF</button>
+    }
+    @if (activeTab().kind === 'settings') {
+      <button type="button" class="btn-primary" (click)="openCreate()">Add Tax</button>
     }
   </app-page-header>
 
   <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
-    @for (tab of tabs; track tab.id) {
+    @for (tab of tabs(); track tab.id) {
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
-        [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+        [class]="
+          activeTabId() === tab.id
+            ? 'border-[#1B3A6B] text-[#1B3A6B]'
+            : 'border-transparent text-gray-500 hover:text-gray-800'
+        "
         (click)="setTab(tab.id)"
       >
         {{ tab.label }}
@@ -19,7 +26,7 @@
     }
   </div>
 
-  @if (activeTab() !== 'settings') {
+  @if (activeTab().kind !== 'settings') {
     <div class="card p-4 mb-6 flex flex-wrap items-end gap-4">
       <div>
         <label class="input-label">Month</label>
@@ -46,7 +53,7 @@
   } @else if (error()) {
     <app-error-state (retry)="loadActiveTab()" />
   } @else {
-    @if (activeTab() === 'vat' && vatSummary(); as vat) {
+    @if (activeTabId() === 'vat' && vatSummary(); as vat) {
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
         <div class="card-stat">
           <p class="card-stat__value">{{ formatAmount(vat.output_vat) }}</p>
@@ -72,7 +79,7 @@
             <span class="badge badge-pending">Locked</span>
           }
         </div>
-        <div class="overflow-x-auto">
+        <div class="table-scroll-viewport">
           @if (vat.transactions.length) {
             <table class="w-full">
               <thead>
@@ -109,7 +116,7 @@
       </div>
     }
 
-    @if (activeTab() === 'paye' && payeSummary(); as paye) {
+    @if (activeTabId() === 'paye' && payeSummary(); as paye) {
       <div class="card-stat mb-6 max-w-sm">
         <p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(paye.total_paye) }}</p>
         <p class="card-stat__label">Total PAYE — {{ periodLabel() }}</p>
@@ -119,7 +126,7 @@
         <div class="px-6 py-4 border-b border-gray-200">
           <h2 class="section-title">PAYE Entries</h2>
         </div>
-        <div class="overflow-x-auto">
+        <div class="table-scroll-viewport">
           @if (paye.entries.length) {
             <table class="w-full">
               <thead>
@@ -150,7 +157,7 @@
       </div>
     }
 
-    @if (activeTab() === 'nssf' && nssfSummary(); as nssf) {
+    @if (activeTabId() === 'nssf' && nssfSummary(); as nssf) {
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-6">
         <div class="card-stat">
           <p class="card-stat__value">{{ formatAmount(nssf.total_employee) }}</p>
@@ -171,7 +178,7 @@
           <h2 class="section-title">NSSF Entries</h2>
           <p class="text-sm text-gray-500 mt-0.5">{{ periodLabel() }}</p>
         </div>
-        <div class="overflow-x-auto">
+        <div class="table-scroll-viewport">
           @if (nssf.entries.length) {
             <table class="w-full">
               <thead>
@@ -182,7 +189,7 @@
               <tbody>
                 @for (row of nssf.entries; track $index) {
                   <tr class="table-row">
-                    <td class="table-td">{{ row | json }}</td>
+                    <td class="table-td text-sm text-gray-600">Entry {{ $index + 1 }}</td>
                   </tr>
                 }
               </tbody>
@@ -194,28 +201,116 @@
       </div>
     }
 
-    @if (activeTab() === 'settings') {
+    @if (activeTab().kind === 'custom' && customSummary(); as summary) {
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(summary.total_liability) }}</p>
+          <p class="card-stat__label">Liability / Payable</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(summary.total_expense) }}</p>
+          <p class="card-stat__label">Expense</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value">{{ formatAmount(summary.total_receivable) }}</p>
+          <p class="card-stat__label">Receivable</p>
+        </div>
+        <div class="card-stat">
+          <p class="card-stat__value text-[#1B3A6B]">{{ formatAmount(summary.net_payable) }}</p>
+          <p class="card-stat__label">Net Payable</p>
+        </div>
+      </div>
+
       <div class="table-container">
         <div class="px-6 py-4 border-b border-gray-200">
-          <h2 class="section-title">Tax Settings</h2>
-          <p class="text-sm text-gray-500 mt-0.5">Configure tax rates and applicability</p>
+          <h2 class="section-title">{{ summary.name }} — Journal Activity</h2>
+          <p class="text-sm text-gray-500 mt-0.5">
+            {{ periodLabel() }}
+            @if (summary.liability_account_code) {
+              · Liability {{ summary.liability_account_code }}
+            }
+            · Rate {{ summary.rate }}%
+          </p>
         </div>
-        <div class="overflow-x-auto">
+        <div class="table-scroll-viewport">
+          @if (summary.entries.length) {
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th class="table-th">Date</th>
+                  <th class="table-th">Journal</th>
+                  <th class="table-th">Account</th>
+                  <th class="table-th">Role</th>
+                  <th class="table-th">Description</th>
+                  <th class="table-th text-right">Debit</th>
+                  <th class="table-th text-right">Credit</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of summary.entries; track row.journal_number + row.account_code + row.date + $index) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ row.date }}</td>
+                    <td class="table-td font-mono text-xs">{{ row.journal_number }}</td>
+                    <td class="table-td font-mono text-xs">{{ row.account_code }}</td>
+                    <td class="table-td">
+                      <span class="badge badge-active">{{ row.account_role }}</span>
+                    </td>
+                    <td class="table-td text-sm text-gray-600">{{ row.description || '—' }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.debit) }}</td>
+                    <td class="table-td text-right">{{ formatAmount(row.credit) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          } @else {
+            <p class="p-6 text-sm text-gray-500">
+              No posted journal lines on the mapped accounts for this period.
+            </p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activeTab().kind === 'settings') {
+      <div class="table-container">
+        <div class="px-6 py-4 border-b border-gray-200 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="section-title">Tax Settings</h2>
+            <p class="text-sm text-gray-500 mt-0.5 max-w-2xl">
+              Configure rates and map each tax to Chart of Accounts. Custom taxes with summary enabled
+              appear as their own tabs and pull activity from the mapped journal accounts.
+            </p>
+          </div>
+          <button type="button" class="btn-primary" (click)="openCreate()">Add Tax</button>
+        </div>
+        <div class="table-scroll-viewport">
           @if (taxSettings().length) {
             <table class="w-full">
               <thead>
                 <tr>
                   <th class="table-th">Name</th>
+                  <th class="table-th">Code</th>
                   <th class="table-th">Rate (%)</th>
                   <th class="table-th">Applicable To</th>
-                  <th class="table-th">Description</th>
+                  <th class="table-th">Liability Account</th>
+                  <th class="table-th">Summary</th>
                   <th class="table-th">Active</th>
+                  <th class="table-th">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 @for (setting of taxSettings(); track setting.id) {
                   <tr class="table-row">
-                    <td class="table-td font-medium">{{ setting.name }}</td>
+                    <td class="table-td">
+                      <div class="font-medium">{{ setting.name }}</div>
+                      @if (setting.description) {
+                        <div class="text-xs text-gray-500 mt-0.5">{{ setting.description }}</div>
+                      }
+                      @if (setting.is_system) {
+                        <span class="badge badge-active mt-1">System</span>
+                      }
+                    </td>
+                    <td class="table-td font-mono text-xs">{{ setting.code || '—' }}</td>
                     <td class="table-td">
                       <input
                         type="number"
@@ -226,7 +321,14 @@
                       />
                     </td>
                     <td class="table-td">{{ setting.applicable_to }}</td>
-                    <td class="table-td text-gray-600">{{ setting.description }}</td>
+                    <td class="table-td text-xs">{{ accountLabel(setting) }}</td>
+                    <td class="table-td">
+                      @if (setting.show_in_summary) {
+                        <span class="text-emerald-700 text-xs font-medium">Yes</span>
+                      } @else {
+                        <span class="text-gray-400 text-xs">No</span>
+                      }
+                    </td>
                     <td class="table-td">
                       <input
                         type="checkbox"
@@ -236,15 +338,195 @@
                         (change)="updateSetting(setting, 'is_active', $any($event.target).checked)"
                       />
                     </td>
+                    <td class="table-td">
+                      <div class="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          class="btn-ghost !px-2 !py-1 !text-xs"
+                          (click)="openEdit(setting)"
+                        >
+                          Edit
+                        </button>
+                        @if (!setting.is_system && setting.is_active) {
+                          <button
+                            type="button"
+                            class="btn-ghost !px-2 !py-1 !text-xs text-red-600"
+                            [disabled]="savingSettingId() === setting.id"
+                            (click)="deactivate(setting)"
+                          >
+                            Deactivate
+                          </button>
+                        }
+                      </div>
+                    </td>
                   </tr>
                 }
               </tbody>
             </table>
           } @else {
-            <p class="p-6 text-sm text-gray-500">No tax settings configured.</p>
+            <p class="p-6 text-sm text-gray-500">No tax settings configured. Add VAT, NSSF, or custom funds.</p>
           }
         </div>
       </div>
     }
   }
 </div>
+
+<app-modal
+  [open]="showModal()"
+  [title]="editing() ? 'Edit Tax Setting' : 'Add Tax Setting'"
+  (close)="showModal.set(false)"
+>
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="saveTax()">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Name *</label>
+        <input class="input-field" formControlName="name" placeholder="e.g. NHIF / Jubilee Health" />
+        @if (fieldError('name')) {
+          <p class="text-xs text-red-600 mt-1">{{ fieldError('name') }}</p>
+        }
+      </div>
+      <div>
+        <label class="input-label">Code</label>
+        <input
+          class="input-field font-mono uppercase"
+          formControlName="code"
+          placeholder="Auto from name"
+        />
+        @if (fieldError('code')) {
+          <p class="text-xs text-red-600 mt-1">{{ fieldError('code') }}</p>
+        }
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="input-label">Rate (%) *</label>
+        <input type="number" step="0.0001" min="0" class="input-field" formControlName="rate" />
+        @if (fieldError('rate')) {
+          <p class="text-xs text-red-600 mt-1">{{ fieldError('rate') }}</p>
+        }
+      </div>
+      <div>
+        <label class="input-label">Applicable To *</label>
+        <select class="input-field" formControlName="applicable_to">
+          @for (opt of applicableOptions; track opt.value) {
+            <option [ngValue]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="input-label">Description</label>
+      <textarea class="input-field resize-none" rows="2" formControlName="description" placeholder="Optional notes for finance users"></textarea>
+    </div>
+
+    <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-5">
+      <div class="flex items-start gap-3">
+        <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1B3A6B]/10 text-[#1B3A6B]" aria-hidden="true">
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M1 4.25A2.25 2.25 0 013.25 2h13.5A2.25 2.25 0 0119 4.25v2a.75.75 0 01-.75.75H1.75A.75.75 0 011 6.25v-2z" />
+            <path fill-rule="evenodd" d="M1 8.75A.75.75 0 011.75 8h16.5a.75.75 0 01.75.75v7A2.25 2.25 0 0116.75 18H3.25A2.25 2.25 0 011 15.75v-7zm4.75 2.5a.75.75 0 000 1.5h2.5a.75.75 0 000-1.5h-2.5z" clip-rule="evenodd" />
+          </svg>
+        </span>
+        <div>
+          <h3 class="text-sm font-semibold text-gray-900">Chart of Accounts mapping</h3>
+          <p class="text-xs text-gray-500 mt-0.5">
+            Journal entries posted to these accounts drive this tax’s summary and reporting.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="input-label !mb-0">
+            Liability / Payable Account <span class="text-red-500">*</span>
+          </label>
+          @if (form.controls.liability_account.value) {
+            <button type="button" class="text-xs text-gray-400 hover:text-red-600 transition-colors" (click)="setAccount('liability_account', null)">
+              Clear
+            </button>
+          }
+        </div>
+        <app-searchable-select
+          [categoryGroups]="liabilityAccountGroups()"
+          [value]="form.controls.liability_account.value"
+          [dropdownMaxHeight]="'14rem'"
+          [hasError]="!!fieldError('liability_account')"
+          placeholder="Search liability account by name or code"
+          (valueChange)="setAccount('liability_account', $event)"
+        />
+        <p class="text-[11px] text-gray-500 mt-1">
+          Amounts withheld/collected are credited here (payable to the fund/authority).
+        </p>
+        @if (fieldError('liability_account')) {
+          <p class="text-xs text-red-600 mt-1">{{ fieldError('liability_account') }}</p>
+        }
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="input-label !mb-0">Expense Account <span class="text-gray-400 font-normal">(optional)</span></label>
+          @if (form.controls.expense_account.value) {
+            <button type="button" class="text-xs text-gray-400 hover:text-red-600 transition-colors" (click)="setAccount('expense_account', null)">
+              Clear
+            </button>
+          }
+        </div>
+        <app-searchable-select
+          [categoryGroups]="expenseAccountGroups()"
+          [value]="form.controls.expense_account.value"
+          [dropdownMaxHeight]="'14rem'"
+          placeholder="Search expense account (employer / company cost)"
+          (valueChange)="setAccount('expense_account', $event)"
+        />
+        <p class="text-[11px] text-gray-500 mt-1">
+          Used when the company bears part of the cost, e.g. employer contribution.
+        </p>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="input-label !mb-0">Receivable Account <span class="text-gray-400 font-normal">(optional)</span></label>
+          @if (form.controls.receivable_account.value) {
+            <button type="button" class="text-xs text-gray-400 hover:text-red-600 transition-colors" (click)="setAccount('receivable_account', null)">
+              Clear
+            </button>
+          }
+        </div>
+        <app-searchable-select
+          [categoryGroups]="receivableAccountGroups()"
+          [value]="form.controls.receivable_account.value"
+          [dropdownMaxHeight]="'14rem'"
+          placeholder="Search receivable / recoverable account"
+          (valueChange)="setAccount('receivable_account', $event)"
+        />
+        <p class="text-[11px] text-gray-500 mt-1">
+          For recoverable amounts, e.g. input VAT or refundable levies.
+        </p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-6">
+      <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" class="rounded border-gray-300" formControlName="show_in_summary" />
+        Show as summary tab
+      </label>
+      <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" class="rounded border-gray-300" formControlName="is_active" />
+        Active
+      </label>
+    </div>
+  </form>
+
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingForm()" (click)="saveTax()">
+      @if (savingForm()) {
+        <span class="spinner spinner-sm"></span>
+      }
+      {{ editing() ? 'Save Changes' : 'Create Tax' }}
+    </button>
+  </div>
+</app-modal>

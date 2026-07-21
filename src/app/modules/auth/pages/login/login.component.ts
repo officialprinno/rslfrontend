@@ -1,18 +1,18 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { TranslatePipe } from '@ngx-translate/core';
 
 import { Router } from '@angular/router';
 
 import { finalize } from 'rxjs/operators';
 
-
-
-import { TranslatePipe } from '@ngx-translate/core';
-
-import { ApiResponse } from '../../../../core/models/auth.models';
+import { ApiResponse, UserCompanyAssignment } from '../../../../core/models/auth.models';
 
 import { AuthService } from '../../../../core/services/auth.service';
+import { CompanyContextService } from '../../../../core/services/company-context.service';
+import { WorkspaceResetService } from '../../../../core/services/workspace-reset.service';
+import { CompanySelectorComponent } from '../../../../shared/components/company-selector/company-selector.component';
 
 
 
@@ -24,7 +24,7 @@ const REMEMBER_EMAIL_KEY = 'rsl_remember_email';
 
   selector: 'app-login',
 
-  imports: [ReactiveFormsModule, TranslatePipe],
+  imports: [ReactiveFormsModule, TranslatePipe, CompanySelectorComponent],
 
   templateUrl: './login.component.html',
 
@@ -37,7 +37,8 @@ export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
 
   private readonly auth = inject(AuthService);
-
+  private readonly companyContext = inject(CompanyContextService);
+  private readonly workspaceReset = inject(WorkspaceResetService);
   private readonly router = inject(Router);
 
 
@@ -49,6 +50,8 @@ export class LoginComponent implements OnInit {
   readonly showPassword = signal(false);
 
   readonly rememberMe = signal(false);
+  readonly showCompanySelector = signal(false);
+  readonly pendingCompanies = signal<UserCompanyAssignment[]>([]);
 
 
 
@@ -63,13 +66,19 @@ export class LoginComponent implements OnInit {
 
 
   ngOnInit(): void {
-
     if (this.auth.isAuthenticated()) {
-
+      const user = this.auth.getCurrentUser();
+      const companies = user?.companies ?? [];
+      if (
+        companies.length > 1 &&
+        (this.companyContext.selectionRequired() || !this.companyContext.activeCompany())
+      ) {
+        this.pendingCompanies.set(companies);
+        this.showCompanySelector.set(true);
+        return;
+      }
       void this.router.navigate([this.auth.getDefaultHomeRoute()]);
-
       return;
-
     }
 
 
@@ -150,37 +159,46 @@ export class LoginComponent implements OnInit {
 
       .subscribe({
 
-        next: () => {
+        next: (user) => {
 
           this.persistEmail(email);
 
-          const destination = this.auth.getDefaultHomeRoute();
+          if ((user.companies?.length ?? 0) > 1) {
+            this.pendingCompanies.set(user.companies ?? []);
+            this.showCompanySelector.set(true);
+            return;
+          }
 
-          void this.router.navigate([destination]);
+          void this.router.navigate([this.auth.getDefaultHomeRoute()]);
 
         },
 
         error: (err: { error?: ApiResponse<unknown>; message?: string }) => {
 
           const apiMessage = err.error?.message;
+          const thrownMessage = err instanceof Error ? err.message : err.message;
 
           const fieldErrors = err.error?.errors;
 
           if (typeof fieldErrors === 'object' && fieldErrors && !Array.isArray(fieldErrors)) {
-
             const nonField = fieldErrors['non_field_errors'];
-
             if (nonField?.length) {
-
               this.errorMessage.set(nonField[0]);
-
               return;
-
             }
-
+            const firstKey = Object.keys(fieldErrors)[0];
+            const firstMsg = firstKey ? (fieldErrors as Record<string, string[]>)[firstKey] : undefined;
+            if (firstMsg?.length) {
+              this.errorMessage.set(firstMsg[0]);
+              return;
+            }
           }
 
-          this.errorMessage.set(apiMessage ?? err.message ?? 'Invalid email or password. Please try again.');
+          this.errorMessage.set(
+            apiMessage ??
+              thrownMessage ??
+              'Invalid email or password. Please try again.',
+          );
 
         },
 
@@ -188,5 +206,10 @@ export class LoginComponent implements OnInit {
 
   }
 
+  onCompanySelected(): void {
+    this.workspaceReset.resetForCompanySwitch();
+    this.companyContext.confirmWorkspaceSelection();
+    void this.router.navigate([this.auth.getDefaultHomeRoute()]);
+  }
 }
 

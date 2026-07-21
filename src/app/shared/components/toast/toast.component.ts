@@ -9,7 +9,7 @@ import { NotificationService, ToastType } from '../../../core/services/notificat
   template: `
     <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none">
       @for (toast of notification.toasts(); track toast.id) {
-        <div class="toast" [class]="toastClass(toast.type)" role="alert">
+        <div class="toast pointer-events-auto" [class]="toastClass(toast.type)" role="alert">
           <svg class="w-5 h-5 shrink-0" [class]="iconClass(toast.type)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" [attr.d]="iconPath(toast.type)" />
           </svg>

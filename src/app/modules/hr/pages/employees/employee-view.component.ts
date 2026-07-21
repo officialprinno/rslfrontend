@@ -20,6 +20,7 @@ import { formatDate } from '../../../../core/utils/format.util';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
+import { OpenFileComponent } from '../../../../shared/components/open-file/open-file.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { HrNavComponent } from '../../components/hr-nav/hr-nav.component';
 import {
@@ -28,6 +29,7 @@ import {
   employmentTypeLabel,
   formatHrAmount,
   maskSalary,
+  WORKING_COMPANY_SCOPES,
 } from '../../constants/hr.constants';
 import { canActivateEmployee, canManageEmployees, canViewSalary } from '../../utils/hr-permissions.util';
 
@@ -54,6 +56,7 @@ interface CalendarDay {
     PageHeaderComponent,
     HrNavComponent,
     StatusBadgeComponent,
+    OpenFileComponent,
     TableSkeletonComponent,
     ErrorStateComponent,
   ],
@@ -81,6 +84,13 @@ export class EmployeeViewComponent implements OnInit {
 
   readonly formatDate = formatDate;
   readonly employmentTypeLabel = employmentTypeLabel;
+
+  workingCompanyLabel(emp: Employee): string {
+    return (
+      WORKING_COMPANY_SCOPES.find((s) => s.value === emp.working_company_scope)?.label ??
+      emp.working_company_scope
+    );
+  }
   readonly attendanceCalendarClasses = ATTENDANCE_CALENDAR_CLASSES;
   readonly attendanceLegend = Object.keys(ATTENDANCE_STATUS_COLORS);
   readonly canEdit = () => canManageEmployees(this.auth);

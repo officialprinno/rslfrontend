@@ -9,6 +9,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatDateTime, formatNumber } from '../../../../core/utils/format.util';
+import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
@@ -50,6 +51,7 @@ export class GinListComponent implements OnInit {
   readonly warehouses = signal<Warehouse[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly workspaceEmpty = signal(false);
   readonly saving = signal(false);
   readonly showModal = signal(false);
   readonly total = signal(0);
@@ -82,13 +84,13 @@ export class GinListComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.error.set(false);
+    resetListLoadState(this.error, this.workspaceEmpty);
     this.inventory
       .getGINs({ page: this.page(), page_size: this.pageSize(), ordering: '-created_at' })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (d) => { this.gins.set(d.results); this.total.set(d.count); },
-        error: () => this.error.set(true),
+        error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
   }
 

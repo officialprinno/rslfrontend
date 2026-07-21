@@ -1,5 +1,11 @@
-<div class="card p-6 mb-6 border-l-4 border-l-[#1B3A6B]">
-  <h4 class="font-semibold text-[#1B3A6B] mb-4">Order Workflow Actions</h4>
+<div
+  class="card p-6 mb-6 border-l-4"
+  [class.border-l-[#1B3A6B]]="!financeOnly()"
+  [class.border-l-emerald-600]="financeOnly()"
+>
+  <h4 class="font-semibold mb-4" [class.text-[#1B3A6B]]="!financeOnly()" [class.text-emerald-800]="financeOnly()">
+    {{ financeOnly() ? 'Finance Actions' : 'Order Workflow Actions' }}
+  </h4>
   <p class="text-sm text-gray-500 mb-4">
     Status: <strong>{{ order().status }}</strong>
     @if (order().inventory_status) {
@@ -7,52 +13,214 @@
     }
   </p>
 
+  @if (hasAwaitingReservation()) {
+    <div class="w-full mb-4 p-4 rounded-lg text-sm border bg-amber-50 border-amber-200 text-amber-900">
+      <p class="font-semibold mb-1">Awaiting inventory reservation</p>
+      <p>{{ awaitingReservationHint() }}</p>
+    </div>
+  }
+
+  @if (hasReservedReadyToInvoice()) {
+    <div
+      class="w-full mb-4 p-4 rounded-lg text-sm border"
+      [class.bg-emerald-50]="financeOnly()"
+      [class.border-emerald-200]="financeOnly()"
+      [class.text-emerald-900]="financeOnly()"
+      [class.bg-blue-50]="!financeOnly()"
+      [class.border-blue-200]="!financeOnly()"
+      [class.text-blue-900]="!financeOnly()"
+    >
+      <p class="font-semibold mb-1">
+        @if (financeOnly()) {
+          {{ isDeliverBeforeInvoiceTerm() ? 'Delivered quantity ready — issue next invoice' : 'Reserved stock ready — issue next invoice' }}
+        } @else {
+          Stock reserved — send to Finance
+        }
+      </p>
+      <p class="mb-3">{{ reservedReadyToInvoiceHint() }}</p>
+      @if (financeOnly()) {
+        @if (canGenerateFulfillmentInvoice()) {
+          <button
+            type="button"
+            class="btn-primary"
+            [disabled]="savingFulfillmentInvoice() || loadingFulfillmentPreview()"
+            (click)="openFulfillmentInvoiceModal()"
+          >
+            {{
+              loadingFulfillmentPreview()
+                ? 'Loading…'
+                : savingFulfillmentInvoice()
+                  ? 'Generating…'
+                  : waveInvoiceButtonLabel()
+            }}
+          </button>
+        }
+        <p class="text-xs mt-3 opacity-90">
+          Confirm unit prices on the invoice lines (locked order price vs current approved price),
+          then issue and collect payment per {{ order().payment_term_display || 'payment terms' }}.
+          @if (isDeliverBeforeInvoiceTerm()) {
+            For postpaid/COD, logistics delivers the reserved wave first — this invoice covers delivered quantity.
+          } @else {
+            Logistics dispatches after payment is confirmed.
+          }
+        </p>
+      } @else {
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="btn-primary"
+            [disabled]="sendingToFinance()"
+            (click)="sendToFinance()"
+          >
+            {{ sendingToFinance() ? 'Sending…' : 'Send to Finance for Invoice' }}
+          </button>
+        </div>
+      }
+    </div>
+  }
+
   <div class="flex flex-wrap gap-2">
-    @if (order().status === 'NEW_ORDER' || order().status === 'DRAFT') {
+    @if (financeOnly()) {
+      @if (!hasLinkedInvoices() && canGenerateInvoiceForOrder() && canGenerateInvoice()) {
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="loadingFulfillmentPreview()"
+          (click)="openInvoiceModal()"
+        >
+          {{ loadingFulfillmentPreview() ? 'Loading price options…' : 'Generate Invoice' }}
+        </button>
+      } @else if (order().status === 'QUOTATION_ACCEPTED' && isDeliverBeforeInvoiceTerm()) {
+        <div class="w-full p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Postpaid / COD order.</strong>
+          {{ invoiceWorkflowHint() }}
+        </div>
+      } @else if (order().status === 'QUOTATION_ACCEPTED') {
+        <div class="w-full p-4 bg-emerald-50 rounded-lg text-sm text-emerald-900">
+          <strong>Ready for invoice.</strong> {{ invoiceWorkflowHint() }}
+        </div>
+      } @else if (!hasLinkedInvoices() && isDeliverBeforeInvoiceTerm() && !canGenerateInvoiceForOrder()) {
+        <div class="w-full p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Awaiting delivery.</strong> {{ invoiceWorkflowHint() }}
+        </div>
+      } @else if (!hasLinkedInvoices()) {
+        <div class="w-full p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
+          Invoice generation is available when the sales order is ready per payment terms.
+        </div>
+      }
+      @if (hasLinkedInvoices()) {
+        <div class="w-full">
+          <p class="text-xs font-medium text-gray-600 mb-2">Customer Invoices</p>
+          <div class="flex flex-wrap gap-2">
+            @for (inv of linkedInvoices(); track inv.id) {
+              <a [routerLink]="invoiceViewLink(inv.id)" class="btn-secondary text-sm!">
+                {{ invoiceLinkLabel(inv) }}
+              </a>
+            }
+          </div>
+        </div>
+      }
+      @if (canGenerateBalanceInvoice()) {
+        <button type="button" class="btn-secondary" (click)="openBalanceInvoiceModal()">Generate Balance Invoice</button>
+      }
+      @if (hasStockOutstanding()) {
+        <div class="w-full p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+          Stock outstanding on this order — the invoice covers <strong>reserved</strong> quantity only.
+          Balance will be invoiced when inventory reserves more stock.
+        </div>
+      }
+      @if (isCollectingPayment()) {
+        @if (pendingPaymentProof(); as proof) {
+          <div class="w-full mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+            <h5 class="font-semibold text-amber-900 mb-3">Payment Proof — Pending Confirmation</h5>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div><span class="text-gray-500 block text-xs">Amount</span><p class="font-semibold">{{ displayProofAmount(proof) | number:'1.2-2' }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Method</span><p>{{ paymentMethodLabel(proof.payment_method_display || proof.payment_method) }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Reference</span><p class="font-medium">{{ proof.reference_number }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Source</span><p>{{ sourceLabel(proof.source, proof.source_display) }}</p></div>
+              @if (proof.proof_notes) {
+                <div class="md:col-span-2"><span class="text-gray-500 block text-xs">Notes</span><p>{{ proof.proof_notes }}</p></div>
+              }
+              @if (proof.customer_reply_message) {
+                <div class="md:col-span-2"><span class="text-gray-500 block text-xs">Customer Message</span><p class="whitespace-pre-line">{{ proof.customer_reply_message }}</p></div>
+              }
+              @if (proof.proof_file_url) {
+                <div class="md:col-span-2 flex flex-wrap gap-2 items-center pt-1">
+                  <button
+                    type="button"
+                    class="btn-secondary text-sm!"
+                    [disabled]="loadingProofPreview()"
+                    (click)="openPaymentProofPreview(proof.proof_file_url!)"
+                  >
+                    {{ loadingProofPreview() ? 'Loading…' : 'View attached document' }}
+                  </button>
+                  <a [href]="proof.proof_file_url" target="_blank" rel="noopener" class="text-[#1B3A6B] underline text-sm">Open in new tab</a>
+                </div>
+              }
+            </div>
+            @if (canVerifyPayment()) {
+              <div class="flex flex-wrap gap-2 mt-4 pt-3 border-t border-amber-200">
+                <button type="button" class="btn-primary" (click)="verifyPayment(true)">Confirm Payment Received</button>
+                <button type="button" class="btn-secondary text-red-600!" (click)="verifyPayment(false)">Reject Payment</button>
+              </div>
+            }
+          </div>
+        } @else if (canRecordManualPayment()) {
+          <div class="w-full mb-3 p-4 bg-emerald-50 rounded-lg text-sm text-emerald-900">
+            <strong>Record customer payment.</strong>
+            Capture payment details from the customer email or portal, then confirm receipt after verifying funds.
+          </div>
+          <button type="button" class="btn-secondary" (click)="openManualPaymentModal()">Record Manual Payment Proof</button>
+        }
+      }
+    } @else {
+    @if (order().status === 'NEW_ORDER' || order().status === 'SO_CREATED' || order().status === 'DRAFT') {
+      @if (order().status === 'SO_CREATED' && order().quotation_id) {
+        <div class="w-full mb-3 p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Created from quotation.</strong>
+          Submit to send this order to Inventory for stock verification.
+        </div>
+      }
       <button type="button" class="btn-primary" (click)="submit()">Submit Order</button>
     }
 
     @if (order().status === 'STOCK_VERIFICATION') {
-      <button type="button" class="btn-primary" (click)="verifyStock(false)">Verify & Reserve Stock</button>
-      <button type="button" class="btn-secondary" (click)="verifyStock(true)">Partial Fulfillment</button>
+      <div class="w-full p-4 bg-amber-50 rounded-lg text-sm text-amber-900">
+        <strong>Awaiting Inventory.</strong> An Inventory Officer must verify and reserve stock before you can send the quotation to the customer.
+      </div>
     }
 
     @if (order().status === 'OUT_OF_STOCK') {
-      <button type="button" class="btn-primary" (click)="verifyStock(false)">Re-check Stock</button>
-      <button type="button" class="btn-secondary" (click)="createPr()">Create Procurement Request</button>
-    }
-
-    @if (order().status === 'PENDING_DELIVERY_COST') {
-      <div class="w-full mb-3 p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
-        Stock is reserved. Send this order to Logistics to calculate delivery cost before preparing the quotation.
-      </div>
-      <button type="button" class="btn-primary" (click)="sendToLogistics()">Send to Logistics</button>
-    }
-
-    @if (order().status === 'DELIVERY_COST_CALC') {
-      <div class="w-full p-4 bg-amber-50 rounded-lg text-sm text-amber-900">
-        <strong>Awaiting Logistics.</strong> Delivery cost calculation is in progress. You will be notified when Logistics submits the cost — then you can send the quotation.
+      <div class="w-full p-4 bg-red-50 rounded-lg text-sm text-red-900">
+        <strong>Out of stock.</strong> Inventory is handling stock availability. You will be notified when the order can proceed.
       </div>
     }
 
     @if (order().status === 'QUOTATION_PREP') {
-      @if (order().delivery_cost_detail || order().delivery_cost) {
-        <div class="w-full mb-3 p-4 bg-green-50 rounded-lg text-sm">
-          <p class="font-semibold text-green-900 mb-2">Delivery Cost from Logistics</p>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div><span class="text-gray-500">Total</span><p class="font-medium">{{ order().delivery_cost | number:'1.2-2' }}</p></div>
-            @if (order().delivery_cost_detail; as detail) {
-              <div><span class="text-gray-500">Distance</span><p>{{ detail.delivery_distance_km }} km</p></div>
-              <div><span class="text-gray-500">Transport</span><p>{{ detail.transport_method }}</p></div>
-              <div><span class="text-gray-500">Vehicle</span><p>{{ detail.vehicle_type || '—' }}</p></div>
-            }
-          </div>
-          <p class="mt-2 text-gray-600">
-            Order + delivery total: <strong>{{ dueAmount(order()) | number:'1.2-2' }}</strong>
-          </p>
+      <div class="w-full mb-3 p-4 bg-slate-50 rounded-lg text-sm text-gray-700">
+        Choose how to proceed: email a quotation referencing the customer's PO number, or send to Finance for invoice on trusted customers.
+      </div>
+      @if (order().lpo_number) {
+        <p class="w-full text-sm text-gray-600 mb-2">
+          PO / LPO Reference: <strong>{{ order().lpo_number }}</strong>
+        </p>
+      }
+      @if (order().quotation_id && linkedQuotationAlreadySent()) {
+        <div class="w-full mb-3 p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Quotation {{ order().quotation_number }}</strong> was already emailed to the customer.
         </div>
       }
-      <button type="button" class="btn-primary" (click)="sendQuotation()">Send Quotation to Customer</button>
+      <button
+        type="button"
+        class="btn-primary"
+        [disabled]="linkedQuotationAlreadySent()"
+        (click)="sendQuotationWithPoReference()"
+      >
+        Send Quotation for PO Reference to Customer
+      </button>
+      <button type="button" class="btn-secondary" (click)="proceedToGenerateInvoice()">
+        Send to Finance for Invoice (Trusted Customer)
+      </button>
     }
 
     @if (order().status === 'QUOTATION_SENT' || order().status === 'WAITING_CUSTOMER') {
@@ -60,46 +228,554 @@
       <button type="button" class="btn-secondary" (click)="rejectQuotation()">Customer Rejected</button>
     }
 
-    @if (order().status === 'QUOTATION_ACCEPTED') {
-      <button type="button" class="btn-primary" (click)="generateInvoice()">Generate Invoice</button>
+    @if (order().status === 'QUOTATION_ACCEPTED' || order().status === 'PARTIALLY_FULFILLED') {
+      @if (isDeliverBeforeInvoiceTerm()) {
+        <div class="w-full p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Proceeding to delivery.</strong>
+          {{ invoiceWorkflowHint() }}
+        </div>
+      } @else {
+        <div class="w-full p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Awaiting Finance.</strong>
+          {{ invoiceWorkflowHint() }}
+        </div>
+      }
     }
 
-    @if (order().status === 'AWAITING_PAYMENT') {
-      <div class="w-full grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-        <div>
-          <label class="input-label">Amount Due</label>
-          <input type="number" class="input-field" [(ngModel)]="paymentProof.amount" min="0.01" step="0.01" />
-          <p class="text-xs text-gray-500 mt-1">Order total + delivery: {{ dueAmount(order()) | number:'1.2-2' }}</p>
+    @if (hasLinkedInvoices()) {
+      <div class="w-full">
+        <p class="text-xs font-medium text-gray-600 mb-2">Customer Invoices</p>
+        <div class="flex flex-wrap gap-2">
+          @for (inv of linkedInvoices(); track inv.id) {
+            <a [routerLink]="invoiceViewLink(inv.id)" class="btn-secondary text-sm!">
+              {{ invoiceLinkLabel(inv) }}
+            </a>
+          }
         </div>
-        <div><label class="input-label">Method</label>
-          <select class="input-field" [(ngModel)]="paymentProof.payment_method">
-            @for (m of paymentMethods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
-          </select>
-        </div>
-        <div><label class="input-label">Reference *</label><input class="input-field" [(ngModel)]="paymentProof.reference_number" placeholder="Bank / M-Pesa ref" /></div>
-        <div class="md:col-span-3"><label class="input-label">Notes</label><input class="input-field" [(ngModel)]="paymentProof.proof_notes" /></div>
       </div>
-      @if (pendingPaymentProof(); as proof) {
-        <p class="text-sm text-amber-700 mb-3">
-          Pending proof #{{ proof.id }} — {{ proof.reference_number }} ({{ proof.amount }})
+    }
+
+    @if (!financeOnly() && order().can_generate_balance_invoice) {
+      <div class="w-full p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-900">
+        <p class="font-semibold mb-1">Partial payment — balance invoice needed</p>
+        <p class="mb-3">
+          Inform Finance to generate the next invoice for the remaining percentage, then collect payment before closing this order.
         </p>
-        <button type="button" class="btn-primary" (click)="verifyPayment(true)">Verify Payment</button>
-        <button type="button" class="btn-secondary !text-red-600" (click)="verifyPayment(false)">Reject Payment</button>
+        @if (isOutstandingOrder()) {
+          <p class="text-xs">Sales cannot generate this invoice. Finance will complete the outstanding invoice action.</p>
+        } @else {
+          <a [routerLink]="['/finance/sales-orders', order().id, 'view']" class="btn-secondary">
+            Open Finance View — Request Balance Invoice
+          </a>
+        }
+      </div>
+    }
+
+    @if (canGenerateInvoiceForOrder() && !financeOnly() && isDeliverBeforeInvoiceTerm()) {
+      <div class="w-full p-4 bg-emerald-50 rounded-lg text-sm text-emerald-900">
+        <strong>Delivery completed.</strong>
+        Inform Finance to generate the invoice, record customer payment, and confirm receipt.
+      </div>
+    }
+
+    @if (isCollectingPayment() && !financeOnly()) {
+      @if (pendingPaymentProof(); as proof) {
+        <div class="w-full mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+          <h5 class="font-semibold text-amber-900 mb-3">Payment Proof — Awaiting Finance</h5>
+          <p class="text-amber-900 mb-2">
+            Payment proof recorded (ref <strong>{{ proof.reference_number }}</strong>).
+            Finance will confirm after verifying funds.
+          </p>
+          @if (proof.proof_file_url) {
+            <div class="flex flex-wrap gap-2 items-center">
+              <button
+                type="button"
+                class="btn-secondary text-sm!"
+                [disabled]="loadingProofPreview()"
+                (click)="openPaymentProofPreview(proof.proof_file_url!)"
+              >
+                {{ loadingProofPreview() ? 'Loading…' : 'View attached document' }}
+              </button>
+              <a [href]="proof.proof_file_url" target="_blank" rel="noopener" class="text-[#1B3A6B] underline text-sm">Open in new tab</a>
+            </div>
+          }
+        </div>
       } @else {
-        <button type="button" class="btn-primary" (click)="submitPayment()">Submit Payment Proof</button>
+        <div class="w-full mb-3 p-4 bg-blue-50 rounded-lg text-sm text-blue-900">
+          <strong>Awaiting Finance.</strong>
+          Finance will generate/send the invoice, record customer payment, and confirm receipt.
+        </div>
+      }
+    }
+
+    @if (order().status === 'PAYMENT_CONFIRMED') {
+      @if (isDeliverBeforeInvoiceTerm()) {
+        <div class="w-full p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-900">
+          <strong>Cleared for delivery.</strong>
+          @if (order().payment_term === 'COD') {
+            Payment will be collected when the customer receives the goods.
+          } @else {
+            Postpaid — delivery proceeds now; customer payment is due per the invoice credit terms.
+          }
+        </div>
+      } @else {
+        <div class="w-full p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-900">
+          <strong>Payment confirmed by Finance.</strong>
+          The order will proceed to pickup or logistics dispatch.
+        </div>
       }
     }
 
     @if (isLogisticsHandledStatus(order().status)) {
+      @if (isDeliverBeforeInvoiceTerm() && !hasLinkedInvoices()) {
+        <div class="w-full mb-3 p-4 bg-amber-50 rounded-lg text-sm text-amber-900">
+          <strong>Delivery in progress.</strong> {{ invoiceWorkflowHint() }}
+        </div>
+      }
       <div class="w-full p-4 bg-gray-50 rounded-lg text-sm text-gray-700">
         <strong>Delivery handled by Logistics.</strong>
+        Delivery type <strong>{{ deliveryTypeLabel(order().delivery_method) }}</strong> was set on this order.
         Dispatch, vehicle assignment, and delivery confirmation are managed in the Logistics department.
-        You will be notified when the order is completed.
       </div>
     }
 
-    @if (order().status === 'DELIVERY_CONFIRMED' || order().status === 'COMPLETED_PICKUP') {
-      <button type="button" class="btn-primary" (click)="closeOrder()">Close Order</button>
+    @if (showCloseOrderSection()) {
+      @if (isOrderCompleted() && !order().can_generate_balance_invoice) {
+        <div class="w-full p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-900">
+          <strong>Order completed.</strong>
+          This order has been fully fulfilled and is now closed. No further action is required.
+        </div>
+      } @else if (hasOutstandingFulfillment()) {
+        <div class="w-full p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900 space-y-3">
+          @if (isOutstandingOrder()) {
+            <p><strong>Outstanding fulfillment — order stays open.</strong></p>
+            <p>{{ outstandingFulfillmentHint() }}</p>
+            <ol class="list-decimal list-inside text-xs space-y-1 text-amber-800">
+              @if (isDeliverBeforeInvoiceTerm()) {
+                <li>If stock arrives: Inventory reserves → Logistics delivers → Finance invoices → close when complete</li>
+              } @else {
+                <li>If stock arrives: Inventory reserves → Finance invoices → Logistics delivers → close when complete</li>
+              }
+              <li>If the customer no longer wants the balance: close and waive the remaining quantity below</li>
+            </ol>
+          } @else {
+            <p><strong>Order in progress — not ready to close yet.</strong></p>
+            <p>{{ outstandingFulfillmentHint() }}</p>
+            <p class="text-xs text-amber-800">
+              Complete invoicing and delivery, then close the order once it is fully fulfilled.
+            </p>
+          }
+          @if (canWaiveOutstandingClose()) {
+            <button type="button" class="btn-secondary !text-amber-900 !border-amber-300" (click)="openWaiveCloseModal()">
+              Close Order — Waive Outstanding
+            </button>
+          } @else {
+            <p class="text-xs text-amber-800">
+              To close early, ensure all issued invoices are fully paid first.
+            </p>
+          }
+        </div>
+      } @else if (canCloseOrder()) {
+        <button type="button" class="btn-primary" (click)="closeOrder()">Close Order</button>
+      } @else if (closeOrderBlocker()) {
+        <div class="w-full p-4 bg-amber-50 rounded-lg text-sm text-amber-900">
+          <strong>Cannot close yet.</strong> {{ closeOrderBlocker() }}
+        </div>
+      }
+    }
     }
   </div>
 </div>
+
+<app-modal
+  [open]="financeOnly() && showInvoiceModal()"
+  title="Generate Invoice"
+  (close)="closeInvoiceModal()"
+>
+  <div class="space-y-4 text-sm">
+    @if (hasStockOutstanding() || invoicePreviewLines().length) {
+      <div class="p-3 bg-gray-50 border rounded-lg overflow-hidden">
+        <p class="text-xs font-medium text-gray-600 mb-2">Invoice will include (reserved stock only)</p>
+        <div class="overflow-x-auto -mx-1 px-1">
+          <table class="w-full min-w-0 table-fixed text-xs">
+            <colgroup>
+              <col class="w-[46%]" />
+              <col class="w-[18%]" />
+              <col class="w-[18%]" />
+              <col class="w-[18%]" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="table-th text-left">Item</th>
+                <th class="table-th text-right whitespace-nowrap">Qty</th>
+                <th class="table-th text-right whitespace-nowrap">Reserved</th>
+                <th class="table-th text-right whitespace-nowrap">Outstanding</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of invoicePreviewLines(); track line.id) {
+                <tr class="table-row">
+                  <td class="table-td break-words align-top">{{ line.item_code }} — {{ line.item_name }}</td>
+                  <td class="table-td text-right font-semibold text-[#1B3A6B] whitespace-nowrap">{{ line.invoiceQty }}</td>
+                  <td class="table-td text-right whitespace-nowrap">{{ line.reserved }}</td>
+                  <td class="table-td text-right whitespace-nowrap">{{ line.stockOutstanding }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+    @if (fulfillmentPreview; as preview) {
+      <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900">
+        This order has an outstanding quantity. Select the price for every reserved or delivered
+        line before generating the invoice.
+      </div>
+      <div class="overflow-x-auto border rounded-lg">
+        <table class="w-full min-w-[720px] text-sm">
+          <thead>
+            <tr>
+              <th class="table-th">Item</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Original Price</th>
+              <th class="table-th">Current Price</th>
+              <th class="table-th">Use Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of preview.lines; track line.line_id) {
+              <tr class="table-row">
+                <td class="table-td">{{ line.item_code }} — {{ line.item_name }}</td>
+                <td class="table-td font-semibold">{{ line.quantity }}</td>
+                <td class="table-td">{{ formatCurrency(line.original_unit_price, preview.currency_code) }}</td>
+                <td class="table-td">
+                  @if (line.current_price_available && line.current_unit_price) {
+                    {{ formatCurrency(line.current_unit_price, preview.currency_code) }}
+                  } @else {
+                    <span class="text-gray-400">Not available</span>
+                  }
+                </td>
+                <td class="table-td">
+                  <div class="flex flex-col gap-1 text-xs">
+                    <label class="inline-flex items-center gap-2">
+                      <input
+                        type="radio"
+                        [name]="'initial-price-' + line.line_id"
+                        [checked]="fulfillmentPriceChoice()[line.line_id] === 'original'"
+                        (change)="setFulfillmentPrice(line.line_id, 'original')"
+                      />
+                      Original
+                    </label>
+                    <label class="inline-flex items-center gap-2" [class.opacity-50]="!line.current_unit_price">
+                      <input
+                        type="radio"
+                        [name]="'initial-price-' + line.line_id"
+                        [disabled]="!line.current_unit_price"
+                        [checked]="fulfillmentPriceChoice()[line.line_id] === 'current'"
+                        (change)="setFulfillmentPrice(line.line_id, 'current')"
+                      />
+                      Current
+                    </label>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    <div>
+      <div class="flex justify-between items-center mb-2">
+        <label class="input-label mb-0!">Other Costs (optional)</label>
+        <button type="button" class="btn-ghost text-xs!" (click)="addOtherCost()">+ Add Other Cost</button>
+      </div>
+      @for (row of invoiceForm.other_costs; track $index; let i = $index) {
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-2 mb-2 p-3 bg-gray-50 rounded-lg">
+          <div class="md:col-span-4">
+            <input class="input-field" placeholder="Description *" [(ngModel)]="row.cost_name" />
+          </div>
+          <div class="md:col-span-3">
+            <select class="input-field" [(ngModel)]="row.category">
+              @for (c of otherCostCategories; track c.value) {
+                <option [value]="c.value">{{ c.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="md:col-span-3">
+            <input type="number" class="input-field" placeholder="Amount" min="0.01" step="0.01" [(ngModel)]="row.amount" />
+          </div>
+          <div class="md:col-span-2 flex items-center">
+            <button type="button" class="btn-ghost text-red-600!" (click)="removeOtherCost(i)">Remove</button>
+          </div>
+          <div class="md:col-span-12">
+            <input class="input-field" placeholder="Additional notes (optional)" [(ngModel)]="row.description" />
+          </div>
+        </div>
+      }
+      @if (invoiceForm.other_costs.length) {
+        <p class="text-right text-xs text-gray-600">Other costs subtotal: {{ otherCostsTotal() | number:'1.2-2' }}</p>
+      }
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="closeInvoiceModal()">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingInvoice()" (click)="submitGenerateInvoice()">
+      Generate Invoice
+    </button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="showFulfillmentInvoiceModal()"
+  [title]="waveInvoiceButtonLabel()"
+  (close)="showFulfillmentInvoiceModal.set(false)"
+>
+  @if (fulfillmentPreview; as preview) {
+    <div class="space-y-4 text-sm">
+      <p class="text-gray-600">
+        Confirm quantities and unit prices before issuing this invoice.
+        Default pricing mode: <strong>{{ preview.pricing_mode_display }}</strong>
+      </p>
+      <div class="overflow-x-auto border rounded-lg">
+        <table class="w-full text-sm">
+          <thead>
+            <tr>
+              <th class="table-th">Item</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Original Price</th>
+              <th class="table-th">Current Price</th>
+              <th class="table-th">Use Price</th>
+              <th class="table-th text-right">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of preview.lines; track line.line_id) {
+              <tr class="table-row" [class.!bg-amber-50]="line.price_changed">
+                <td class="table-td">{{ line.item_code }} — {{ line.item_name }}</td>
+                <td class="table-td font-semibold">{{ line.quantity }}</td>
+                <td class="table-td">
+                  {{ formatCurrency(line.original_unit_price, preview.currency_code) }}
+                </td>
+                <td class="table-td">
+                  @if (line.current_price_available && line.current_unit_price) {
+                    {{ formatCurrency(line.current_unit_price, preview.currency_code) }}
+                  } @else {
+                    <span class="text-gray-400">—</span>
+                  }
+                </td>
+                <td class="table-td">
+                  @if (line.price_changed && line.current_unit_price) {
+                    <div class="flex flex-col gap-1 text-xs">
+                      <label class="inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          [name]="'price-' + line.line_id"
+                          [checked]="fulfillmentPriceChoice()[line.line_id] === 'original'"
+                          (change)="setFulfillmentPrice(line.line_id, 'original')"
+                        />
+                        Original
+                      </label>
+                      <label class="inline-flex items-center gap-2">
+                        <input
+                          type="radio"
+                          [name]="'price-' + line.line_id"
+                          [checked]="fulfillmentPriceChoice()[line.line_id] === 'current'"
+                          (change)="setFulfillmentPrice(line.line_id, 'current')"
+                        />
+                        Current
+                      </label>
+                    </div>
+                  } @else {
+                    <span class="text-gray-600">Original (unchanged)</span>
+                  }
+                </td>
+                <td class="table-td text-right font-medium">
+                  {{ formatCurrency(fulfillmentLineTotal(line), preview.currency_code) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="text-right text-sm font-semibold text-[#1B3A6B]">
+        Invoice lines subtotal:
+        {{ formatCurrency(fulfillmentPreviewTotal(), preview.currency_code) }}
+        <span class="text-xs font-normal text-gray-500 block">
+          VAT and payment-term deposit % apply after invoice is created.
+        </span>
+      </p>
+    </div>
+  }
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showFulfillmentInvoiceModal.set(false)">
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="btn-primary"
+      [disabled]="savingFulfillmentInvoice() || !fulfillmentPreview?.lines?.length"
+      (click)="submitFulfillmentInvoice()"
+    >
+      {{ savingFulfillmentInvoice() ? 'Generating…' : 'Generate Invoice' }}
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showManualPaymentModal()" title="Record Manual Payment (Customer Email)" (close)="showManualPaymentModal.set(false)">
+  <div class="space-y-4 text-sm">
+    <p class="text-gray-600">Use when the customer replied to the invoice email with payment details instead of the payment portal. Finance can verify and confirm receipt after checking the funds.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="input-label">Amount Paid *</label>
+        <input type="number" class="input-field" min="0.01" step="0.01" [(ngModel)]="manualPayment.amount" />
+        <p class="text-xs text-gray-500 mt-1">{{ paymentDueLabel(order()) }}</p>
+      </div>
+      <div>
+        <label class="input-label">Payment Method *</label>
+        <select class="input-field" [(ngModel)]="manualPayment.payment_method">
+          @for (m of paymentMethods; track m.value) {
+            <option [value]="m.value">{{ m.label }}</option>
+          }
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="input-label">Payment Reference *</label>
+        <input class="input-field" [(ngModel)]="manualPayment.reference_number" placeholder="Bank / M-Pesa reference from customer email" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="input-label">Customer Email Message</label>
+        <textarea rows="3" class="input-field resize-none" [(ngModel)]="manualPayment.customer_reply_message" placeholder="Paste the customer's email reply…"></textarea>
+      </div>
+      <div class="md:col-span-2">
+        <label class="input-label">Attach Proof (optional)</label>
+        <input type="file" class="input-field" accept="image/*,.pdf" (change)="onManualPaymentFile($event)" />
+      </div>
+      <div class="md:col-span-2">
+        <label class="input-label">Internal Notes</label>
+        <input class="input-field" [(ngModel)]="manualPayment.proof_notes" />
+      </div>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showManualPaymentModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingManualPayment()" (click)="submitManualPayment()">
+      Record Payment Proof
+    </button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showBalanceInvoiceModal()" title="Generate Balance Invoice" (close)="showBalanceInvoiceModal.set(false)">
+  <div class="space-y-4 text-sm">
+    @if (order().order_invoicing_summary; as summary) {
+      @if (+(summary.post_delivery_balance_pending ?? 0) > 0) {
+        <p class="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Balance due after delivery on paid deposit invoice(s):
+          <strong>{{ summary.post_delivery_balance_pending }}</strong>
+          ({{ summary.post_delivery_balance_pending_percent || balanceInvoiceMaxPercent() }}% of order).
+          @if (summary.next_post_delivery_balance_batch) {
+            Next invoice covers batch
+            <strong>{{ summary.next_post_delivery_balance_batch }}</strong>
+            up to
+            <strong>{{ balanceInvoiceMaxPercent() }}%</strong>
+            ({{ summary.next_post_delivery_balance_pending }}).
+          }
+          You can invoice any portion of that batch percent now.
+        </p>
+      } @else {
+        <p class="text-gray-600">
+          Order total <strong>{{ summary.order_grand_total }}</strong> —
+          <strong>{{ summary.remaining_to_invoice_percent }}%</strong>
+          ({{ summary.remaining_to_invoice_amount }}) not yet invoiced.
+        </p>
+      }
+    }
+    <div>
+      <label class="input-label">Percent of order total to invoice *</label>
+      <input
+        class="input-field"
+        type="number"
+        min="0.01"
+        [max]="balanceInvoiceMaxPercent()"
+        step="0.01"
+        [(ngModel)]="balanceInvoicePercent"
+      />
+      <p class="text-xs text-gray-500 mt-1">
+        Enter any % from 0.01 up to the remaining
+        <strong>{{ balanceInvoiceMaxPercent() }}%</strong>
+        (defaults to all remaining).
+      </p>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showBalanceInvoiceModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingBalanceInvoice()" (click)="submitBalanceInvoice()">
+      {{ savingBalanceInvoice() ? 'Creating…' : 'Create Balance Invoice' }}
+    </button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="showWaiveCloseModal()"
+  title="Close Order — Waive Outstanding"
+  (close)="showWaiveCloseModal.set(false)"
+>
+  <div class="space-y-4 text-sm">
+    <p class="text-gray-700">
+      Use this when the customer no longer wants the remaining items and you will not fulfill the
+      outstanding balance. The order will be marked complete; waived quantities stay on record in the activity log.
+    </p>
+    <p class="text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
+      If stock arrives later and the customer still wants the balance, do <strong>not</strong> close yet —
+      continue with Inventory reserve → Finance invoice → Logistics delivery instead.
+    </p>
+    <div>
+      <label class="input-label">Reason *</label>
+      <textarea
+        rows="3"
+        class="input-field resize-none"
+        [(ngModel)]="waiveCloseReason"
+        placeholder="e.g. Customer cancelled remaining 9 units — will not wait for stock"
+      ></textarea>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showWaiveCloseModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="savingWaiveClose()" (click)="submitWaiveClose()">
+      {{ savingWaiveClose() ? 'Closing…' : 'Close & Waive Outstanding' }}
+    </button>
+  </div>
+</app-modal>
+
+<app-modal
+  [open]="showProofPreviewModal()"
+  [title]="proofPreviewTitle()"
+  size="preview"
+  (close)="closePaymentProofPreview()"
+>
+  @if (proofPreviewKind() === 'pdf' && safeProofPreviewUrl(); as src) {
+    <iframe
+      [src]="src"
+      title="Payment proof preview"
+      class="w-full h-[min(70vh,720px)] rounded-lg border border-gray-200 bg-gray-50"
+    ></iframe>
+  } @else if (proofPreviewKind() === 'image' && safeProofPreviewUrl(); as src) {
+    <div class="flex justify-center bg-gray-50 rounded-lg border border-gray-200 p-4">
+      <img
+        [src]="src"
+        [alt]="proofPreviewTitle()"
+        class="max-h-[min(70vh,720px)] max-w-full object-contain rounded"
+      />
+    </div>
+  } @else if (safeProofPreviewUrl()) {
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-900">
+      <p class="font-medium">In-app preview is not available for this file type.</p>
+    </div>
+  }
+
+  <div modalFooter>
+    @if (proofPreviewDownloadUrl(); as downloadUrl) {
+      <a [href]="downloadUrl" target="_blank" rel="noopener" class="btn-secondary">Download</a>
+    }
+    <button type="button" class="btn-secondary" (click)="closePaymentProofPreview()">Close</button>
+  </div>
+</app-modal>

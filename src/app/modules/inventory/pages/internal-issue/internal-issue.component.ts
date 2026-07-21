@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
-import { DepartmentRequest } from '../../../../core/models/inventory.model';
+import { DepartmentRequest, DepartmentRequestLine } from '../../../../core/models/inventory.model';
 import { InventoryService } from '../../../../core/services/inventory.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
@@ -59,6 +59,12 @@ export class InternalIssueComponent implements OnInit {
 
   setIssueQty(lineId: number, value: number): void {
     this.issueQty.update((m) => ({ ...m, [lineId]: value }));
+  }
+
+  displayIssueQty(line: DepartmentRequestLine): number {
+    const edited = this.issueQty()[line.id];
+    if (edited !== undefined) return edited;
+    return line.remaining_qty ?? line.requested_qty ?? line.quantity;
   }
 
   issueFull(req: DepartmentRequest): void {

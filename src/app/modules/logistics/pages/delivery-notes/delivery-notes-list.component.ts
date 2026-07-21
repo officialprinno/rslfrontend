@@ -8,6 +8,7 @@ import { LogisticsService } from '../../../../core/services/logistics.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { exportDeliveryNotePdf } from '../../../../core/utils/logistics-pdf.util';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
+import { downloadBlob } from '../../../../core/utils/download.util';
 import { formatDate, formatDateTime } from '../../../../core/utils/format.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
@@ -74,6 +75,17 @@ export class DeliveryNotesListComponent implements OnInit {
   }
 
   printNote(note: DeliveryNote): void {
+    this.printingId.set(note.id);
+    this.logistics
+      .downloadDeliveryNotePdf(note.id)
+      .pipe(finalize(() => this.printingId.set(null)))
+      .subscribe({
+        next: (blob) => downloadBlob(blob, `${note.dn_number}.pdf`),
+        error: () => this.fallbackPrint(note),
+      });
+  }
+
+  private fallbackPrint(note: DeliveryNote): void {
     this.printingId.set(note.id);
     this.logistics.getDeliveryOrder(note.do_id).subscribe({
       next: (order) => {

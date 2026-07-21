@@ -5,7 +5,7 @@
     subtitle="Manage accounts and multi-department role assignments"
   >
     <button type="button" class="btn-secondary" (click)="openCredentials()">View Credentials</button>
-    <a routerLink="/settings/users/new" class="btn-primary">New User</a>
+    <a routerLink="/admin/users/create" class="btn-primary">Create Account</a>
     <a routerLink="/settings/admin" class="btn-secondary">Admin Home</a>
   </app-page-header>
 
@@ -27,13 +27,14 @@
     <app-empty-state title="No users found" message="Try adjusting your search." />
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
               <th class="table-th">Name</th>
               <th class="table-th">Email</th>
               <th class="table-th">Departments</th>
+              <th class="table-th">Companies</th>
               <th class="table-th">Primary Role</th>
               <th class="table-th">Status</th>
               <th class="table-th text-right">Actions</th>
@@ -52,6 +53,7 @@
                     </span>
                   }
                 </td>
+                <td class="table-td text-sm">{{ companySummary(user) }}</td>
                 <td class="table-td">{{ user.role_name ?? '—' }}</td>
                 <td class="table-td">
                   <app-status-badge [status]="user.is_active ? 'ACTIVE' : 'INACTIVE'" />
@@ -67,7 +69,6 @@
             }
           </tbody>
         </table>
-      </div>
     </div>
 
     <app-pagination
@@ -76,6 +77,7 @@
       [pageSize]="25"
       (pageChange)="onPageChange($event)"
     />
+    </div>
   }
 </div>
 

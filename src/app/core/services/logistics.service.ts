@@ -1,8 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { environment } from '../../environments/environments';
+import { dashboardHttpParams } from '../../shared/dashboard';
+import { DashboardCacheService } from '../../shared/dashboard/services/dashboard-cache.service';
+import { DateRangeValue } from '../../shared/dashboard/models/dashboard.types';
 import { ApiResponse } from '../models/auth.models';
 import { PaginatedData, ListParams } from '../models/paginated.model';
 import {
@@ -27,11 +31,20 @@ import {
   VehicleHistory,
   VehicleMaintenance,
 } from '../models/logistics.model';
-import { buildHttpParams, unwrapApi } from '../utils/api.util';
+import { buildHttpParams, unwrapApi, unwrapApiWithMeta } from '../utils/api.util';
+import {
+  GrnDestinationHint,
+  InternalRoute,
+  InternalRouteCreateData,
+  InternalRouteMutationResult,
+  InternalRouteUpdateData,
+} from '../models/internal-route.model';
+import { fetchCachedDashboard } from '../utils/dashboard-fetch.util';
 
 @Injectable({ providedIn: 'root' })
 export class LogisticsService {
   private readonly http = inject(HttpClient);
+  private readonly dashCache = inject(DashboardCacheService);
   private readonly baseUrl = `${environment.apiUrl}/logistics`;
 
   // Vehicles
@@ -111,6 +124,23 @@ export class LogisticsService {
       .pipe(unwrapApi());
   }
 
+  recordInternalDeliveryCost(
+    id: number,
+    data: {
+      delivery_distance_km?: number;
+      transport_method?: string;
+      fuel_cost?: number;
+      loading_cost?: number;
+      offloading_cost?: number;
+      additional_charges?: number;
+      notes?: string;
+    },
+  ): Observable<DeliveryOrder> {
+    return this.http
+      .post<ApiResponse<DeliveryOrder>>(`${this.baseUrl}/deliveries/${id}/record-internal-cost/`, data)
+      .pipe(unwrapApi());
+  }
+
   createDeliveryOrder(data: DOFormData): Observable<DeliveryOrder> {
     return this.http
       .post<ApiResponse<DeliveryOrder>>(`${this.baseUrl}/deliveries/`, data)
@@ -184,6 +214,12 @@ export class LogisticsService {
       .pipe(unwrapApi());
   }
 
+  downloadDeliveryNotePdf(id: number) {
+    return this.http.get(`${this.baseUrl}/delivery-notes/${id}/download-pdf/`, {
+      responseType: 'blob',
+    });
+  }
+
   // Maintenance
   getMaintenance(params: ListParams = {}): Observable<PaginatedData<VehicleMaintenance>> {
     return this.http
@@ -239,10 +275,19 @@ export class LogisticsService {
   }
 
   // Dashboard
-  getLogisticsDashboard(): Observable<LogisticsDashboard> {
-    return this.http
-      .get<ApiResponse<LogisticsDashboard>>(`${this.baseUrl}/dashboard/`)
-      .pipe(unwrapApi());
+  getLogisticsDashboard(
+    range?: DateRangeValue | null,
+    bypassCache = false,
+  ): Observable<LogisticsDashboard> {
+    const url = `${this.baseUrl}/dashboard/`;
+    const params = dashboardHttpParams(range);
+    return fetchCachedDashboard<LogisticsDashboard>(
+      this.http,
+      this.dashCache,
+      url,
+      params,
+      bypassCache,
+    );
   }
 
   // Sales order logistics queue
@@ -298,10 +343,15 @@ export class LogisticsService {
       .pipe(unwrapApi());
   }
 
-  confirmSalesOrderPickup(id: number, data: Record<string, unknown>): Observable<unknown> {
+  scheduleSalesOrderPickup(id: number, data: Record<string, unknown>): Observable<unknown> {
     return this.http
       .post<ApiResponse<unknown>>(`${this.baseUrl}/sales-orders/${id}/confirm_pickup/`, data)
       .pipe(unwrapApi());
+  }
+
+  /** @deprecated Use scheduleSalesOrderPickup — logistics only schedules; inventory confirms collection */
+  confirmSalesOrderPickup(id: number, data: Record<string, unknown>): Observable<unknown> {
+    return this.scheduleSalesOrderPickup(id, data);
   }
 
   confirmSalesOrderDelivery(id: number, data: Record<string, unknown>): Observable<unknown> {
@@ -314,6 +364,80 @@ export class LogisticsService {
     return this.http
       .post<ApiResponse<unknown>>(`${this.baseUrl}/sales-orders/${id}/logistics_confirm/`, {
         remarks,
+      })
+      .pipe(unwrapApi());
+  }
+
+  // Internal routes (staff planner)
+  getInternalRoutes(params: ListParams = {}): Observable<PaginatedData<InternalRoute>> {
+    return this.http
+      .get<ApiResponse<PaginatedData<InternalRoute>>>(`${this.baseUrl}/internal-routes/`, {
+        params: buildHttpParams({ page_size: 20, ordering: '-scheduled_date', ...params }),
+      })
+      .pipe(unwrapApi());
+  }
+
+  getInternalRoute(id: number): Observable<InternalRoute> {
+    return this.http
+      .get<ApiResponse<InternalRoute>>(`${this.baseUrl}/internal-routes/${id}/`)
+      .pipe(unwrapApi());
+  }
+
+  createInternalRoute(data: InternalRouteCreateData): Observable<InternalRouteMutationResult> {
+    return this.http
+      .post<ApiResponse<InternalRoute>>(`${this.baseUrl}/internal-routes/`, data)
+      .pipe(
+        unwrapApiWithMeta(),
+        map((res) => ({
+          ...res,
+          warnings: (res.warnings ?? undefined) as InternalRouteMutationResult['warnings'],
+        })),
+      );
+  }
+
+  updateInternalRoute(
+    id: number,
+    data: InternalRouteUpdateData,
+  ): Observable<InternalRouteMutationResult> {
+    return this.http
+      .patch<ApiResponse<InternalRoute>>(`${this.baseUrl}/internal-routes/${id}/`, data)
+      .pipe(
+        unwrapApiWithMeta(),
+        map((res) => ({
+          ...res,
+          warnings: (res.warnings ?? undefined) as InternalRouteMutationResult['warnings'],
+        })),
+      );
+  }
+
+  cancelInternalRoute(id: number, cancellation_reason = ''): Observable<InternalRoute> {
+    return this.http
+      .post<ApiResponse<InternalRoute>>(`${this.baseUrl}/internal-routes/${id}/cancel/`, {
+        cancellation_reason,
+      })
+      .pipe(unwrapApi());
+  }
+
+  addPoToInternalRoute(id: number, purchase_order_id: number): Observable<InternalRoute> {
+    return this.http
+      .post<ApiResponse<InternalRoute>>(`${this.baseUrl}/internal-routes/${id}/add-po/`, {
+        purchase_order_id,
+      })
+      .pipe(unwrapApi());
+  }
+
+  removePoFromInternalRoute(id: number, purchase_order_id: number): Observable<InternalRoute> {
+    return this.http
+      .post<ApiResponse<InternalRoute>>(`${this.baseUrl}/internal-routes/${id}/remove-po/`, {
+        purchase_order_id,
+      })
+      .pipe(unwrapApi());
+  }
+
+  getGrnDestinations(poIds: number[]): Observable<GrnDestinationHint[]> {
+    return this.http
+      .get<ApiResponse<GrnDestinationHint[]>>(`${this.baseUrl}/internal-routes/grn-destination/`, {
+        params: buildHttpParams({ po_ids: poIds.join(',') }),
       })
       .pipe(unwrapApi());
   }

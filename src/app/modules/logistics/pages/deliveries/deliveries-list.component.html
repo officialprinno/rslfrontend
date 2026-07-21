@@ -47,18 +47,14 @@
   </div>
 
   @if (loading()) {
-    <app-table-skeleton [cols]="9" />
+    <app-table-skeleton [cols]="10" />
   } @else if (!deliveries().length) {
     <div class="card">
-      <app-empty-state
-        title="No delivery orders"
-        message="Schedule a delivery from a confirmed sales order."
-        actionLabel="New Delivery"
-        (actionClick)="null"
-      />
+      <app-empty-state moduleName="Deliveries" actionLabel="New Delivery" (actionClick)="null" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
+      <div class="table-scroll-viewport">
       <table class="w-full">
         <thead>
           <tr>
@@ -68,6 +64,7 @@
             <th class="table-th">Scheduled</th>
             <th class="table-th">Vehicle</th>
             <th class="table-th">Driver</th>
+            <th class="table-th">Driver Trip</th>
             <th class="table-th">Destination</th>
             <th class="table-th">Status</th>
             <th class="table-th">Actions</th>
@@ -84,6 +81,13 @@
               </td>
               <td class="table-td">{{ d.vehicle_registration || '—' }}</td>
               <td class="table-td">{{ d.driver_name || '—' }}</td>
+              <td class="table-td">
+                @if (d.trip_status) {
+                  <app-status-badge [status]="d.trip_status" />
+                } @else {
+                  —
+                }
+              </td>
               <td class="table-td max-w-[160px] truncate">{{ d.destination || '—' }}</td>
               <td class="table-td">
                 <span class="inline-flex items-center gap-1.5">
@@ -116,11 +120,13 @@
           }
         </tbody>
       </table>
+      </div>
       <app-pagination
         [page]="page()"
-        [pageSize]="10"
+        [pageSize]="pageSize()"
         [total]="total()"
-        (pageChange)="page.set($event); load()"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
       />
     </div>
   }

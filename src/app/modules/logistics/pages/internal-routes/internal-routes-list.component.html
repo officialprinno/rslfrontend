@@ -1,0 +1,483 @@
+<div class="page-container">
+  <app-logistics-nav />
+  <app-page-header title="Internal Routes" subtitle="Plan warehouse transfers and PO pickups">
+    @if (canManage()) {
+      <button type="button" class="btn-primary" (click)="openCreate()">New Route</button>
+    }
+  </app-page-header>
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search route number, locations..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    @if (canFilterCompany()) {
+      <select
+        class="input-field w-44"
+        [ngModel]="companyFilter()"
+        (ngModelChange)="companyFilter.set($event); page.set(1); load()"
+      >
+        <option value="">All Companies</option>
+        @for (c of userCompanies(); track c.company_id) {
+          <option [value]="c.company_id">{{ c.company_name }}</option>
+        }
+      </select>
+    }
+    <select
+      class="input-field w-36"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st.replace('_', ' ') }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-44"
+      [ngModel]="routeTypeFilter()"
+      (ngModelChange)="routeTypeFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Types</option>
+      @for (rt of routeTypeOptions; track rt.value) {
+        <option [value]="rt.value">{{ rt.label }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-40"
+      [ngModel]="driverFilter()"
+      (ngModelChange)="driverFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Drivers</option>
+      @for (d of drivers(); track d.id) {
+        <option [value]="d.id">{{ d.full_name }}</option>
+      }
+    </select>
+    <select
+      class="input-field w-40"
+      [ngModel]="vehicleFilter()"
+      (ngModelChange)="vehicleFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Vehicles</option>
+      @for (v of vehicles(); track v.id) {
+        <option [value]="v.id">{{ v.registration_number }}</option>
+      }
+    </select>
+    <input
+      type="date"
+      class="input-field w-36"
+      [ngModel]="dateFrom()"
+      (ngModelChange)="dateFrom.set($event); page.set(1); load()"
+    />
+    <input
+      type="date"
+      class="input-field w-36"
+      [ngModel]="dateTo()"
+      (ngModelChange)="dateTo.set($event); page.set(1); load()"
+    />
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="10" />
+  } @else if (!routes().length) {
+    <div class="card">
+      <app-empty-state moduleName="Internal Routes" (companySwitched)="load()" />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Route</th>
+            <th class="table-th">Company</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Origin</th>
+            <th class="table-th">Destination</th>
+            <th class="table-th">Scheduled</th>
+            <th class="table-th">Driver</th>
+            <th class="table-th">Vehicle</th>
+            <th class="table-th">POs</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (route of routes(); track route.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ route.route_number }}</td>
+              <td class="table-td">
+                <span
+                  class="inline-block px-2 py-0.5 rounded text-xs font-medium text-white"
+                  [style.background-color]="route.company_badge_color || '#1B3A6B'"
+                >
+                  {{ route.company_code }}
+                </span>
+              </td>
+              <td class="table-td text-sm">{{ route.route_type.replace('_', ' ') }}</td>
+              <td class="table-td max-w-[140px] truncate">{{ originDisplay(route) }}</td>
+              <td class="table-td max-w-[140px] truncate">{{ destinationDisplay(route) }}</td>
+              <td class="table-td">{{ formatDate(route.scheduled_date) }}</td>
+              <td class="table-td">{{ route.driver_name }}</td>
+              <td class="table-td">{{ route.vehicle_registration }}</td>
+              <td class="table-td text-sm">
+                @if (route.po_references.length) {
+                  {{ route.po_references.join(', ') }}
+                } @else {
+                  —
+                }
+              </td>
+              <td class="table-td">
+                <app-status-badge [status]="route.status" />
+              </td>
+              <td class="table-td whitespace-nowrap">
+                <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(route)">
+                  View
+                </button>
+                @if (route.status === 'PLANNED' && canManage()) {
+                  <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(route)">
+                    Edit
+                  </button>
+                  @if (route.route_type === 'PO_PICKUP') {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openAddPo(route)">
+                      Add PO
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="btn-ghost !px-2 !py-1 !text-xs !text-red-600"
+                    (click)="openCancel(route)"
+                  >
+                    Cancel
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="10"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>
+
+<!-- Create / Edit modal -->
+<app-modal
+  [open]="modalMode() === 'create' || modalMode() === 'edit'"
+  [title]="modalMode() === 'create' ? 'New Internal Route' : 'Edit Route'"
+  size="xl"
+  (close)="closeModal()"
+>
+  <form [formGroup]="routeForm" class="space-y-4" (ngSubmit)="saveRoute()">
+    @if (modalMode() === 'create') {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Company</label>
+          <select
+            class="input-field w-full"
+            formControlName="company"
+            (change)="onFormCompanyChange(routeForm.get('company')?.value)"
+          >
+            <option [ngValue]="null">Select company</option>
+            @for (c of userCompanies(); track c.company_id) {
+              <option [ngValue]="c.company_id">{{ c.company_name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Route Type</label>
+          <select class="input-field w-full" formControlName="route_type">
+            @for (rt of routeTypeOptions; track rt.value) {
+              <option [value]="rt.value">{{ rt.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    }
+
+    @if (formRouteType() === 'WAREHOUSE_TRANSFER') {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Origin Warehouse</label>
+          <select class="input-field w-full" formControlName="origin">
+            <option [ngValue]="null">Select warehouse</option>
+            @for (w of warehouses(); track w.id) {
+              <option [ngValue]="w.id">{{ w.name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Destination Warehouse</label>
+          <select class="input-field w-full" formControlName="destination">
+            <option [ngValue]="null">Select warehouse</option>
+            @for (w of warehouses(); track w.id) {
+              <option [ngValue]="w.id">{{ w.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    }
+
+    @if (formRouteType() === 'PO_PICKUP') {
+      <div>
+        <label class="form-label">Pickup Location</label>
+        <input class="input-field w-full" formControlName="origin_label" placeholder="Supplier / pickup address" />
+      </div>
+      <div>
+        <label class="form-label">Purchase Orders</label>
+        <div class="border rounded-lg max-h-40 overflow-y-auto p-2 space-y-1">
+          @for (po of purchaseOrders(); track po.id) {
+            <label class="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                [checked]="selectedPoIds().includes(po.id)"
+                (change)="togglePoSelection(po.id)"
+              />
+              <span>{{ po.po_number }} — {{ po.supplier_name }}</span>
+            </label>
+          }
+        </div>
+        @if (grnHints().length) {
+          <div class="mt-2 text-xs text-gray-600 space-y-1">
+            @for (hint of grnHints(); track hint.po_id) {
+              <p>
+                {{ hint.po_number }}:
+                @if (hint.found) {
+                  GRN {{ hint.grn_number }} → {{ hint.warehouse_name }}
+                } @else {
+                  No GRN warehouse found
+                }
+              </p>
+            }
+          </div>
+        }
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Destination Warehouse</label>
+          <select class="input-field w-full" formControlName="destination">
+            <option [ngValue]="null">From GRN or manual</option>
+            @for (w of warehouses(); track w.id) {
+              <option [ngValue]="w.id">{{ w.name }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Destination Label (optional)</label>
+          <input class="input-field w-full" formControlName="destination_label" />
+        </div>
+      </div>
+    }
+
+    @if (formRouteType() === 'CUSTOM') {
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="form-label">Origin Label</label>
+          <input class="input-field w-full" formControlName="origin_label" />
+        </div>
+        <div>
+          <label class="form-label">Destination Label</label>
+          <input class="input-field w-full" formControlName="destination_label" />
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Destination Warehouse (optional)</label>
+        <select class="input-field w-full" formControlName="destination">
+          <option [ngValue]="null">None</option>
+          @for (w of warehouses(); track w.id) {
+            <option [ngValue]="w.id">{{ w.name }}</option>
+          }
+        </select>
+      </div>
+    }
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="form-label">Driver</label>
+        <select class="input-field w-full" formControlName="driver">
+          <option [ngValue]="null">Select driver</option>
+          @for (d of drivers(); track d.id) {
+            <option [ngValue]="d.id">
+              {{ d.full_name }}
+              @if (driverHint(d.id, selectedRoute()?.id); as hint) {
+                — {{ hint }}
+              }
+            </option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Vehicle</label>
+        <select class="input-field w-full" formControlName="vehicle">
+          <option [ngValue]="null">Select vehicle</option>
+          @for (v of vehicles(); track v.id) {
+            <option [ngValue]="v.id">
+              {{ v.registration_number }}
+              @if (vehicleHint(v.id, selectedRoute()?.id); as hint) {
+                — {{ hint }}
+              }
+            </option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="form-label">Scheduled Date</label>
+        <input type="date" class="input-field w-full" formControlName="scheduled_date" />
+      </div>
+      <div>
+        <label class="form-label">Scheduled Time</label>
+        <input type="time" class="input-field w-full" formControlName="scheduled_time" />
+      </div>
+    </div>
+
+    <div>
+      <label class="form-label">Notes</label>
+      <textarea class="input-field w-full" rows="2" formControlName="notes"></textarea>
+    </div>
+  </form>
+
+  <div modalFooter class="flex justify-end gap-2">
+    <button type="button" class="btn-secondary" (click)="closeModal()">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveRoute()">
+      {{ saving() ? 'Saving...' : 'Save Route' }}
+    </button>
+  </div>
+</app-modal>
+
+<!-- View modal -->
+<app-modal [open]="modalMode() === 'view'" title="Route Details" size="lg" (close)="closeModal()">
+  @if (selectedRoute(); as route) {
+    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+      <div>
+        <dt class="text-gray-500">Route Number</dt>
+        <dd class="font-medium">{{ route.route_number }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Company</dt>
+        <dd>
+          <span
+            class="inline-block px-2 py-0.5 rounded text-xs font-medium text-white"
+            [style.background-color]="route.company_badge_color || '#1B3A6B'"
+          >
+            {{ route.company_name }}
+          </span>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Type</dt>
+        <dd>{{ route.route_type.replace('_', ' ') }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Status</dt>
+        <dd><app-status-badge [status]="route.status" /></dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Origin</dt>
+        <dd>{{ originDisplay(route) }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Destination</dt>
+        <dd>{{ destinationDisplay(route) }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Driver</dt>
+        <dd>{{ route.driver_name }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Vehicle</dt>
+        <dd>{{ route.vehicle_registration }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Scheduled</dt>
+        <dd>{{ formatDate(route.scheduled_date) }} {{ route.scheduled_time || '' }}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500">Created By</dt>
+        <dd>{{ route.created_by_name }}</dd>
+      </div>
+      @if (route.notes) {
+        <div class="sm:col-span-2">
+          <dt class="text-gray-500">Notes</dt>
+          <dd>{{ route.notes }}</dd>
+        </div>
+      }
+      @if (route.purchase_order_links.length) {
+        <div class="sm:col-span-2">
+          <dt class="text-gray-500 mb-1">Linked POs</dt>
+          <dd class="space-y-1">
+            @for (link of route.purchase_order_links; track link.id) {
+              <div class="flex items-center justify-between gap-2 bg-gray-50 rounded px-2 py-1">
+                <span>{{ link.po_number }}</span>
+                @if (route.status === 'PLANNED' && canManage()) {
+                  <button
+                    type="button"
+                    class="text-xs text-red-600"
+                    (click)="removePo(route, link.purchase_order)"
+                  >
+                    Remove
+                  </button>
+                }
+              </div>
+            }
+          </dd>
+        </div>
+      }
+      @if (route.status === 'CANCELLED' && route.cancellation_reason) {
+        <div class="sm:col-span-2">
+          <dt class="text-gray-500">Cancellation Reason</dt>
+          <dd>{{ route.cancellation_reason }}</dd>
+        </div>
+      }
+    </dl>
+  }
+  <div modalFooter class="flex justify-end">
+    <button type="button" class="btn-secondary" (click)="closeModal()">Close</button>
+  </div>
+</app-modal>
+
+<!-- Add PO modal -->
+<app-modal [open]="modalMode() === 'addPo'" title="Add Purchase Order" (close)="closeModal()">
+  <label class="form-label">Purchase Order</label>
+  <select class="input-field w-full" [ngModel]="addPoId()" (ngModelChange)="addPoId.set($event)">
+    <option [ngValue]="null">Select PO</option>
+    @for (po of purchaseOrders(); track po.id) {
+      <option [ngValue]="po.id">{{ po.po_number }} — {{ po.supplier_name }}</option>
+    }
+  </select>
+  <div modalFooter class="flex justify-end gap-2">
+    <button type="button" class="btn-secondary" (click)="closeModal()">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitAddPo()">
+      Add PO
+    </button>
+  </div>
+</app-modal>
+
+<!-- Cancel modal -->
+<app-modal [open]="modalMode() === 'cancel'" title="Cancel Route" (close)="closeModal()">
+  <p class="text-sm text-gray-600 mb-3">
+  Cancel route {{ selectedRoute()?.route_number }}? This cannot be undone.
+  </p>
+  <label class="form-label">Reason (optional)</label>
+  <textarea
+    class="input-field w-full"
+    rows="3"
+    [ngModel]="cancelReason()"
+    (ngModelChange)="cancelReason.set($event)"
+  ></textarea>
+  <div modalFooter class="flex justify-end gap-2">
+    <button type="button" class="btn-secondary" (click)="closeModal()">Back</button>
+    <button type="button" class="btn-danger" [disabled]="saving()" (click)="submitCancel()">
+      Cancel Route
+    </button>
+  </div>
+</app-modal>

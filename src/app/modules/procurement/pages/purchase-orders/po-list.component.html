@@ -22,7 +22,7 @@
 
   @if (loading()) { <app-table-skeleton [cols]="8" /> }
   @else if (!orders().length) {
-    <div class="card"><app-empty-state title="No purchase orders" message="Create a PO from a quotation or manually." actionLabel="New PO" (actionClick)="null" /></div>
+    <div class="card"><app-empty-state moduleName="Purchase Orders" actionLabel="New PO" (actionClick)="null" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
       <table class="w-full">

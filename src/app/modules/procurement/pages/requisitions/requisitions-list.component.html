@@ -44,8 +44,11 @@
 
   @if (loading()) { <app-table-skeleton [cols]="9" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (workspaceEmpty()) {
+    <div class="card"><app-empty-state moduleName="Purchase Requisitions" [actionLabel]="canAdd() ? 'New Requisition' : ''" (actionClick)="router.navigate(['/procurement/requisitions/new'])" (companySwitched)="load()" /></div>
+  }
   @else if (!requisitions().length) {
-    <div class="card"><app-empty-state title="No requisitions" message="Create a purchase requisition to request items." actionLabel="New Requisition" (actionClick)="router.navigate(['/procurement/requisitions/new'])" /></div>
+    <div class="card"><app-empty-state moduleName="Purchase Requisitions" [actionLabel]="canAdd() ? 'New Requisition' : ''" (actionClick)="router.navigate(['/procurement/requisitions/new'])" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
       <table class="w-full">
@@ -76,9 +79,17 @@
               <td class="table-td">
                 <div class="flex gap-1 flex-wrap">
                   <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openView(pr)">View</button>
-                  @if (pr.status === 'DRAFT') {
+                  @if (canEdit(pr)) {
                     <a [routerLink]="['/procurement/requisitions', pr.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                  }
+                  @if (pr.status === 'DRAFT') {
                     <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="submit(pr)">Submit</button>
+                  }
+                  @if (canCancel(pr)) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-amber-700" (click)="cancelPending(pr)">Cancel</button>
+                  }
+                  @if (canRevise(pr)) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-blue-700" (click)="reviseRejected(pr)">Revise</button>
                   }
                   @if (canDelete() && pr.status === 'DRAFT') {
                     <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="deletePr(pr)">Delete</button>
@@ -99,28 +110,162 @@
     <app-workflow-stepper [steps]="prSteps" [activeIndex]="workflowIndex(v.status)" />
     <div class="grid grid-cols-2 gap-4 text-sm mb-4">
       <div><span class="text-gray-500">Department</span><p class="font-medium">{{ v.department_name }}</p></div>
+      <div><span class="text-gray-500">Request Type</span><p class="font-medium">{{ v.request_type }}</p></div>
       <div><span class="text-gray-500">Priority</span><p><app-priority-badge [priority]="v.priority" /></p></div>
+      @if (v.gm_override) {
+        <div class="md:col-span-2 p-2 bg-amber-50 text-amber-800 rounded text-xs">Approved via GM override</div>
+      }
+      <div><span class="text-gray-500">Initiated By</span><p class="font-medium">{{ v.requested_by_name }} ({{ v.initiated_by_role || '—' }})</p></div>
       <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="v.status" /></p></div>
       <div><span class="text-gray-500">Total</span><p class="font-semibold">{{ formatCurrency(v.total_estimated) }}</p></div>
     </div>
     @if (v.rejection_reason) {
-      <div class="p-3 bg-red-50 text-red-700 rounded-lg mb-4 text-sm">Rejected: {{ v.rejection_reason }}</div>
-    }
-    <table class="w-full text-sm mb-4">
-      <thead><tr><th class="table-th">Item</th><th class="table-th">Qty</th><th class="table-th">Unit Est.</th><th class="table-th">Total</th></tr></thead>
-      <tbody>
-        @for (item of v.items; track item.id) {
-          <tr class="table-row">
-            <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
-            <td class="table-td">{{ item.quantity_requested }}</td>
-            <td class="table-td">{{ formatCurrency(item.unit_cost_estimate) }}</td>
-            <td class="table-td">{{ formatCurrency(item.total_estimate) }}</td>
-          </tr>
+      <div class="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <p class="font-semibold">Approver feedback / instructions</p>
+        <p class="mt-1 whitespace-pre-wrap">{{ v.rejection_reason }}</p>
+        @if (v.status === 'REJECTED') {
+          <p class="mt-2 text-xs text-red-700">Revise this requisition to address the feedback, then submit again.</p>
         }
-      </tbody>
-    </table>
-    @if (v.approved_by_name) {
-      <p class="text-xs text-gray-500">Approved by {{ v.approved_by_name }} on {{ formatDateTime(v.approved_at) }}</p>
+      </div>
+    }
+
+    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h4 class="text-sm font-semibold text-[#1B3A6B] mb-1">Line items</h4>
+        <p class="text-xs text-gray-500">
+          @if (v.status === 'PENDING' && (canApprove(v) || v.can_hod_approve || canGmOverride(v) || v.can_gm_override)) {
+            Select the items to approve for purchase. Only selected items will be used for RFQ.
+          } @else if (v.status === 'APPROVED') {
+            Items approved for purchase (used when creating RFQ).
+          } @else {
+            Review qty, unit, costs and VAT.
+          }
+        </p>
+      </div>
+      @if (v.status === 'PENDING' && (canApprove(v) || v.can_hod_approve || canGmOverride(v) || v.can_gm_override)) {
+        <button type="button" class="btn-ghost !text-xs" (click)="selectAllItems(v)">Select all</button>
+      }
+    </div>
+
+    <div class="space-y-3 mb-4">
+      @for (item of (v.status === 'APPROVED' ? visibleItems(v) : v.items); track item.id; let i = $index) {
+        <div
+          class="rounded-xl border p-4"
+          [class.border-gray-200]="!(v.status === 'PENDING' && isItemSelected(item.id))"
+          [class.bg-white]="!(v.status === 'PENDING' && isItemSelected(item.id))"
+          [class.border-[#1B3A6B]]="v.status === 'PENDING' && isItemSelected(item.id)"
+          [class.bg-blue-50/40]="v.status === 'PENDING' && isItemSelected(item.id)"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
+            <div class="flex items-start gap-3 min-w-0">
+              @if (v.status === 'PENDING' && (canApprove(v) || v.can_hod_approve || canGmOverride(v) || v.can_gm_override)) {
+                <label class="mt-1 flex items-center">
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4"
+                    [checked]="isItemSelected(item.id)"
+                    (change)="toggleItem(item.id, $any($event.target).checked)"
+                  />
+                </label>
+              }
+              <div class="min-w-0">
+                <span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                  Line {{ i + 1 }}
+                </span>
+                <p class="mt-2 text-sm font-semibold text-gray-900">
+                  {{ item.line_label || (item.item_code ? item.item_code + ' — ' + item.item_name : item.item_name) }}
+                </p>
+              </div>
+            </div>
+            <span
+              class="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold"
+              [class.bg-amber-50]="(item.tax_rate ?? 0) > 0"
+              [class.text-amber-800]="(item.tax_rate ?? 0) > 0"
+              [class.bg-slate-100]="!(item.tax_rate ?? 0)"
+              [class.text-slate-600]="!(item.tax_rate ?? 0)"
+            >
+              {{ (item.tax_rate ?? 0) > 0 ? 'VAT 18%' : 'No VAT' }}
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <p class="text-xs text-gray-500">Qty / Unit</p>
+              <p class="font-medium text-gray-900">
+                {{ item.quantity_requested }}
+                <span class="text-[#1B3A6B]">{{ item.unit_of_measure || 'unit' }}</span>
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">Est. Unit Cost</p>
+              <p class="font-medium text-gray-900">{{ formatCurrency(item.unit_cost_estimate) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">Est. Cost</p>
+              <p class="font-medium text-gray-900">{{ formatCurrency(lineEstCost(item)) }}</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-500">VAT</p>
+              <p class="font-medium text-amber-700">{{ formatCurrency(lineVat(item)) }}</p>
+            </div>
+          </div>
+
+          <div class="mt-3 flex justify-end border-t border-gray-100 pt-2">
+            <span class="text-sm text-gray-500 mr-2">Line total</span>
+            <span class="text-base font-bold text-[#1B3A6B]">{{ formatCurrency(item.total_estimate) }}</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="mb-4 flex flex-wrap items-center justify-end gap-x-6 gap-y-2 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3">
+      @if (v.status === 'PENDING' && (canApprove(v) || v.can_hod_approve || canGmOverride(v) || v.can_gm_override)) {
+        <div class="text-sm text-gray-500">
+          Selected Est. Cost
+          <span class="ml-2 font-semibold text-gray-800">{{ formatCurrency(selectedEstCost(v)) }}</span>
+        </div>
+        <div class="text-sm text-gray-500">
+          Selected VAT
+          <span class="ml-2 font-semibold text-amber-700">{{ formatCurrency(selectedVat(v)) }}</span>
+        </div>
+        <div class="text-sm text-gray-500">
+          Selected Total
+          <span class="ml-2 text-lg font-bold text-[#1B3A6B]">{{ formatCurrency(selectedTotal(v)) }}</span>
+        </div>
+      } @else {
+        <div class="text-sm text-gray-500">
+          Est. Cost
+          <span class="ml-2 font-semibold text-gray-800">{{ formatCurrency(requisitionEstCost(v)) }}</span>
+        </div>
+        <div class="text-sm text-gray-500">
+          VAT
+          <span class="ml-2 font-semibold text-amber-700">{{ formatCurrency(requisitionVat(v)) }}</span>
+        </div>
+        <div class="text-sm text-gray-500">
+          Grand Total
+          <span class="ml-2 text-lg font-bold text-[#1B3A6B]">{{ formatCurrency(v.total_estimated) }}</span>
+        </div>
+      }
+    </div>
+    @if (v.status === 'APPROVED' && v.approved_by_name) {
+      <div class="p-3 bg-green-50 text-green-800 rounded-lg text-sm mb-4">
+        @if (v.gm_override) {
+          <p class="font-medium">Approved via GM override</p>
+          <p class="text-xs mt-1">By {{ v.approved_by_name }} on {{ formatDateTime(v.approved_at) }}</p>
+        } @else if (v.hod_approved_by_name) {
+          <p class="font-medium">Approved by {{ v.hod_approved_by_name }}</p>
+          <p class="text-xs mt-1">HOD Procurement · {{ formatDateTime(v.hod_approved_at ?? v.approved_at) }}</p>
+        } @else {
+          <p class="font-medium">Approved by {{ v.approved_by_name }}</p>
+          <p class="text-xs mt-1">{{ formatDateTime(v.approved_at) }}</p>
+        }
+      </div>
+    }
+    @if (v.status === 'REJECTED' && v.approved_by_name) {
+      <div class="p-3 bg-red-50 text-red-800 rounded-lg text-sm mb-4">
+        <p class="font-medium">Rejected by {{ v.approved_by_name }}</p>
+        <p class="text-xs mt-1">{{ formatDateTime(v.approved_at) }}</p>
+      </div>
     }
   }
   <div modalFooter>
@@ -129,14 +274,56 @@
         <a [routerLink]="['/procurement/requisitions', v.id, 'edit']" class="btn-secondary">Edit</a>
         <button type="button" class="btn-primary" (click)="submit(v)">Submit</button>
       }
-      @if (v.status === 'PENDING' && canApprove()) {
-        <button type="button" class="btn-primary" (click)="approve(v)">Approve</button>
-        <button type="button" class="btn-secondary !text-red-600" (click)="reject(v)">Reject</button>
+      @if (v.status === 'PENDING' && canCancel(v)) {
+        <button type="button" class="btn-secondary" (click)="cancelPending(v)">Cancel to Draft</button>
+      }
+      @if (v.status === 'PENDING' && (canApprove(v) || v.can_hod_approve)) {
+        <button type="button" class="btn-primary" (click)="approve(v)">HOD Approve Selected</button>
+      }
+      @if (v.status === 'PENDING' && (canGmOverride(v) || v.can_gm_override)) {
+        <button type="button" class="btn-secondary" (click)="gmOverride(v)">GM Override Selected</button>
+      }
+      @if (v.status === 'PENDING' && canReject()) {
+        <button type="button" class="btn-secondary !text-red-600" (click)="reject(v)">Reject with Instructions</button>
+      }
+      @if (v.status === 'REJECTED' && canRevise(v)) {
+        <button type="button" class="btn-primary" (click)="reviseRejected(v)">Revise & Edit</button>
       }
       @if (v.status === 'APPROVED') {
         <button type="button" class="btn-primary" (click)="createRfq(v)">Create RFQ</button>
       }
     }
     <button type="button" class="btn-secondary" (click)="showView.set(false)">Close</button>
+  </div>
+</app-modal>
+
+<app-modal [open]="showReject()" title="Reject with Instructions" (close)="showReject.set(false)">
+  @if (rejecting(); as pr) {
+    <p class="text-sm text-gray-600 mb-4">
+      Reject <strong>{{ pr.pr_number }}</strong>. The initiator will see your instructions and can revise the requisition.
+    </p>
+  }
+  <form [formGroup]="rejectForm">
+    <label class="input-label">Reason / instructions for initiator *</label>
+    <textarea
+      formControlName="reason"
+      class="input-field resize-none"
+      rows="4"
+      placeholder="Explain what should be corrected (e.g. remove item X, change qty, attach justification…)"
+    ></textarea>
+    @if (rejectForm.controls.reason.touched && rejectForm.controls.reason.invalid) {
+      <p class="text-xs text-red-600 mt-1">Instructions are required (minimum 3 characters).</p>
+    }
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showReject.set(false)">Cancel</button>
+    <button
+      type="button"
+      class="btn-primary !bg-red-600 hover:!bg-red-700"
+      [disabled]="saving()"
+      (click)="confirmReject()"
+    >
+      Reject Requisition
+    </button>
   </div>
 </app-modal>

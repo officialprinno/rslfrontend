@@ -1,0 +1,234 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    [title]="release()?.po_number ?? 'Payment Request'"
+    [subtitle]="release()?.supplier_name ?? 'Supplier payment workflow'"
+  >
+    <a routerLink="/finance/payment-requests" class="btn-secondary">Back</a>
+    @if (release()?.po_id) {
+      <a [routerLink]="['/finance/purchase-orders', release()!.po_id]" class="btn-ghost">View PO</a>
+    }
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (release(); as r) {
+    <div class="card p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-900">Payment Request</h3>
+        <app-status-badge [status]="r.status" />
+      </div>
+
+      <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
+        <div><dt class="text-gray-500">PO Number</dt><dd class="font-medium">{{ r.po_number }}</dd></div>
+        <div><dt class="text-gray-500">Supplier</dt><dd class="font-medium">{{ r.supplier_name }}</dd></div>
+        <div><dt class="text-gray-500">Supplier Invoice</dt><dd class="font-medium">{{ r.invoice_number ?? '—' }}</dd></div>
+        <div><dt class="text-gray-500">Stage</dt><dd>{{ r.stage }}</dd></div>
+        <div><dt class="text-gray-500">Payment Amount</dt><dd class="font-semibold text-[#1B3A6B]">{{ formatCurrency(r.amount_in_tzs, 'TZS') }}</dd></div>
+        <div><dt class="text-gray-500">PO Total (TZS)</dt><dd>{{ formatCurrency(r.po_total ?? po()?.amount_in_tzs ?? po()?.total_amount ?? 0, 'TZS') }}</dd></div>
+        @if (r.payment_mode === 'PARTIAL') {
+          <div><dt class="text-gray-500">Advance Plan</dt><dd>{{ r.po_advance_percent }}% advance</dd></div>
+          <div>
+            <dt class="text-gray-500">Expected {{ r.stage }}</dt>
+            <dd>{{ formatCurrency(r.expected_stage_amount ?? 0, r.currency) }}</dd>
+          </div>
+          <div>
+            <dt class="text-gray-500">PO Remaining</dt>
+            <dd>{{ formatCurrency(r.po_remaining_amount ?? 0, r.currency) }}</dd>
+          </div>
+        }
+        <div><dt class="text-gray-500">Submitted By</dt><dd>{{ r.created_by_name }}</dd></div>
+        <div><dt class="text-gray-500">Submitted At</dt><dd>{{ formatDateTime(r.created_at) }}</dd></div>
+      </dl>
+
+      @if (amountMatchesPo() === false) {
+        <div class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900">
+          <strong>Amount mismatch:</strong> Payment does not match the {{ expectedAmountLabel() }} — verify before approving.
+        </div>
+      } @else if (amountMatchesPo() === true) {
+        <div class="mb-4 p-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
+          Payment amount matches the {{ expectedAmountLabel() }}.
+        </div>
+      }
+
+      <h4 class="font-semibold text-sm text-gray-700 mb-3">Payment workflow</h4>
+      <ol class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-6 text-xs">
+        <li class="p-2 rounded-lg" [class]="r.finance_reviewed_at ? 'bg-green-50 text-green-800' : (r.status === 'PENDING_FINANCE' ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-200' : 'bg-gray-50 text-gray-500')">
+          <span class="font-semibold">1. HOD Finance</span><br />Verify vs PO &amp; invoice
+        </li>
+        <li
+          class="p-2 rounded-lg"
+          [class]="r.gm_reviewed_at && r.status !== 'REJECTED'
+            ? 'bg-green-50 text-green-800'
+            : (r.status === 'PENDING_GM'
+              ? 'bg-amber-50 text-amber-800 ring-1 ring-amber-200'
+              : (gmSkipped()
+                ? 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
+                : 'bg-gray-50 text-gray-500'))"
+        >
+          <span class="font-semibold">2. GM</span><br />
+          @if (gmSkipped()) {
+            Skipped (under {{ formatCurrency(r.payment_threshold_tzs ?? 5000000, 'TZS') }})
+          } @else {
+            Approve payment only
+          }
+        </li>
+        <li class="p-2 rounded-lg" [class]="r.paid_at ? 'bg-green-50 text-green-800' : (r.status === 'APPROVED' ? 'bg-green-50 text-green-800 ring-1 ring-green-200' : 'bg-gray-50 text-gray-500')">
+          <span class="font-semibold">3. HOD Finance</span><br />Execute payment
+        </li>
+        <li class="p-2 rounded-lg" [class]="r.status === 'PAID' || r.status === 'RELEASED' ? 'bg-green-50 text-green-800' : 'bg-gray-50 text-gray-500'">
+          <span class="font-semibold">4. All departments</span><br />Supplier marked paid
+        </li>
+      </ol>
+
+      <h4 class="font-semibold text-sm text-gray-700 mb-3">Workflow History</h4>
+      <ol class="space-y-3 text-sm border-l-2 border-gray-200 pl-4 mb-6">
+        <li>
+          <span class="font-medium">Procurement submitted</span>
+          <span class="text-gray-500"> — {{ r.created_by_name }}, {{ formatDateTime(r.created_at) }}</span>
+        </li>
+        @if (r.finance_reviewed_at) {
+          <li>
+            <span class="font-medium text-green-700">
+              Finance verified PO vs invoice
+              @if (gmSkipped()) {
+                — approved for payment (GM not required)
+              }
+            </span>
+            <span class="text-gray-500"> — {{ r.finance_reviewed_by_name }}, {{ formatDateTime(r.finance_reviewed_at) }}</span>
+            @if (r.finance_review_notes) {
+              <p class="text-gray-600 mt-0.5">{{ r.finance_review_notes }}</p>
+            }
+          </li>
+        }
+        @if (r.gm_reviewed_at) {
+          <li>
+            <span class="font-medium" [class.text-green-700]="r.status !== 'REJECTED'" [class.text-red-700]="r.status === 'REJECTED'">
+              GM {{ r.status === 'REJECTED' ? 'rejected' : 'approved' }}
+            </span>
+            <span class="text-gray-500"> — {{ r.gm_reviewed_by_name }}, {{ formatDateTime(r.gm_reviewed_at) }}</span>
+            @if (r.gm_review_notes) {
+              <p class="text-gray-600 mt-0.5">{{ r.gm_review_notes }}</p>
+            }
+          </li>
+        }
+        @if (r.paid_at) {
+          <li>
+            <span class="font-medium text-green-700">Payment executed — supplier paid</span>
+            <span class="text-gray-500"> — {{ r.paid_by_name }}, {{ formatDateTime(r.paid_at) }}</span>
+            @if (r.payment_reference) {
+              <p class="text-gray-600 mt-0.5">Ref: {{ r.payment_reference }} · {{ r.payment_method }}</p>
+            }
+            @if (r.payment_evidence_url) {
+              <app-open-file
+                [fileUrl]="r.payment_evidence_url"
+                fileName="Payment evidence"
+                buttonClass="text-[#2E6DB4] text-xs hover:underline"
+              >
+                View payment evidence
+              </app-open-file>
+            }
+          </li>
+        }
+      </ol>
+
+      @if (r.can_finance_verify && canVerify()) {
+        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 mb-4">
+          <h4 class="font-semibold text-sm mb-2">HOD Finance Review</h4>
+          @if (r.gm_approval_required) {
+            <p class="text-sm text-amber-800 mb-3 p-2 rounded-lg bg-amber-50 border border-amber-100">
+              Payment exceeds {{ formatCurrency(r.payment_threshold_tzs ?? 5000000, 'TZS') }} — GM approval is required after verification.
+            </p>
+          } @else {
+            <p class="text-sm text-gray-600 mb-3">
+              Compare this request with the purchase order and attached supplier invoice.
+              Under {{ formatCurrency(r.payment_threshold_tzs ?? 5000000, 'TZS') }} you may approve for payment directly, or optionally send to GM.
+            </p>
+          }
+          <div class="mb-3">
+            <label class="input-label">Notes (optional)</label>
+            <textarea [(ngModel)]="financeNotes" class="input-field" rows="2"></textarea>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            @if (r.can_skip_gm) {
+              <button type="button" class="btn-primary" [disabled]="saving()" (click)="financeVerify(false)">
+                Verify &amp; Approve for Payment
+              </button>
+              <button type="button" class="btn-secondary" [disabled]="saving()" (click)="financeVerify(true)">
+                Verify &amp; Send to GM
+              </button>
+            } @else {
+              <button type="button" class="btn-primary" [disabled]="saving()" (click)="financeVerify(true)">
+                Verify &amp; Send to GM
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      @if (r.can_gm_review && canGm()) {
+        <div class="p-4 bg-amber-50 rounded-xl border border-amber-100 mb-4">
+          <h4 class="font-semibold text-sm mb-2">GM Approval</h4>
+          <p class="text-sm text-gray-600 mb-3">
+            Review payment request, PO, and supplier invoice. <strong>Approve only</strong> — HOD Finance will execute the bank payment after your approval.
+          </p>
+          <div class="flex gap-2">
+            <button type="button" class="btn-primary" [disabled]="saving()" (click)="gmReview(true)">Approve Payment</button>
+            <button type="button" class="btn-ghost !text-red-600" [disabled]="saving()" (click)="gmReview(false)">Reject</button>
+          </div>
+        </div>
+      }
+
+      @if (r.status === 'APPROVED' && canGm() && !canExecute()) {
+        <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 mb-4 text-sm text-blue-900">
+          <strong>Approved.</strong> This payment is with HOD Finance for execution. You cannot record disbursement — only HOD Finance can pay the supplier.
+        </div>
+      }
+
+      @if (r.can_execute_payment && canExecute()) {
+        <div class="p-4 bg-green-50 rounded-xl border border-green-100">
+          <h4 class="font-semibold text-sm mb-2">Execute Payment (HOD Finance)</h4>
+          <p class="text-sm text-gray-600 mb-3">
+            @if (gmSkipped()) {
+              Finance approved this payment (GM review was not required). Record disbursement to the supplier and attach evidence.
+            } @else {
+              GM has approved this payment. Record disbursement to the supplier and attach evidence.
+            }
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="input-label">Payment Method</label>
+              <select [(ngModel)]="paymentMethod" class="input-field">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Mobile Money">Mobile Money</option>
+                <option value="Cash">Cash</option>
+              </select>
+            </div>
+            <div>
+              <label class="input-label">Payment Reference *</label>
+              <input type="text" [(ngModel)]="paymentReference" class="input-field" placeholder="Bank ref / cheque no." />
+            </div>
+            <div>
+              <label class="input-label">Payment Date</label>
+              <input type="date" [(ngModel)]="paymentDate" class="input-field" />
+            </div>
+            <div>
+              <label class="input-label">Payment Evidence</label>
+              <input type="file" class="input-field" accept=".pdf,.jpg,.jpeg,.png" (change)="onEvidenceSelected($event)" />
+            </div>
+          </div>
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="executePayment()">
+            Record Payment &amp; Mark Supplier Paid
+          </button>
+        </div>
+      }
+
+      @if (r.status === 'PAID' || r.status === 'RELEASED') {
+        <div class="mt-4 p-4 rounded-xl bg-green-50 border border-green-200 text-green-900 text-sm">
+          <strong>Supplier paid.</strong> Procurement may close this purchase order when ready.
+        </div>
+      }
+    </div>
+  }
+</div>

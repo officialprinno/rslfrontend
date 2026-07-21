@@ -24,6 +24,7 @@ import { isTokenExpired } from '../utils/jwt.util';
 import { isMachineOperatorOnly } from '../utils/operator-access.util';
 import { StorageService } from './storage.service';
 import { PreferencesService } from './preferences.service';
+import { CompanyContextService } from './company-context.service';
 
 const SUPER_ADMIN = 'Super Admin';
 const GENERAL_MANAGER = 'General Manager';
@@ -47,6 +48,7 @@ export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly storage = inject(StorageService);
   private readonly preferences = inject(PreferencesService);
+  private readonly companyContext = inject(CompanyContextService);
   private readonly router = inject(Router);
 
   private readonly baseUrl = `${environment.apiUrl}/auth`;
@@ -58,7 +60,14 @@ export class AuthService {
     const user = this.userSignal();
     if (user) {
       // Defer so AuthService can be constructed during i18n bootstrap without re-entering PreferencesService.
-      queueMicrotask(() => this.preferences.applyFromProfile(user.language, user.theme));
+      queueMicrotask(() => {
+        this.preferences.applyFromProfile(user.language, user.theme);
+        this.companyContext.initializeFromUser(
+          user.companies,
+          user.primary_company_id,
+          this.collectRoleNames(user),
+        );
+      });
     }
   }
 
@@ -79,8 +88,17 @@ export class AuthService {
         if (!response.success || !response.data) {
           return throwError(() => new Error(response.message || 'Login failed'));
         }
-        this.persistSession(response.data.tokens, response.data.user);
-        return this.loadUserPermissions(response.data.user).pipe(map(() => response.data.user));
+        const user = response.data.user;
+        const roleNames = this.collectRoleNames(user);
+        const hasCompanyAccess =
+          roleNames.includes(SUPER_ADMIN) || (user.companies?.length ?? 0) > 0;
+        if (!hasCompanyAccess) {
+          return throwError(
+            () => new Error('Your account is not activated. Contact administrator.'),
+          );
+        }
+        this.persistSession(response.data.tokens, user);
+        return this.loadUserPermissions(user).pipe(map(() => user));
       }),
     );
   }
@@ -130,6 +148,11 @@ export class AuthService {
         if (response.success && response.data) {
           this.userSignal.set(response.data);
           this.storage.saveUser(response.data);
+          this.companyContext.initializeFromUser(
+            response.data.companies,
+            response.data.primary_company_id,
+            this.collectRoleNames(response.data),
+          );
         }
       }),
       switchMap((response) => {
@@ -146,7 +169,7 @@ export class AuthService {
     if (!user) {
       return false;
     }
-    const roleNames = this.getUserRoleNames(user);
+    const roleNames = this.collectRoleNames(user);
     return roleNames.includes(role);
   }
 
@@ -159,10 +182,10 @@ export class AuthService {
     if (!user) {
       return false;
     }
-    if (module === 'inventory' && isMachineOperatorOnly(this.getUserRoleNames(user))) {
+    if (module === 'inventory' && isMachineOperatorOnly(this.collectRoleNames(user))) {
       return false;
     }
-    const roleNames = this.getUserRoleNames(user);
+    const roleNames = this.collectRoleNames(user);
     if (roleNames.includes(SUPER_ADMIN) || roleNames.includes(GENERAL_MANAGER)) {
       return true;
     }
@@ -225,7 +248,7 @@ export class AuthService {
       return true;
     }
 
-    const roleNames = this.getUserRoleNames(user);
+    const roleNames = this.collectRoleNames(user);
     if (roleNames.includes(SUPER_ADMIN)) {
       return true;
     }
@@ -266,6 +289,20 @@ export class AuthService {
     return Boolean(user.is_multi_department) || (user.departments?.length ?? 0) > 1;
   }
 
+  isMultiCompany(): boolean {
+    const user = this.userSignal();
+    if (!user) {
+      return false;
+    }
+    return Boolean(user.is_multi_company) || (user.companies?.length ?? 0) > 1;
+  }
+
+  getUserRoleNames(): string[] {
+    const user = this.userSignal();
+    if (!user) return [];
+    return this.collectRoleNames(user);
+  }
+
   primaryDepartmentLabel(): string {
     const user = this.userSignal();
     if (!user) {
@@ -282,7 +319,7 @@ export class AuthService {
     return this.storage.getToken();
   }
 
-  private getUserRoleNames(user: User): string[] {
+  private collectRoleNames(user: User): string[] {
     const fromDepts = (user.departments ?? []).map((d) => d.role_name || d.role);
     if (user.role_name && !fromDepts.includes(user.role_name)) {
       fromDepts.push(user.role_name);
@@ -291,7 +328,7 @@ export class AuthService {
   }
 
   private userIsHod(user: User): boolean {
-    return this.getUserRoleNames(user).some((name) => name.startsWith(HOD_PREFIX));
+    return this.collectRoleNames(user).some((name) => name.startsWith(HOD_PREFIX));
   }
 
   private persistSession(tokens: AuthTokens, user: User): void {
@@ -299,10 +336,16 @@ export class AuthService {
     this.storage.saveUser(user);
     this.userSignal.set(user);
     this.preferences.applyFromProfile(user.language, user.theme);
+    this.companyContext.initializeFromUser(
+      user.companies,
+      user.primary_company_id,
+      this.collectRoleNames(user),
+    );
   }
 
   private clearSession(): void {
     this.storage.clearAll();
+    this.companyContext.clear();
     this.userSignal.set(null);
     this.permissionsSignal.set([]);
   }

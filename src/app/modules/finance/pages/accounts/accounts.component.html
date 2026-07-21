@@ -1,86 +1,125 @@
 <div class="page-container">
   <app-finance-nav />
-  <app-page-header title="Chart of Accounts" subtitle="Manage general ledger accounts">
-    @if (canAdd()) {
-      <button type="button" class="btn-primary" (click)="openAdd()">Add Account</button>
-    }
+  <app-page-header title="Chart of Accounts" [subtitle]="pageSubtitle()">
+    <div class="flex flex-wrap items-center gap-2">
+      @if (canAdd()) {
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="importing()"
+          (click)="importOfficialCoa()"
+        >
+          @if (importing()) { <span class="spinner spinner-sm"></span> }
+          Import
+        </button>
+      }
+      <button type="button" class="btn-secondary" [disabled]="exporting()" (click)="exportCoa()">
+        @if (exporting()) { <span class="spinner spinner-sm"></span> }
+        Export
+      </button>
+      @if (canAdd()) {
+        <button type="button" class="btn-primary" (click)="openAdd()">Add Account</button>
+      }
+    </div>
   </app-page-header>
 
+  <div class="card mb-4 p-4 flex flex-col md:flex-row gap-3 md:items-center">
+    <div class="flex-1">
+      <input
+        type="search"
+        class="input-field"
+        placeholder="Search by code, name, or subcategory…"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+    </div>
+    <div class="w-full md:w-64">
+      <select
+        class="input-field"
+        [ngModel]="categoryFilter()"
+        (ngModelChange)="onCategoryFilterChange($event)"
+      >
+        <option value="">All categories</option>
+        @for (c of categoryOptions(); track c.value) {
+          <option [value]="c.value">{{ c.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
   @if (loading()) {
-    <app-table-skeleton [cols]="5" />
+    <app-table-skeleton [cols]="7" />
   } @else if (error()) {
     <app-error-state (retry)="load()" />
   } @else if (!accounts().length) {
     <div class="card">
-      <app-empty-state
-        title="No accounts"
-        message="Set up your chart of accounts to begin recording transactions."
-        [actionLabel]="canAdd() ? 'Add Account' : ''"
-        (actionClick)="openAdd()"
-      />
+      <app-empty-state moduleName="Accounts" [actionLabel]="canAdd() ? 'Import Chart' : ''" (actionClick)="importOfficialCoa()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="space-y-6">
       @for (group of groupedAccounts(); track group.type) {
         <div class="table-container">
           <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="section-title">{{ group.label }} Accounts</h2>
-            <p class="text-sm text-gray-500 mt-0.5">{{ group.accounts.length }} top-level account(s)</p>
+            <h2 class="section-title">{{ group.label }}</h2>
+            <p class="text-sm text-gray-500 mt-0.5">{{ group.accounts.length }} account(s)</p>
           </div>
-          <div class="overflow-x-auto">
+          <div class="table-scroll-viewport">
             <table class="w-full">
               <thead>
                 <tr>
                   <th class="table-th">Code</th>
                   <th class="table-th">Account Name</th>
+                  <th class="table-th">Subcategory</th>
                   <th class="table-th">Balance</th>
-                  <th class="table-th">Type</th>
+                  <th class="table-th">Normal</th>
                   <th class="table-th">Status</th>
                   <th class="table-th">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                @for (row of flattenAccounts(group.accounts); track row.account.id) {
+                @for (account of group.accounts; track account.id) {
                   <tr class="table-row">
-                    <td class="table-td font-mono text-xs font-medium">
-                      <div class="flex items-center" [style.padding-left.px]="row.depth * 20">
-                        @if (row.account.children?.length) {
-                          <button
-                            type="button"
-                            class="btn-ghost !px-1 !py-0 !text-xs mr-1"
-                            (click)="toggleExpand(row.account.id)"
-                          >
-                            {{ isExpanded(row.account.id) ? '▼' : '▶' }}
-                          </button>
-                        } @else {
-                          <span class="w-5 inline-block"></span>
-                        }
-                        {{ row.account.account_code }}
-                      </div>
+                    <td class="table-td font-mono text-xs font-medium">{{ account.code }}</td>
+                    <td class="table-td">
+                      <div>{{ account.name }}</div>
+                      @if (account.is_system) {
+                        <span class="text-xs text-amber-700">System</span>
+                      }
+                      @if (!account.allow_manual_entry) {
+                        <span class="text-xs text-gray-500 ml-1">· Control</span>
+                      }
                     </td>
-                    <td class="table-td" [style.padding-left.px]="row.depth * 12">
-                      {{ row.account.account_name }}
+                    <td class="table-td text-sm">
+                      {{ account.subcategory_display || account.subcategory || '—' }}
                     </td>
                     <td class="table-td font-semibold">
-                      {{ formatAccountingAmount(row.account.balance) }}
-                      <span class="text-xs text-gray-400 ml-1">({{ row.account.balance_type }})</span>
+                      {{ formatAccountingAmount(account.balance ?? '0') }}
+                      @if (account.balance_type) {
+                        <span class="text-xs text-gray-400 ml-1">({{ account.balance_type }})</span>
+                      }
                     </td>
-                    <td class="table-td">
-                      <app-status-badge [status]="row.account.account_type" [label]="row.account.account_type" />
-                    </td>
+                    <td class="table-td text-sm">{{ account.normal_balance }}</td>
                     <td class="table-td">
                       <app-status-badge
-                        [status]="row.account.is_active ? 'ACTIVE' : 'CANCELLED'"
-                        [label]="row.account.is_active ? 'Active' : 'Inactive'"
+                        [status]="account.is_active ? 'ACTIVE' : 'CANCELLED'"
+                        [label]="account.is_active ? 'Active' : 'Inactive'"
                       />
                     </td>
                     <td class="table-td">
                       <div class="flex gap-1">
-                        <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openLedger(row.account)">
+                        <button
+                          type="button"
+                          class="btn-ghost !px-2 !py-1 !text-xs"
+                          (click)="openLedger(account)"
+                        >
                           Ledger
                         </button>
                         @if (canAdd()) {
-                          <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="openEdit(row.account)">
+                          <button
+                            type="button"
+                            class="btn-ghost !px-2 !py-1 !text-xs"
+                            (click)="openEdit(account)"
+                          >
                             Edit
                           </button>
                         }
@@ -106,55 +145,97 @@
   <form [formGroup]="form" class="space-y-4">
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label class="input-label">Account Code</label>
-        @if (editing()) {
-          <input type="text" formControlName="account_code" class="input-field" />
-        } @else {
-          <div class="relative">
-            <input
-              type="text"
-              formControlName="account_code"
-              class="input-field bg-gray-50 font-mono"
-              readonly
-            />
-            @if (codePreviewLoading()) {
-              <span class="absolute right-3 top-1/2 -translate-y-1/2 spinner spinner-sm"></span>
-            }
-          </div>
+        <label class="input-label">Account Code@if (isAddMode()) { (auto)}</label>
+        <input
+          type="text"
+          formControlName="code"
+          class="input-field font-mono"
+          [readonly]="isAddMode()"
+        />
+        @if (isAddMode()) {
           <p class="text-xs text-gray-500 mt-1">
-            Auto-generated for {{ accountTypeCodeRange(form.controls.account_type.value ?? 'ASSET') }}
-            (starts with {{ typePrefix(form.controls.account_type.value) }}…)
+            @if (suggestingCode()) {
+              Generating next code…
+            } @else {
+              Assigned from category and subcategory. Leave as suggested to avoid duplicates.
+            }
           </p>
         }
-        @if (fieldErrors()['account_code']) {
-          <p class="text-xs text-red-600 mt-1">{{ fieldErrors()['account_code'] }}</p>
+        @if (fieldErrors()['code']) {
+          <p class="text-xs text-red-600 mt-1">{{ fieldErrors()['code'] }}</p>
         }
       </div>
       <div>
         <label class="input-label">Account Name *</label>
-        <input type="text" formControlName="account_name" class="input-field" />
+        <input type="text" formControlName="name" class="input-field" />
       </div>
       <div>
-        <label class="input-label">Account Type *</label>
+        <label class="input-label">Category *</label>
         <select
-          formControlName="account_type"
+          formControlName="categorySelection"
           class="input-field"
-          (change)="onAccountTypeChange()"
+          (change)="onCategoryChange()"
         >
-          @for (t of accountTypes; track t.value) {
-            <option [value]="t.value">{{ t.label }} ({{ t.codeRange }})</option>
+          @for (c of categoryOptions(); track c.value) {
+            <option [value]="c.value">{{ c.label }}</option>
           }
+          <option [value]="addNewCategory">+ Add new category…</option>
+        </select>
+        @if (isNewCategoryMode()) {
+          <input
+            type="text"
+            formControlName="newCategoryName"
+            class="input-field mt-2"
+            placeholder="Enter new category name"
+            (input)="onCategoryChange()"
+          />
+          @if (fieldErrors()['category']) {
+            <p class="text-xs text-red-600 mt-1">{{ fieldErrors()['category'] }}</p>
+          }
+        }
+      </div>
+      <div>
+        <label class="input-label">Subcategory</label>
+        <select
+          formControlName="subcategorySelection"
+          class="input-field"
+          [disabled]="!effectiveCategory()"
+          (change)="onSubcategoryChange()"
+        >
+          <option value="">None</option>
+          @for (s of subcategoryOptions(); track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+          <option [value]="addNewSubcategory">+ Add new subcategory…</option>
+        </select>
+        @if (isNewSubcategoryMode()) {
+          <input
+            type="text"
+            formControlName="newSubcategoryName"
+            class="input-field mt-2"
+            placeholder="Enter new subcategory name"
+            (input)="onSubcategoryChange()"
+          />
+          @if (fieldErrors()['subcategory']) {
+            <p class="text-xs text-red-600 mt-1">{{ fieldErrors()['subcategory'] }}</p>
+          }
+        }
+      </div>
+      <div>
+        <label class="input-label">Normal Balance</label>
+        <select formControlName="normal_balance" class="input-field">
+          <option value="DEBIT">Debit</option>
+          <option value="CREDIT">Credit</option>
         </select>
       </div>
       <div>
         <label class="input-label">Parent Account</label>
-        <select formControlName="parent" class="input-field" (change)="onParentChange()">
-          <option [ngValue]="null">None (top-level)</option>
+        <select formControlName="parent_account" class="input-field" (change)="onParentChange()">
+          <option [ngValue]="null">None</option>
           @for (a of parentOptions(editing()?.id); track a.id) {
-            <option [ngValue]="a.id">{{ a.account_code }} — {{ a.account_name }}</option>
+            <option [ngValue]="a.id">{{ a.code }} — {{ a.name }}</option>
           }
         </select>
-        <p class="text-xs text-gray-500 mt-1">Only accounts of the same type are listed.</p>
       </div>
       <div class="md:col-span-2">
         <label class="input-label">Description</label>
@@ -177,44 +258,60 @@
 
 <app-modal
   [open]="showLedger()"
-  [title]="'Ledger — ' + (ledgerAccount()?.account_code ?? '')"
-  size="xl"
+  [title]="'Ledger — ' + (ledgerAccount()?.code ?? '')"
+  size="wide"
   (close)="showLedger.set(false)"
 >
   @if (ledgerAccount(); as acc) {
-    <div class="mb-4">
-      <p class="font-medium">{{ acc.account_name }}</p>
-      <p class="text-sm text-gray-500">
-        Current balance: <strong>{{ formatAccountingAmount(acc.balance) }}</strong>
-      </p>
+    <div class="modal-summary-panel">
+      <div class="modal-summary-panel__main">
+        <span class="modal-summary-panel__label">Account</span>
+        <p class="modal-summary-panel__title">{{ acc.name }}</p>
+        <p class="modal-summary-panel__code">{{ acc.code }}</p>
+      </div>
+      <div class="modal-summary-panel__balance">
+        <span class="modal-summary-panel__label">Current balance</span>
+        <p class="modal-summary-panel__amount">{{ formatAccountingAmount(acc.balance ?? '0') }}</p>
+      </div>
     </div>
   }
   @if (ledgerLoading()) {
-    <app-table-skeleton [cols]="5" />
+    <app-table-skeleton [cols]="6" />
   } @else if (!ledgerEntries().length) {
-    <p class="text-sm text-gray-500 py-4">No ledger entries for this account.</p>
+    <div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
+      <p class="text-sm font-medium text-slate-600">No ledger entries</p>
+      <p class="mt-1 text-xs text-slate-400">Transactions posted to this account will appear here.</p>
+    </div>
   } @else {
-    <div class="overflow-x-auto">
-      <table class="w-full">
+    <div class="data-table-wrap">
+      <table class="data-table">
+        <colgroup>
+          <col class="col-date" />
+          <col class="col-ref" />
+          <col class="col-desc" />
+          <col class="col-amount" />
+          <col class="col-amount" />
+          <col class="col-amount" />
+        </colgroup>
         <thead>
           <tr>
             <th class="table-th">Date</th>
             <th class="table-th">JE Number</th>
             <th class="table-th">Description</th>
-            <th class="table-th">Debit</th>
-            <th class="table-th">Credit</th>
-            <th class="table-th">Balance</th>
+            <th class="table-th table-th--amount">Debit</th>
+            <th class="table-th table-th--amount">Credit</th>
+            <th class="table-th table-th--amount">Balance</th>
           </tr>
         </thead>
         <tbody>
           @for (entry of ledgerEntries(); track entry.je_number + entry.date) {
             <tr class="table-row">
               <td class="table-td">{{ formatDate(entry.date) }}</td>
-              <td class="table-td font-mono text-xs">{{ entry.je_number }}</td>
+              <td class="table-td table-td--ref">{{ entry.je_number }}</td>
               <td class="table-td">{{ entry.description }}</td>
-              <td class="table-td">{{ formatAccountingAmount(entry.debit) }}</td>
-              <td class="table-td">{{ formatAccountingAmount(entry.credit) }}</td>
-              <td class="table-td font-semibold">{{ formatAccountingAmount(entry.balance) }}</td>
+              <td class="table-td table-td--amount">{{ formatAccountingAmount(entry.debit) }}</td>
+              <td class="table-td table-td--amount">{{ formatAccountingAmount(entry.credit) }}</td>
+              <td class="table-td table-td--amount table-td--balance">{{ formatAccountingAmount(entry.balance) }}</td>
             </tr>
           }
         </tbody>

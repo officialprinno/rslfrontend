@@ -5,13 +5,15 @@ import { filter } from 'rxjs';
 
 import { DepartmentFilter } from '../../../core/models/auth.models';
 import { CurrencyCode } from '../../../core/models/preferences.models';
+import { CompanyScope, CompanyContextService } from '../../../core/services/company-context.service';
+import { WorkspaceResetService } from '../../../core/services/workspace-reset.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { DepartmentContextService } from '../../../core/services/department-context.service';
 import { LayoutService } from '../../../core/services/layout.service';
 import { NotificationCountsService } from '../../../core/services/notification-counts.service';
+import { NotificationShellService } from '../../../core/services/notification-shell.service';
 import { PreferencesService } from '../../../core/services/preferences.service';
 import { LocaleThemeControlsComponent } from '../locale-theme-controls/locale-theme-controls.component';
-import { NotificationsPanelComponent } from '../notifications-panel/notifications-panel.component';
 
 interface Breadcrumb {
   labelKey: string;
@@ -20,22 +22,25 @@ interface Breadcrumb {
 
 @Component({
   selector: 'app-navbar',
-  imports: [RouterLink, TranslatePipe, NotificationsPanelComponent, LocaleThemeControlsComponent],
+  imports: [RouterLink, TranslatePipe, LocaleThemeControlsComponent],
   templateUrl: './navbar.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NavbarComponent {
   readonly auth = inject(AuthService);
+  readonly companyContext = inject(CompanyContextService);
   readonly deptContext = inject(DepartmentContextService);
   readonly layout = inject(LayoutService);
   readonly preferences = inject(PreferencesService);
   readonly counts = inject(NotificationCountsService);
+  readonly notificationShell = inject(NotificationShellService);
+  private readonly workspaceReset = inject(WorkspaceResetService);
   private readonly router = inject(Router);
   private readonly translate = inject(TranslateService);
 
   readonly userMenuOpen = signal(false);
   readonly deptMenuOpen = signal(false);
-  readonly notificationsOpen = signal(false);
+  readonly companyMenuOpen = signal(false);
   readonly breadcrumbs = signal<Breadcrumb[]>([{ labelKey: 'nav.dashboard', url: '/dashboard' }]);
 
   readonly departmentOptions = computed(() => {
@@ -74,6 +79,7 @@ export class NavbarComponent {
   toggleUserMenu(): void {
     this.userMenuOpen.update((v) => !v);
     this.deptMenuOpen.set(false);
+    this.companyMenuOpen.set(false);
   }
 
   closeUserMenu(): void {
@@ -83,6 +89,7 @@ export class NavbarComponent {
   toggleDeptMenu(): void {
     this.deptMenuOpen.update((v) => !v);
     this.userMenuOpen.set(false);
+    this.companyMenuOpen.set(false);
   }
 
   closeDeptMenu(): void {
@@ -92,6 +99,27 @@ export class NavbarComponent {
   selectDepartment(value: DepartmentFilter): void {
     this.deptContext.setDepartment(value);
     this.closeDeptMenu();
+  }
+
+  toggleCompanyMenu(): void {
+    this.companyMenuOpen.update((v) => !v);
+    this.userMenuOpen.set(false);
+    this.deptMenuOpen.set(false);
+  }
+
+  closeCompanyMenu(): void {
+    this.companyMenuOpen.set(false);
+  }
+
+  selectCompany(companyId: CompanyScope): void {
+    if (companyId === 'consolidated' && !this.companyContext.canUseConsolidated()) {
+      return;
+    }
+    this.workspaceReset.resetForCompanySwitch();
+    this.companyContext.setCompany(companyId);
+    this.companyContext.confirmWorkspaceSelection();
+    this.closeCompanyMenu();
+    void this.router.navigate(['/dashboard']);
   }
 
   onCurrencyChange(event: Event): void {
@@ -133,6 +161,14 @@ export class NavbarComponent {
     for (const seg of segments) {
       path += `/${seg}`;
       crumbs.push({ labelKey: labels[seg] ?? seg, url: path });
+    }
+
+    const activeCompany = this.companyContext.activeCompany();
+    if (activeCompany && crumbs.length > 0) {
+      crumbs.unshift({
+        labelKey: activeCompany.code,
+        url: null,
+      });
     }
 
     if (crumbs.length === 0) {

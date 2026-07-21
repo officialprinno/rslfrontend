@@ -3,20 +3,23 @@ import autoTable from 'jspdf-autotable';
 
 import { WorkOrder } from '../models/production.model';
 import { formatDate, formatDateTime } from './format.util';
+import { drawPdfHeaderLogo, drawPdfWatermark } from './brand.util';
 
 const MARGIN = 14;
+const HEADER_TEXT_X = MARGIN + 38;
 
 export function exportWorkOrderPdf(wo: WorkOrder): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   doc.setFillColor(27, 58, 107);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
+  drawPdfHeaderLogo(doc, MARGIN, 5, 34, 18);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('Rock Solutions Limited', MARGIN, 12);
+  doc.text('Rock Solutions Limited', HEADER_TEXT_X, 12);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('PRODUCTION JOB CARD', MARGIN, 19);
+  doc.text('PRODUCTION JOB CARD', HEADER_TEXT_X, 19);
   doc.setFontSize(14);
   doc.text(wo.wo_number, doc.internal.pageSize.getWidth() - MARGIN, 12, { align: 'right' });
   doc.setTextColor(40, 40, 40);
@@ -69,6 +72,7 @@ export function exportWorkOrderPdf(wo: WorkOrder): void {
     doc.text(`Notes: ${wo.notes}`, MARGIN, finalY + 10);
   }
 
+  drawPdfWatermark(doc);
   doc.save(`${wo.wo_number}-job-card.pdf`);
 }
 

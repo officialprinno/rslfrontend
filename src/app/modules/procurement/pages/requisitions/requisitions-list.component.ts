@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
@@ -12,6 +12,7 @@ import { ProcurementService } from '../../../../core/services/procurement.servic
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatCurrency, formatDateTime } from '../../../../core/utils/format.util';
+import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
@@ -25,14 +26,20 @@ import { WorkflowStepperComponent } from '../../components/workflow-stepper/work
 import { PR_PRIORITIES, WORKFLOW_STEPS } from '../../constants/procurement.constants';
 import {
   canApprovePR,
+  canCancelPR,
   canCreatePR,
   canDeleteAnything,
+  canEditPR,
+  canGmOverridePR,
+  canRejectPR,
+  canRevisePR,
 } from '../../utils/procurement-permissions.util';
 
 @Component({
   selector: 'app-requisitions-list',
   imports: [
     FormsModule,
+    ReactiveFormsModule,
     RouterLink,
     PageHeaderComponent,
     ProcurementNavComponent,
@@ -54,12 +61,15 @@ export class RequisitionsListComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly fb = inject(FormBuilder);
   readonly router = inject(Router);
 
   readonly requisitions = signal<PurchaseRequisition[]>([]);
   readonly deptList = signal<Department[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly workspaceEmpty = signal(false);
+  readonly saving = signal(false);
   readonly total = signal(0);
   readonly page = signal(1);
   readonly pageSize = signal(10);
@@ -71,14 +81,92 @@ export class RequisitionsListComponent implements OnInit {
   readonly dateAfter = signal('');
   readonly viewing = signal<PurchaseRequisition | null>(null);
   readonly showView = signal(false);
+  readonly showReject = signal(false);
+  readonly rejecting = signal<PurchaseRequisition | null>(null);
+  readonly selectedItemIds = signal<number[]>([]);
+
+  readonly rejectForm = this.fb.group({
+    reason: ['', [Validators.required, Validators.minLength(3)]],
+  });
 
   readonly priorities = PR_PRIORITIES;
   readonly prSteps = WORKFLOW_STEPS.pr;
   readonly formatCurrency = formatCurrency;
   readonly formatDateTime = formatDateTime;
 
+  lineEstCost(item: { quantity_requested: number; unit_cost_estimate: number }): number {
+    return Number(item.quantity_requested ?? 0) * Number(item.unit_cost_estimate ?? 0);
+  }
+
+  lineVat(item: {
+    quantity_requested: number;
+    unit_cost_estimate: number;
+    tax_rate?: number;
+  }): number {
+    return this.lineEstCost(item) * (Number(item.tax_rate ?? 0) / 100);
+  }
+
+  requisitionEstCost(pr: PurchaseRequisition): number {
+    const items = this.visibleItems(pr);
+    return items.reduce((sum, item) => sum + this.lineEstCost(item), 0);
+  }
+
+  requisitionVat(pr: PurchaseRequisition): number {
+    const items = this.visibleItems(pr);
+    return items.reduce((sum, item) => sum + this.lineVat(item), 0);
+  }
+
+  selectedEstCost(pr: PurchaseRequisition): number {
+    return (pr.items ?? [])
+      .filter((item) => item.id != null && this.selectedItemIds().includes(item.id!))
+      .reduce((sum, item) => sum + this.lineEstCost(item), 0);
+  }
+
+  selectedVat(pr: PurchaseRequisition): number {
+    return (pr.items ?? [])
+      .filter((item) => item.id != null && this.selectedItemIds().includes(item.id!))
+      .reduce((sum, item) => sum + this.lineVat(item), 0);
+  }
+
+  selectedTotal(pr: PurchaseRequisition): number {
+    return this.selectedEstCost(pr) + this.selectedVat(pr);
+  }
+
+  visibleItems(pr: PurchaseRequisition) {
+    if (pr.status === 'APPROVED') {
+      return (pr.items ?? []).filter((item) => item.approved_for_purchase !== false);
+    }
+    return pr.items ?? [];
+  }
+
+  isItemSelected(itemId: number | undefined): boolean {
+    if (itemId == null) return false;
+    return this.selectedItemIds().includes(itemId);
+  }
+
+  toggleItem(itemId: number | undefined, checked: boolean): void {
+    if (itemId == null) return;
+    const current = this.selectedItemIds();
+    if (checked) {
+      if (!current.includes(itemId)) this.selectedItemIds.set([...current, itemId]);
+    } else {
+      this.selectedItemIds.set(current.filter((id) => id !== itemId));
+    }
+  }
+
+  selectAllItems(pr: PurchaseRequisition): void {
+    this.selectedItemIds.set(
+      (pr.items ?? []).map((item) => item.id!).filter((id) => id != null),
+    );
+  }
+
   readonly canAdd = () => canCreatePR(this.auth);
-  readonly canApprove = () => canApprovePR(this.auth);
+  readonly canEdit = (pr: PurchaseRequisition) => canEditPR(this.auth, pr);
+  readonly canCancel = (pr: PurchaseRequisition) => canCancelPR(this.auth, pr);
+  readonly canRevise = (pr: PurchaseRequisition) => canRevisePR(this.auth, pr);
+  readonly canApprove = (pr?: PurchaseRequisition | null) => canApprovePR(this.auth);
+  readonly canGmOverride = (pr?: PurchaseRequisition | null) => canGmOverridePR(this.auth, pr);
+  readonly canReject = () => canRejectPR(this.auth);
   readonly canDelete = () => canDeleteAnything(this.auth);
 
   ngOnInit(): void {
@@ -88,7 +176,7 @@ export class RequisitionsListComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.error.set(false);
+    resetListLoadState(this.error, this.workspaceEmpty);
     const params: Record<string, string | number> = {
       page: this.page(),
       page_size: this.pageSize(),
@@ -109,7 +197,7 @@ export class RequisitionsListComponent implements OnInit {
           this.requisitions.set(data.results);
           this.total.set(data.count);
         },
-        error: () => this.error.set(true),
+        error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
   }
 
@@ -117,6 +205,7 @@ export class RequisitionsListComponent implements OnInit {
     this.procurement.getRequisition(pr.id).subscribe({
       next: (full) => {
         this.viewing.set(full);
+        this.selectAllItems(full);
         this.showView.set(true);
       },
       error: (e) => this.notification.error(getApiErrorMessage(e)),
@@ -126,7 +215,7 @@ export class RequisitionsListComponent implements OnInit {
   submit(pr: PurchaseRequisition): void {
     this.confirm.open({
       title: 'Submit Requisition',
-      message: `Submit ${pr.pr_number} for approval?`,
+      message: `Submit ${pr.pr_number} for approval? You will not be able to edit until you cancel it back to draft.`,
       confirmLabel: 'Submit',
     }).subscribe((ok) => {
       if (!ok) return;
@@ -137,20 +226,113 @@ export class RequisitionsListComponent implements OnInit {
     });
   }
 
+  cancelPending(pr: PurchaseRequisition): void {
+    this.confirm.open({
+      title: 'Cancel Submission',
+      message: `Cancel ${pr.pr_number} and return it to draft so you can edit and resubmit?`,
+      confirmLabel: 'Cancel to Draft',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.procurement.cancelRequisition(pr.id).subscribe({
+        next: () => {
+          this.notification.success('Returned to draft — you can edit and resubmit');
+          this.load();
+          this.showView.set(false);
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
+      });
+    });
+  }
+
+  reviseRejected(pr: PurchaseRequisition): void {
+    this.confirm.open({
+      title: 'Revise Requisition',
+      message: `Return ${pr.pr_number} to draft so you can address the approver feedback?`,
+      confirmLabel: 'Revise',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.procurement.reviseRequisition(pr.id).subscribe({
+        next: (updated) => {
+          this.notification.success('Returned to draft for revision');
+          this.load();
+          this.showView.set(false);
+          void this.router.navigate(['/procurement/requisitions', updated.id, 'edit']);
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
+      });
+    });
+  }
+
+  gmOverride(pr: PurchaseRequisition): void {
+    const itemIds = this.selectedItemIds();
+    if (!itemIds.length) {
+      this.notification.error('Select at least one item to approve for purchase.');
+      return;
+    }
+    this.confirm.open({
+      title: 'GM Override Approval',
+      message: `Approve ${pr.pr_number} via GM override with ${itemIds.length} selected item(s)?`,
+      confirmLabel: 'Override & Approve',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.procurement.gmOverrideRequisition(pr.id, itemIds).subscribe({
+        next: () => {
+          this.notification.success('Requisition approved via GM override');
+          this.load();
+          this.showView.set(false);
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
+      });
+    });
+  }
+
   approve(pr: PurchaseRequisition): void {
-    this.procurement.approveRequisition(pr.id).subscribe({
-      next: () => { this.notification.success('Requisition approved'); this.load(); this.showView.set(false); },
-      error: (e) => this.notification.error(getApiErrorMessage(e)),
+    const itemIds = this.selectedItemIds();
+    if (!itemIds.length) {
+      this.notification.error('Select at least one item to approve for purchase.');
+      return;
+    }
+    this.confirm.open({
+      title: 'Approve Requisition',
+      message: `Approve ${pr.pr_number} with ${itemIds.length} selected item(s)? Only selected items will be used for RFQ.`,
+      confirmLabel: 'Approve',
+    }).subscribe((ok) => {
+      if (!ok) return;
+      this.procurement.approveRequisition(pr.id, itemIds).subscribe({
+        next: () => { this.notification.success('Requisition approved'); this.load(); this.showView.set(false); },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
+      });
     });
   }
 
   reject(pr: PurchaseRequisition): void {
-    const reason = prompt('Rejection reason:');
-    if (!reason?.trim()) return;
-    this.procurement.rejectRequisition(pr.id, reason.trim()).subscribe({
-      next: () => { this.notification.success('Requisition rejected'); this.load(); this.showView.set(false); },
-      error: (e) => this.notification.error(getApiErrorMessage(e)),
-    });
+    this.rejecting.set(pr);
+    this.rejectForm.reset({ reason: '' });
+    this.showReject.set(true);
+  }
+
+  confirmReject(): void {
+    const pr = this.rejecting();
+    if (!pr || this.rejectForm.invalid) {
+      this.rejectForm.markAllAsTouched();
+      this.notification.error('Please enter a rejection reason (at least 3 characters).');
+      return;
+    }
+    const reason = this.rejectForm.getRawValue().reason!.trim();
+    this.saving.set(true);
+    this.procurement
+      .rejectRequisition(pr.id, reason)
+      .pipe(finalize(() => this.saving.set(false)))
+      .subscribe({
+        next: () => {
+          this.notification.success('Requisition rejected');
+          this.showReject.set(false);
+          this.showView.set(false);
+          this.rejecting.set(null);
+          this.load();
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
+      });
   }
 
   deletePr(pr: PurchaseRequisition): void {

@@ -30,12 +30,7 @@
     <app-table-skeleton [cols]="10" />
   } @else if (!records().length) {
     <div class="card">
-      <app-empty-state
-        title="No output records"
-        message="Record production output from active work orders."
-        actionLabel="Record Output"
-        (actionClick)="openRecord()"
-      />
+      <app-empty-state moduleName="Production Output" actionLabel="Record Output" (actionClick)="openRecord()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

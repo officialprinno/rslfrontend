@@ -1,0 +1,99 @@
+<app-modal
+  [open]="open()"
+  [title]="breakdown() ? breakdown()!.item_code + ' — Reserved Stock' : 'Reserved Stock'"
+  size="xl"
+  [showFooter]="false"
+  (close)="close.emit()"
+>
+  @if (loading()) {
+    <p class="text-sm text-gray-500 py-8 text-center">Loading reservation details…</p>
+  } @else if (breakdown(); as data) {
+    <div class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+        <div class="p-3 bg-gray-50 rounded-lg">
+          <p class="text-xs text-gray-500">Item</p>
+          <p class="font-medium">{{ data.item_name }}</p>
+        </div>
+        <div class="p-3 bg-gray-50 rounded-lg">
+          <p class="text-xs text-gray-500">Warehouse</p>
+          <p class="font-medium">{{ data.warehouse_name }}</p>
+        </div>
+        <div class="p-3 bg-blue-50 rounded-lg">
+          <p class="text-xs text-blue-700">Total Reserved (Sales)</p>
+          <p class="font-bold text-blue-900 text-lg">{{ formatNumber(data.total_reserved) }}</p>
+        </div>
+        <div class="p-3 bg-gray-50 rounded-lg">
+          <p class="text-xs text-gray-500">Stock Bucket Reserved</p>
+          <p class="font-medium">{{ formatNumber(data.quantity_reserved_stock) }}</p>
+        </div>
+      </div>
+
+      @if (+data.unallocated_reserved > 0) {
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 space-y-3">
+          <p class="text-xs text-amber-900">
+            {{ formatNumber(data.unallocated_reserved) }} units are reserved on this stock row but not linked to an active sales order line.
+          </p>
+          @if (canReturnUnallocated()) {
+            <button
+              type="button"
+              class="btn-primary text-sm!"
+              [disabled]="releasing()"
+              (click)="returnUnallocatedStock()"
+            >
+              {{ releasing() ? 'Returning…' : 'Return to Available Stock' }}
+            </button>
+          }
+        </div>
+      }
+
+      @if (!data.reservations.length) {
+        <p class="text-sm text-gray-500 py-6 text-center">
+          No active sales order reservations found for this item at this warehouse.
+        </p>
+      } @else {
+        <div class="overflow-x-auto border rounded-lg">
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="table-th">Customer</th>
+                <th class="table-th">Sales Order</th>
+                <th class="table-th">Item</th>
+                <th class="table-th">Qty Ordered</th>
+                <th class="table-th">Qty Reserved</th>
+                <th class="table-th">Delivery Date</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of data.reservations; track row.sales_order_id + '-' + row.item_code) {
+                <tr class="table-row">
+                  <td class="table-td font-medium">{{ row.customer_name }}</td>
+                  <td class="table-td">
+                    <a
+                      [routerLink]="['/sales/orders', row.sales_order_id, 'view']"
+                      class="text-[#1B3A6B] hover:underline font-mono text-xs"
+                    >
+                      {{ row.so_number }}
+                    </a>
+                  </td>
+                  <td class="table-td">{{ row.item_code }} — {{ row.item_name }}</td>
+                  <td class="table-td">{{ formatNumber(row.quantity_ordered) }}</td>
+                  <td class="table-td font-semibold text-[#1B3A6B]">{{ formatNumber(row.quantity_reserved) }}</td>
+                  <td class="table-td">{{ row.delivery_date || '—' }}</td>
+                  <td class="table-td"><app-status-badge [status]="row.order_status" /></td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="bg-gray-50 font-semibold">
+                <td class="table-td" colspan="4">Total reserved for customers</td>
+                <td class="table-td text-[#1B3A6B]">{{ formatNumber(data.total_reserved) }}</td>
+                <td class="table-td" colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+    </div>
+  }
+</app-modal>

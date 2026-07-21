@@ -1,0 +1,217 @@
+<div class="page-container">
+  <app-finance-nav />
+
+  @if (loading()) {
+    <div class="card p-12 text-center text-gray-500">Loading profile…</div>
+  } @else if (profile(); as p) {
+    <!-- Hero header -->
+    <div class="card overflow-hidden mb-6">
+      <div class="px-6 py-6 md:px-8 bg-gradient-to-r from-[#1B3A6B] to-[#2a5298] text-white">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-3 mb-2">
+              <app-status-badge [status]="p.status" />
+              <span class="text-sm text-blue-200">{{ frequencyLabel(p.frequency) }} · {{ p.currency_code }}</span>
+            </div>
+            <h1 class="text-2xl md:text-3xl font-bold">{{ p.name }}</h1>
+            <p class="text-blue-100 mt-1">{{ p.vendor_name }}</p>
+            @if (p.subject) {
+              <p class="text-sm text-blue-200/80 mt-2">{{ p.subject }}</p>
+            }
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <a [routerLink]="['/finance/recurring-bills', p.id, 'edit']" class="btn-secondary !bg-white/10 !border-white/20 !text-white hover:!bg-white/20">
+              Edit Profile
+            </a>
+            @if (p.status === 'ACTIVE') {
+              <button type="button" class="btn-secondary !bg-white/10 !border-white/20 !text-white hover:!bg-white/20" [disabled]="acting()" (click)="pause()">
+                Pause
+              </button>
+              <button type="button" class="btn-primary !bg-white !text-[#1B3A6B] hover:!bg-blue-50" [disabled]="acting()" (click)="generateNow()">
+                Generate Bill Now
+              </button>
+            } @else if (p.status === 'PAUSED') {
+              <button type="button" class="btn-primary !bg-white !text-[#1B3A6B] hover:!bg-blue-50" [disabled]="acting()" (click)="resume()">
+                Resume Profile
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-gray-100 bg-white">
+        <div class="p-5 text-center md:text-left">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Next Run</p>
+          <p class="text-lg font-bold text-[#1B3A6B] mt-1">{{ formatDate(p.next_run_date) }}</p>
+        </div>
+        <div class="p-5 text-center md:text-left">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Last Generated</p>
+          <p class="text-lg font-semibold text-gray-900 mt-1">{{ p.last_run_date ? formatDate(p.last_run_date) : '—' }}</p>
+        </div>
+        <div class="p-5 text-center md:text-left">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Bills Created</p>
+          <p class="text-lg font-semibold text-gray-900 mt-1 tabular-nums">{{ p.bills_generated_count }}</p>
+        </div>
+        <div class="p-5 text-center md:text-left">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Auto-open</p>
+          <p class="text-lg font-semibold mt-1" [class.text-emerald-600]="p.auto_open" [class.text-gray-500]="!p.auto_open">
+            {{ p.auto_open ? 'Enabled' : 'Draft only' }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <!-- Schedule details -->
+      <section class="card p-6 lg:col-span-2">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">Schedule &amp; Terms</h3>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+          <div class="p-3 rounded-lg bg-slate-50">
+            <dt class="text-gray-500 text-xs uppercase tracking-wide">Start Date</dt>
+            <dd class="mt-1 font-semibold text-gray-900">{{ formatDate(p.start_date) }}</dd>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-50">
+            <dt class="text-gray-500 text-xs uppercase tracking-wide">End Date</dt>
+            <dd class="mt-1 font-semibold text-gray-900">{{ p.end_date ? formatDate(p.end_date) : 'No end date' }}</dd>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-50">
+            <dt class="text-gray-500 text-xs uppercase tracking-wide">Payment Terms</dt>
+            <dd class="mt-1 font-semibold text-gray-900">{{ p.payment_terms.replace('_', ' ') }}</dd>
+          </div>
+          <div class="p-3 rounded-lg bg-slate-50">
+            <dt class="text-gray-500 text-xs uppercase tracking-wide">Tax Treatment</dt>
+            <dd class="mt-1 font-semibold text-gray-900">{{ p.tax_treatment }} · {{ p.tax_level }}</dd>
+          </div>
+        </dl>
+        @if (p.notes) {
+          <div class="mt-6 pt-4 border-t border-gray-100">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Internal Notes</p>
+            <p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ p.notes }}</p>
+          </div>
+        }
+      </section>
+
+      <!-- Line items -->
+      <section class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-slate-50">
+          <h3 class="font-semibold text-gray-900">Bill Template</h3>
+          <p class="text-xs text-gray-500 mt-0.5">{{ p.lines.length }} line item(s)</p>
+        </div>
+        <ul class="divide-y divide-gray-50">
+          @for (line of p.lines; track line.id) {
+            <li class="px-5 py-4 flex justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-medium text-gray-900 truncate">{{ line.description }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ line.account_code }} — {{ line.account_name }}</p>
+                <p class="text-xs text-gray-400 mt-0.5 tabular-nums">
+                  {{ line.quantity }} × {{ formatAccountingAmount(line.rate, p.currency_code) }}
+                </p>
+              </div>
+              <span class="tabular-nums font-semibold text-[#1B3A6B] whitespace-nowrap">
+                {{ formatAccountingAmount(lineAmount(line), p.currency_code) }}
+              </span>
+            </li>
+          }
+        </ul>
+        <div class="px-5 py-4 border-t border-gray-100 bg-slate-50 flex justify-between items-center">
+          <span class="text-sm font-medium text-gray-600">Est. per bill</span>
+          <span class="text-lg font-bold text-[#1B3A6B] tabular-nums">{{ profileTotal(p) }}</span>
+        </div>
+      </section>
+
+      <!-- Payment proof -->
+      <section class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100 bg-slate-50">
+          <h3 class="font-semibold text-gray-900">Payment Proof</h3>
+          <p class="text-xs text-gray-500 mt-0.5">Attached to every generated bill</p>
+        </div>
+        <div class="p-5">
+          @if (p.payment_proof_url) {
+            <div class="flex items-center justify-between gap-3 p-3 rounded-lg bg-green-50 border border-green-100 mb-3">
+              <app-open-file
+                [fileUrl]="p.payment_proof_url"
+                [fileName]="p.payment_proof_name || 'Payment proof'"
+                buttonClass="text-sm text-green-800 hover:underline truncate flex-1 text-left font-medium"
+              >
+                📄 {{ p.payment_proof_name || 'View document' }}
+              </app-open-file>
+            </div>
+          } @else {
+            <p class="text-sm text-gray-500 mb-3">No payment proof attached to this profile.</p>
+          }
+          <label
+            class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-[#1B3A6B]/40 hover:bg-blue-50/30 cursor-pointer transition-colors"
+            [class.opacity-60]="uploadingProof()"
+            [class.pointer-events-none]="uploadingProof()"
+          >
+            <span class="text-xl">📤</span>
+            <span class="text-sm font-medium text-gray-700">
+              {{ uploadingProof() ? 'Uploading…' : (p.payment_proof_url ? 'Replace document' : 'Upload payment proof') }}
+            </span>
+            <span class="text-xs text-gray-400">PDF, PNG, JPG — max 10 MB</span>
+            <input type="file" class="hidden" accept=".pdf,.png,.jpg,.jpeg" (change)="onPaymentProofSelected($event)" />
+          </label>
+        </div>
+      </section>
+    </div>
+
+    <!-- Generated bills -->
+    <section class="card overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="font-semibold text-gray-900">Generated Bills</h3>
+          <p class="text-sm text-gray-500 mt-0.5">History of bills created from this profile</p>
+        </div>
+        @if (p.status === 'ACTIVE' && !p.generated_bills.length) {
+          <button type="button" class="btn-primary !text-sm" [disabled]="acting()" (click)="generateNow()">
+            Generate First Bill
+          </button>
+        }
+      </div>
+      @if (!p.generated_bills.length) {
+        <div class="p-12 text-center">
+          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl">📄</div>
+          <p class="text-gray-600 font-medium">No bills generated yet</p>
+          <p class="text-sm text-gray-400 mt-1 max-w-sm mx-auto">
+            The next bill will be created on {{ formatDate(p.next_run_date) }}, or generate one manually now.
+          </p>
+        </div>
+      } @else {
+        <div class="table-container">
+          <table class="w-full">
+            <thead>
+              <tr>
+                <th class="table-th">Bill #</th>
+                <th class="table-th">Run Date</th>
+                <th class="table-th">Bill Date</th>
+                <th class="table-th">Total</th>
+                <th class="table-th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (bill of p.generated_bills; track bill.id) {
+                <tr
+                  class="table-row cursor-pointer hover:!bg-blue-50 transition-colors"
+                  [routerLink]="['/finance/bills', bill.id, 'view']"
+                >
+                  <td class="table-td font-semibold text-[#1B3A6B]">{{ bill.bill_number }}</td>
+                  <td class="table-td">{{ formatDate(bill.recurring_run_date) }}</td>
+                  <td class="table-td">{{ formatDate(bill.bill_date) }}</td>
+                  <td class="table-td font-semibold tabular-nums">
+                    {{ formatCurrency(bill.total_amount, bill.currency_code) }}
+                  </td>
+                  <td class="table-td"><app-status-badge [status]="bill.status" /></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <div class="mt-6">
+      <a routerLink="/finance/recurring-bills" class="text-sm text-[#1B3A6B] hover:underline">← All Recurring Bills</a>
+    </div>
+  }
+</div>

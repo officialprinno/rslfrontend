@@ -1,0 +1,79 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    title="Supplier Payment Requests"
+    subtitle="Procurement payment releases — verify against PO, GM approval, then pay supplier"
+  />
+
+  <div class="card p-4 mb-4">
+    <select
+      class="input-field w-56"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="PENDING_FINANCE">Pending Finance Review</option>
+      <option value="PENDING_GM">Pending GM Approval</option>
+      <option value="APPROVED">Approved — Awaiting Payment</option>
+      <option value="PAID">Paid</option>
+      <option value="REJECTED">Rejected</option>
+      <option value="">All Statuses</option>
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!releases().length) {
+    <div class="card">
+      <app-empty-state moduleName="Payment Requests" (companySwitched)="load()" />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">PO</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">Invoice</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">Stage</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Submitted</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of releases(); track r.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ r.po_number }}</td>
+              <td class="table-td">{{ r.supplier_name }}</td>
+              <td class="table-td">{{ r.invoice_number ?? '—' }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(r.amount_in_tzs, 'TZS') }}</td>
+              <td class="table-td">{{ r.stage }}</td>
+              <td class="table-td"><app-status-badge [status]="r.status" /></td>
+              <td class="table-td text-xs text-gray-500">{{ formatDateTime(r.created_at) }}</td>
+              <td class="table-td">
+                <a [routerLink]="['/finance/payment-requests', r.id]" class="btn-ghost !text-xs !px-2">
+                  @if (r.can_finance_verify && canVerify()) {
+                    Verify
+                  } @else if (r.can_gm_review && canGm()) {
+                    Review
+                  } @else if (r.can_execute_payment && canExecute()) {
+                    Pay
+                  } @else {
+                    View
+                  }
+                </a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="10"
+      (pageChange)="page.set($event); load()"
+    />
+    </div>
+  }
+</div>

@@ -9,16 +9,85 @@
       <button
         type="button"
         class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
-        [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+        [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : tabHasErrors(tab.id) ? 'border-red-400 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-800'"
         (click)="setTab(tab.id)"
       >
         {{ tab.label }}
+        @if (tabHasErrors(tab.id)) {
+          <span class="ml-1 text-red-500">*</span>
+        }
       </button>
     }
   </div>
 
   <form [formGroup]="form" class="space-y-6" (ngSubmit)="save()">
     @if (activeTab() === 'personal') {
+      @if (!editId()) {
+        <div class="card p-6 mb-6 border border-blue-100 bg-blue-50/40">
+          <div class="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="link_existing_user"
+              class="rounded mt-1"
+              [checked]="linkExistingUser()"
+              (change)="toggleLinkExistingUser($any($event.target).checked)"
+            />
+            <div class="flex-1 min-w-0">
+              <label for="link_existing_user" class="text-sm font-semibold text-gray-900 cursor-pointer">
+                Register an existing system user as employee
+              </label>
+              <p class="text-xs text-gray-600 mt-1">
+                Choose a user who already has a login but is not on the employee list. Their profile
+                details will be prefilled and linked to the new employee record. You still need to
+                complete the <strong>Employment</strong> tab (job title, department) before saving.
+              </p>
+
+              @if (linkExistingUser()) {
+                <div class="mt-4 space-y-3">
+                  <div>
+                    <label class="input-label">Search users</label>
+                    <input
+                      type="search"
+                      class="input-field"
+                      placeholder="Name, email, department, or role"
+                      [value]="userSearch()"
+                      (input)="userSearch.set($any($event.target).value)"
+                    />
+                  </div>
+                  <div>
+                    <label class="input-label">System user *</label>
+                    @if (loadingUnlinkedUsers()) {
+                      <p class="text-sm text-gray-500 flex items-center gap-2">
+                        <span class="spinner spinner-sm"></span>
+                        Loading users…
+                      </p>
+                    } @else if (!filteredUnlinkedUsers().length) {
+                      <p class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        No system users without an employee record were found.
+                      </p>
+                    } @else {
+                      <select
+                        class="input-field"
+                        [value]="selectedLinkUserId() ?? ''"
+                        (change)="onLinkUserSelected($any($event.target).value ? +$any($event.target).value : null)"
+                      >
+                        <option value="">Select a user</option>
+                        @for (u of filteredUnlinkedUsers(); track u.id) {
+                          <option [value]="u.id">
+                            {{ u.full_name }} — {{ u.email }}
+                            @if (u.department_name) { ({{ u.department_name }}) }
+                          </option>
+                        }
+                      </select>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+
       <div class="card p-6">
         <h4 class="text-sm font-semibold text-gray-900 mb-4">Personal Information</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -72,24 +141,59 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="input-label">Department *</label>
-            <select formControlName="department" class="input-field">
+            <select formControlName="department" class="input-field" [class.border-red-500]="form.get('department')?.invalid && form.get('department')?.touched">
               <option [ngValue]="null">Select department</option>
               @for (dept of deptOptions(); track dept.id) {
                 <option [ngValue]="dept.id">{{ dept.name }}</option>
               }
             </select>
+            @if (form.get('department')?.invalid && form.get('department')?.touched) {
+              <p class="text-xs text-red-600 mt-1">Department is required.</p>
+            }
+          </div>
+          <div>
+            <label class="input-label">Working Company *</label>
+            <select formControlName="working_company_scope" class="input-field" (change)="onScopeChange()">
+              @for (scope of workingCompanyScopes; track scope.value) {
+                <option [value]="scope.value">{{ scope.label }}</option>
+              }
+            </select>
+            <p class="text-xs text-gray-500 mt-1">Which company or companies this employee works across.</p>
+          </div>
+          <div>
+            <label class="input-label">Primary Working Company *</label>
+            <select formControlName="primary_working_company" class="input-field" [class.border-red-500]="form.get('primary_working_company')?.invalid && form.get('primary_working_company')?.touched">
+              <option [ngValue]="null">Select company</option>
+              @for (c of primaryCompanyOptions(); track c.id) {
+                <option [ngValue]="c.id">{{ c.name }}</option>
+              }
+            </select>
+            @if (form.get('primary_working_company')?.invalid && form.get('primary_working_company')?.touched) {
+              <p class="text-xs text-red-600 mt-1">Primary working company is required.</p>
+            }
           </div>
           <div>
             <label class="input-label">Job Title *</label>
-            <input type="text" formControlName="job_title" class="input-field" />
+            <input type="text" formControlName="job_title" class="input-field" [class.border-red-500]="form.get('job_title')?.invalid && form.get('job_title')?.touched" />
+            @if (form.get('job_title')?.invalid && form.get('job_title')?.touched) {
+              <p class="text-xs text-red-600 mt-1">Job title is required.</p>
+            }
           </div>
           <div>
             <label class="input-label">Employment Type *</label>
-            <select formControlName="employment_type" class="input-field">
+            <select
+              formControlName="employment_type"
+              class="input-field"
+              (change)="onEmploymentTypeChange($any($event.target).value)"
+            >
               @for (t of employmentTypes; track t.value) {
                 <option [value]="t.value">{{ t.label }}</option>
               }
             </select>
+            <p class="text-xs text-gray-500 mt-1">
+              Local labor and security guards default to statutory (PAYE/NSSF/NHIF)
+              exemption — adjust on the Tax tab if needed.
+            </p>
           </div>
           <div>
             <label class="input-label">Reports To</label>
@@ -123,13 +227,15 @@
               <p class="text-xs text-gray-500 mt-1">Set to Active when the employee is ready for payroll and attendance.</p>
             </div>
           }
-          @if (!editId()) {
-            <div class="flex items-center gap-2 pt-6">
-              <input type="checkbox" formControlName="create_user_account" id="create_user" class="rounded" />
-              <label for="create_user" class="text-sm text-gray-700">Create system user account</label>
-            </div>
-          }
         </div>
+        <p class="text-xs text-gray-500 mt-4">
+          @if (selectedLinkUserId()) {
+            This employee will be linked to the selected system login. No separate account creation is needed.
+          } @else {
+            HR registers employee records only. System accounts are created by a System Administrator,
+            or link an existing user above when registering.
+          }
+        </p>
       </div>
     }
 
@@ -204,10 +310,139 @@
             <label class="input-label">NHIF Number</label>
             <input type="text" formControlName="nhif_number" class="input-field" />
           </div>
-          <div class="flex items-center gap-2 pt-6">
-            <input type="checkbox" formControlName="paye_applicable" id="paye" class="rounded" />
-            <label for="paye" class="text-sm text-gray-700">PAYE Applicable</label>
+        </div>
+
+        <div class="mt-6">
+          <h5 class="text-sm font-medium text-gray-800 mb-3">Statutory Deductions</h5>
+          <p class="text-xs text-gray-500 mb-3">
+            Toggle which statutory deductions are withheld from this employee's payroll.
+            Casual / local labor and security guards are usually exempt.
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label class="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer">
+              <input type="checkbox" formControlName="paye_applicable" class="rounded" />
+              <span class="text-sm text-gray-700">PAYE (Income Tax)</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer">
+              <input type="checkbox" formControlName="nssf_applicable" class="rounded" />
+              <span class="text-sm text-gray-700">NSSF (Social Security)</span>
+            </label>
+            <label class="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer">
+              <input type="checkbox" formControlName="nhif_applicable" class="rounded" />
+              <span class="text-sm text-gray-700">NHIF (Health)</span>
+            </label>
           </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab() === 'deductions') {
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-1">
+          <h4 class="text-sm font-semibold text-gray-900">Other Deductions (Loans &amp; Advances)</h4>
+          <button type="button" class="btn-ghost !text-xs" (click)="addDeduction()">Add Deduction</button>
+        </div>
+        <p class="text-xs text-gray-500 mb-4">
+          Recurring deductions like bank loans and office loans. The monthly installment
+          is automatically withheld from payroll until the balance is cleared.
+        </p>
+
+        @if (editId()) {
+          <div class="mb-6">
+            <h5 class="text-sm font-medium text-gray-800 mb-3">Current Deductions</h5>
+            @if (loadingDeductions()) {
+              <p class="text-sm text-gray-500 flex items-center gap-2">
+                <span class="spinner spinner-sm"></span> Loading deductions…
+              </p>
+            } @else if (!existingDeductions().length) {
+              <p class="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                No loans or recurring deductions recorded for this employee.
+              </p>
+            } @else {
+              <div class="table-scroll-viewport overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-gray-500 border-b">
+                      <th class="py-2 pr-4">Deduction</th>
+                      <th class="py-2 pr-4">Type</th>
+                      <th class="py-2 pr-4 text-right">Total</th>
+                      <th class="py-2 pr-4 text-right">Monthly</th>
+                      <th class="py-2 pr-4 text-right">Recovered</th>
+                      <th class="py-2 pr-4 text-right">Balance</th>
+                      <th class="py-2 pr-4">Status</th>
+                      <th class="py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (d of existingDeductions(); track d.id) {
+                      <tr class="border-b last:border-0">
+                        <td class="py-2 pr-4 font-medium text-gray-800">{{ d.name }}</td>
+                        <td class="py-2 pr-4 text-gray-600">{{ d.deduction_type_display }}</td>
+                        <td class="py-2 pr-4 text-right">{{ formatHrAmount(d.principal_amount) }}</td>
+                        <td class="py-2 pr-4 text-right">{{ formatHrAmount(d.monthly_installment) }}</td>
+                        <td class="py-2 pr-4 text-right">{{ formatHrAmount(d.amount_recovered) }}</td>
+                        <td class="py-2 pr-4 text-right font-medium">{{ formatHrAmount(d.balance) }}</td>
+                        <td class="py-2 pr-4">
+                          <span
+                            class="text-xs px-2 py-0.5 rounded-full"
+                            [class]="d.status === 'ACTIVE' ? 'bg-blue-100 text-blue-800' : d.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'"
+                          >{{ d.status }}</span>
+                        </td>
+                        <td class="py-2 text-right">
+                          @if (d.status === 'ACTIVE') {
+                            <button
+                              type="button"
+                              class="btn-ghost !text-xs !text-red-600"
+                              [disabled]="cancellingDeductionId() === d.id"
+                              (click)="cancelDeduction(d)"
+                            >Cancel</button>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        }
+
+        <div formArrayName="deductions" class="space-y-3">
+          @if (deductionRows.controls.length) {
+            <h5 class="text-sm font-medium text-gray-800">New Deductions to Add</h5>
+          }
+          @for (ctrl of deductionRows.controls; track $index; let i = $index) {
+            <div [formGroupName]="i" class="grid grid-cols-1 md:grid-cols-6 gap-3 p-3 bg-gray-50 rounded-lg">
+              <div class="md:col-span-2">
+                <label class="input-label">Name *</label>
+                <input type="text" formControlName="name" class="input-field" placeholder="e.g. CRDB Bank Loan" />
+              </div>
+              <div>
+                <label class="input-label">Type *</label>
+                <select formControlName="deduction_type" class="input-field">
+                  @for (t of deductionTypes; track t.value) {
+                    <option [value]="t.value">{{ t.label }}</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label class="input-label">Total Amount *</label>
+                <input type="number" formControlName="principal_amount" class="input-field" min="0" />
+              </div>
+              <div>
+                <label class="input-label">Monthly *</label>
+                <input type="number" formControlName="monthly_installment" class="input-field" min="0" />
+              </div>
+              <div class="flex items-end">
+                <button type="button" class="btn-ghost !text-xs !text-red-600" (click)="removeDeduction(i)">Remove</button>
+              </div>
+            </div>
+          }
+          @if (!deductionRows.controls.length) {
+            <p class="text-sm text-gray-500">
+              Click <strong>Add Deduction</strong> to record a loan or advance for this employee.
+            </p>
+          }
         </div>
       </div>
     }

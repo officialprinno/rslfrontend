@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormsModule, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
 import { Currency } from '../../../../core/models/inventory.model';
@@ -14,16 +14,26 @@ import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatCurrency, formatDate } from '../../../../core/utils/format.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { EnterpriseDataTableComponent } from '../../../../shared/components/enterprise-data-table/enterprise-data-table.component';
+import { ListFilterBarComponent } from '../../../../shared/components/list-filter-bar/list-filter-bar.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
+import { TableActionsComponent, TableAction } from '../../../../shared/components/table-actions/table-actions.component';
+import { TableCellTextComponent } from '../../../../shared/components/table-cell-text/table-cell-text.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { PaymentTermsBadgeComponent } from '../../components/payment-terms-badge/payment-terms-badge.component';
 import { ProcurementNavComponent } from '../../components/procurement-nav/procurement-nav.component';
 import { StarRatingComponent } from '../../components/star-rating/star-rating.component';
 import { COUNTRIES, PAYMENT_TERMS } from '../../constants/procurement.constants';
 import { canDeleteAnything, canManageSuppliers } from '../../utils/procurement-permissions.util';
+
+function requiredTrimmed(control: AbstractControl): ValidationErrors | null {
+  const value = control.value;
+  if (value == null || String(value).trim() === '') return { required: true };
+  return null;
+}
 
 @Component({
   selector: 'app-suppliers',
@@ -40,6 +50,10 @@ import { canDeleteAnything, canManageSuppliers } from '../../utils/procurement-p
     StatusBadgeComponent,
     StarRatingComponent,
     PaymentTermsBadgeComponent,
+    EnterpriseDataTableComponent,
+    ListFilterBarComponent,
+    TableActionsComponent,
+    TableCellTextComponent,
   ],
   templateUrl: './suppliers.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -79,12 +93,12 @@ export class SuppliersComponent implements OnInit {
   readonly canDelete = () => canDeleteAnything(this.auth);
 
   readonly form = this.fb.group({
-    name: ['', Validators.required],
+    name: ['', [requiredTrimmed, Validators.minLength(2)]],
     registration_number: [''],
-    tin_number: ['', Validators.required],
+    tin_number: [''],
     vat_number: [''],
-    email: ['', [Validators.required, Validators.email]],
-    phone: ['', Validators.required],
+    email: ['', [requiredTrimmed, Validators.email]],
+    phone: ['', [requiredTrimmed, Validators.minLength(6)]],
     address: [''],
     city: [''],
     country: ['Tanzania', Validators.required],
@@ -137,7 +151,7 @@ export class SuppliersComponent implements OnInit {
       address: '',
       city: '',
       country: 'Tanzania',
-      currency: this.currencies()[0]?.id ?? null,
+      currency: this.currencyService.defaultCurrencyId(this.currencies()),
       payment_terms: 'NET_30',
       rating: 3,
     });
@@ -232,6 +246,19 @@ export class SuppliersComponent implements OnInit {
     });
   }
 
+  rowActions(s: Supplier): TableAction[] {
+    const actions: TableAction[] = [{ id: 'view', label: 'View', icon: 'view' }];
+    if (this.canAdd()) actions.push({ id: 'edit', label: 'Edit', icon: 'edit' });
+    if (this.canDelete()) actions.push({ id: 'delete', label: 'Delete', icon: 'delete', danger: true });
+    return actions;
+  }
+
+  onRowAction(actionId: string, s: Supplier): void {
+    if (actionId === 'view') this.openView(s);
+    if (actionId === 'edit') this.openEdit(s);
+    if (actionId === 'delete') this.onDelete(s);
+  }
+
   exportExcel(): void {
     exportToExcel('suppliers', [
       { key: 'name', label: 'Name' },
@@ -245,5 +272,19 @@ export class SuppliersComponent implements OnInit {
 
   setRating(r: number): void {
     this.form.controls.rating.setValue(r);
+  }
+
+  fieldError(field: string): string | null {
+    const apiError = this.fieldErrors()[field];
+    if (apiError) return apiError;
+    const control = this.form.get(field);
+    if (!control || !control.touched || !control.invalid) return null;
+    if (field === 'name' && control.errors?.['required']) return 'Supplier name is required.';
+    if (field === 'name' && control.errors?.['minlength']) return 'Enter at least 2 characters.';
+    if (field === 'email' && control.errors?.['required']) return 'Email is required.';
+    if (field === 'email' && control.errors?.['email']) return 'Enter a valid email address.';
+    if (field === 'phone' && control.errors?.['required']) return 'Phone number is required.';
+    if (field === 'phone' && control.errors?.['minlength']) return 'Enter a valid phone number.';
+    return 'This field is required.';
   }
 }

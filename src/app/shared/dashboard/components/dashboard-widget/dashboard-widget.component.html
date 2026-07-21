@@ -1,0 +1,51 @@
+<article class="dash-widget card" [class.dash-widget--flush]="flush()">
+  @if (title() || hasHeaderActions()) {
+    <header class="dash-widget__header">
+      <div>
+        @if (title()) {
+          <h3 class="dash-widget__title">{{ title() }}</h3>
+        }
+        @if (subtitle()) {
+          <p class="dash-widget__subtitle">{{ subtitle() }}</p>
+        }
+      </div>
+      @if (hasHeaderActions()) {
+        <div class="dash-widget__header-actions">
+          <ng-content select="[widgetActions]" />
+        </div>
+      }
+    </header>
+  }
+
+  <div class="dash-widget__content" [class.relative]="loading()">
+    @if (loading()) {
+      <div class="dash-widget-loader" role="status" [attr.aria-label]="loadingLabel()">
+        <span class="spinner spinner-sm" aria-hidden="true"></span>
+        <span class="dash-widget-loader__label">{{ loadingLabel() }}</span>
+      </div>
+    } @else if (error()) {
+      <div class="dash-error dash-error--compact" role="alert">
+        <div class="dash-error__icon" aria-hidden="true">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h4 class="dash-error__title">{{ errorTitle() }}</h4>
+        <p class="dash-error__message">{{ errorMessage() }}</p>
+        <button type="button" class="btn-secondary text-sm!" (click)="retry.emit()">Try again</button>
+      </div>
+    } @else if (empty()) {
+      <div class="dash-empty dash-empty--compact">
+        <div class="dash-empty__icon" aria-hidden="true">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+        </div>
+        <h4 class="dash-empty__title">{{ emptyTitle() }}</h4>
+        <p class="dash-empty__message">{{ emptyMessage() }}</p>
+      </div>
+    } @else {
+      <ng-content />
+    }
+  </div>
+</article>

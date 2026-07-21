@@ -12,21 +12,24 @@ import {
 } from '../models/finance.model';
 import { COMPANY_DETAILS, formatAccountingAmount } from '../../modules/finance/constants/finance.constants';
 import { formatDate } from './format.util';
+import { drawPdfHeaderLogo, drawPdfWatermark } from './brand.util';
 
 const BRAND_RGB: [number, number, number] = [27, 58, 107];
 const MARGIN = 14;
+const HEADER_TEXT_X = MARGIN + 38;
 
 function addHeader(doc: jsPDF, title: string, subtitle: string): number {
   doc.setFillColor(...BRAND_RGB);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 32, 'F');
+  drawPdfHeaderLogo(doc, MARGIN, 6, 34, 20);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(COMPANY_DETAILS.name, MARGIN, 11);
+  doc.text(COMPANY_DETAILS.name, HEADER_TEXT_X, 11);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`TIN: ${COMPANY_DETAILS.tin} | VRN: ${COMPANY_DETAILS.vat}`, MARGIN, 17);
-  doc.text(COMPANY_DETAILS.address, MARGIN, 22);
+  doc.text(`TIN: ${COMPANY_DETAILS.tin} | VRN: ${COMPANY_DETAILS.vat}`, HEADER_TEXT_X, 17);
+  doc.text(COMPANY_DETAILS.address, HEADER_TEXT_X, 22);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(title, doc.internal.pageSize.getWidth() - MARGIN, 12, { align: 'right' });
@@ -38,6 +41,7 @@ function addHeader(doc: jsPDF, title: string, subtitle: string): number {
 }
 
 function addFooter(doc: jsPDF): void {
+  drawPdfWatermark(doc);
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);

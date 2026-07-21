@@ -159,9 +159,13 @@
             <p class="text-sm font-semibold mb-2">Attachments</p>
             <div class="grid grid-cols-2 gap-2">
               @for (att of e.attachments; track att.id) {
-                <a [href]="att.file_path" class="msg-attachment" target="_blank">
+                <app-open-file
+                  [fileUrl]="att.file_path"
+                  [fileName]="att.file_name"
+                  buttonClass="msg-attachment text-left"
+                >
                   📎 {{ att.file_name }} ({{ (att.file_size / 1024) | number: '1.0-0' }} KB)
-                </a>
+                </app-open-file>
               }
             </div>
           </div>

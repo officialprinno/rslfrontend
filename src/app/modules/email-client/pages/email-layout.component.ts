@@ -16,10 +16,11 @@ import { EmailService } from '../../../core/services/email.service';
 import { NotificationCountsService } from '../../../core/services/notification-counts.service';
 import { formatMessageTime } from '../../../core/utils/time.util';
 import { ErrorStateComponent } from '../../../shared/components/error-state/error-state.component';
+import { OpenFileComponent } from '../../../shared/components/open-file/open-file.component';
 
 @Component({
   selector: 'app-email-layout',
-  imports: [FormsModule, RouterLink, SlicePipe, DecimalPipe, ErrorStateComponent],
+  imports: [FormsModule, RouterLink, SlicePipe, DecimalPipe, ErrorStateComponent, OpenFileComponent],
   templateUrl: './email-layout.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

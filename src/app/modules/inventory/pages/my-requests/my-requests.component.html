@@ -14,7 +14,7 @@
   } @else if (error()) {
     <app-error-state title="Unable to load your requests" (retry)="load()" />
   } @else if (!requests().length) {
-    <app-empty-state title="No requests yet" message="Create your first internal consumption request." />
+    <app-empty-state moduleName="My Requests" (companySwitched)="load()" />
   } @else {
     <div class="space-y-4">
       @for (req of requests(); track req.id) {

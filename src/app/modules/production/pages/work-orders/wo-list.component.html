@@ -50,12 +50,7 @@
     <app-table-skeleton [cols]="9" />
   } @else if (!workOrders().length) {
     <div class="card">
-      <app-empty-state
-        title="No work orders"
-        message="Create a work order to schedule production runs."
-        actionLabel="New Work Order"
-        (actionClick)="null"
-      />
+      <app-empty-state moduleName="Work Orders" actionLabel="New Work Order" (actionClick)="null" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

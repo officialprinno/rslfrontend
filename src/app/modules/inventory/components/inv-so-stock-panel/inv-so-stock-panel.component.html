@@ -1,0 +1,102 @@
+<div class="card p-6 border-l-4 border-l-emerald-600">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+    <h4 class="font-semibold text-[#1B3A6B]">Inventory Stock Verification — {{ order().so_number }}</h4>
+    <app-inv-so-workflow-print
+      kind="stock"
+      [order]="order()"
+      [stockCheck]="stockCheck()"
+    />
+  </div>
+  <p class="text-sm text-gray-500 mb-4">
+    Status: <strong>{{ order().status }}</strong>
+    · Customer: <strong>{{ order().customer_name }}</strong>
+    @if (order().warehouse_name) {
+      · Warehouse: <strong>{{ order().warehouse_name }}</strong>
+    }
+  </p>
+
+  @if (loadingCheck()) {
+    <p class="text-sm text-gray-500 mb-4">Loading stock availability…</p>
+  } @else if (stockCheck(); as check) {
+    @if (!check.all_available && hasAnyAvailable(check)) {
+      <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+        Some items are short — print the checklist for physical verification, then verify &amp; reserve.
+        Available stock will be reserved; the sales order keeps full customer quantities and
+        <strong>stock outstanding</strong> is recorded for the balance.
+      </div>
+    }
+    <div class="mb-4 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr>
+            <th class="table-th">Item</th>
+            <th class="table-th">Ordered</th>
+            <th class="table-th">On Hand</th>
+            <th class="table-th">Available (all warehouses)</th>
+            <th class="table-th">Shortfall</th>
+            <th class="table-th">OK</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of check.lines; track line.item_id) {
+            <tr class="table-row" [class.!bg-red-50]="!line.sufficient">
+              <td class="table-td">{{ line.item_code }} — {{ line.item_name }}</td>
+              <td class="table-td">{{ line.quantity_ordered }}</td>
+              <td class="table-td">{{ line.quantity_on_hand }}</td>
+              <td class="table-td">
+                {{ line.quantity_available_all_warehouses ?? line.quantity_available }}
+                @if (line.warehouse_breakdown?.length) {
+                  <div class="mt-1 space-y-0.5 text-xs text-gray-600">
+                    @for (wh of line.warehouse_breakdown; track wh.warehouse_id) {
+                      @if (+wh.stock_available > 0 || wh.is_fulfillment_warehouse) {
+                        <div [class.text-[#1B3A6B]]="wh.is_fulfillment_warehouse">
+                          {{ wh.warehouse_name }}: {{ wh.stock_available }}
+                          @if (wh.is_fulfillment_warehouse) {
+                            <span class="text-gray-500">(order)</span>
+                          }
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              </td>
+              <td class="table-td">{{ line.shortfall }}</td>
+              <td class="table-td">{{ line.sufficient ? 'Yes' : 'No' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-gray-500 mb-4">
+      Warehouse: {{ check.warehouse_name }}
+      · All available: <strong>{{ check.all_available ? 'Yes' : 'No' }}</strong>
+    </p>
+  }
+
+  @if (order().status === 'STOCK_VERIFICATION') {
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="verifyStock()">
+        Verify & Reserve Stock
+      </button>
+    </div>
+    <p class="text-xs text-gray-500 mt-3">
+      Print the checklist to verify physical stock. Sales keeps the full order quantity — do not ask Sales
+      to reduce lines. Outstanding balance is recorded automatically when stock is short.
+    </p>
+  }
+
+  @if (order().status === 'OUT_OF_STOCK') {
+    <div class="mb-3 p-3 bg-red-50 rounded-lg text-sm text-red-900">
+      No stock available to reserve. Print for physical check if needed, then re-check when stock arrives
+      or create a procurement request.
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button type="button" class="btn-primary" [disabled]="saving()" (click)="verifyStock()">
+        Re-check Stock
+      </button>
+      <button type="button" class="btn-secondary" [disabled]="saving()" (click)="createProcurement()">
+        Create Procurement Request
+      </button>
+    </div>
+  }
+</div>

@@ -20,12 +20,7 @@
     <app-table-skeleton [cols]="8" />
   } @else if (!payments().length) {
     <div class="card">
-      <app-empty-state
-        title="No payments"
-        message="Record customer payments against outstanding invoices."
-        actionLabel="Record Payment"
-        (actionClick)="openRecord()"
-      />
+      <app-empty-state moduleName="Payments" actionLabel="Record Payment" (actionClick)="openRecord()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

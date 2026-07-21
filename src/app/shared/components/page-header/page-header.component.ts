@@ -7,7 +7,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
       <div>
         <h1 class="page-title">{{ title() }}</h1>
         @if (subtitle()) {
-          <p class="text-sm text-gray-500 mt-1">{{ subtitle() }}</p>
+          <p class="text-sm text-gray-500 mt-1 leading-normal">{{ subtitle() }}</p>
         }
       </div>
       <div class="flex items-center gap-2 shrink-0">

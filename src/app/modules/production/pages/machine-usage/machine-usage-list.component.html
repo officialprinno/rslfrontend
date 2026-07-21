@@ -30,12 +30,7 @@
     <app-table-skeleton [cols]="7" />
   } @else if (!records().length) {
     <div class="card">
-      <app-empty-state
-        title="No usage records"
-        message="Log machine hours against active work orders."
-        actionLabel="Log Usage"
-        (actionClick)="openLog()"
-      />
+      <app-empty-state moduleName="Machine Usage" actionLabel="Log Usage" (actionClick)="openLog()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

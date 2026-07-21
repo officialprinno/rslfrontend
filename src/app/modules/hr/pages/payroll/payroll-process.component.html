@@ -111,7 +111,16 @@
                   <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.basic_salary) : '••••••' }}</td>
                   <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.total_allowances) : '••••••' }}</td>
                   <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.gross_salary) : '••••••' }}</td>
-                  <td class="table-td">{{ canViewAmounts() ? formatHrAmount(item.total_deductions) : '••••••' }}</td>
+                  <td class="table-td">
+                    {{ canViewAmounts() ? formatHrAmount(item.total_deductions) : '••••••' }}
+                    @if (canViewAmounts() && item.deductions?.length) {
+                      <div class="text-xs text-gray-500 mt-1 space-y-0.5">
+                        @for (d of item.deductions; track $index) {
+                          <div>{{ d.name }}: {{ formatHrAmount(d.amount) }}</div>
+                        }
+                      </div>
+                    }
+                  </td>
                   <td class="table-td font-semibold">{{ canViewAmounts() ? formatHrAmount(item.net_salary) : '••••••' }}</td>
                 </tr>
               }

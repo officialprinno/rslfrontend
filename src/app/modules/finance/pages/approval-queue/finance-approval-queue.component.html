@@ -1,0 +1,233 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    title="Invoice Approvals"
+    [subtitle]="pageSubtitle()"
+  />
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+    <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-md text-sm font-medium"
+        [class]="docTab() === 'sent' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+        (click)="setDocTab('sent')"
+      >
+        Sales Invoices
+        @if (queue(); as q) {
+          <span class="ml-1 text-xs text-gray-500">({{ q.counts.pending_sent }})</span>
+        }
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-md text-sm font-medium"
+        [class]="docTab() === 'received' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+        (click)="setDocTab('received')"
+      >
+        Supplier Invoices
+        @if (queue(); as q) {
+          <span class="ml-1 text-xs text-gray-500">({{ q.counts.pending_received }})</span>
+        }
+      </button>
+    </div>
+
+    @if (showSalesLifecycleTabs()) {
+      <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium"
+          [class]="statusTab() === 'pending' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+          (click)="setStatusTab('pending')"
+        >
+          Pending Issue
+          @if (statusCount('pending') !== undefined) {
+            <span class="ml-1 text-xs text-amber-700">({{ statusCount('pending') }})</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium"
+          [class]="statusTab() === 'approved' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+          (click)="setStatusTab('approved')"
+        >
+          Issued
+          @if (statusCount('approved') !== undefined) {
+            <span class="ml-1 text-xs text-green-700">({{ statusCount('approved') }})</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium"
+          [class]="statusTab() === 'sent' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+          (click)="setStatusTab('sent')"
+        >
+          Sent to Customer
+          @if (statusCount('sent') !== undefined) {
+            <span class="ml-1 text-xs text-blue-700">({{ statusCount('sent') }})</span>
+          }
+        </button>
+      </div>
+    } @else {
+      <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium"
+          [class]="statusTab() === 'pending' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+          (click)="setStatusTab('pending')"
+        >
+          Pending Approval
+          @if (statusCount('pending') !== undefined) {
+            <span class="ml-1 text-xs text-amber-700">({{ statusCount('pending') }})</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="px-3 py-1.5 rounded-md text-sm font-medium"
+          [class]="statusTab() === 'approved' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+          (click)="setStatusTab('approved')"
+        >
+          Approved
+          @if (statusCount('approved') !== undefined) {
+            <span class="ml-1 text-xs text-green-700">({{ statusCount('approved') }})</span>
+          }
+        </button>
+      </div>
+    }
+
+    <div class="flex gap-1 p-1 bg-gray-100 rounded-lg">
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-md text-sm font-medium"
+        [class]="companyTab() === 'SUPPLY' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+        (click)="companyTab.set('SUPPLY')"
+      >
+        Supply
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-md text-sm font-medium"
+        [class]="companyTab() === 'STEIN' ? 'bg-white shadow text-[#1B3A6B]' : 'text-gray-600'"
+        (click)="companyTab.set('STEIN')"
+      >
+        Stein
+      </button>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!items().length) {
+    <div class="card">
+      <app-empty-state
+        [moduleName]="emptyStateTitle()"
+        [message]="emptyStateMessage()"
+        (companySwitched)="load()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Invoice #</th>
+            <th class="table-th">{{ docTab() === 'received' ? 'Supplier' : 'Customer' }}</th>
+            <th class="table-th">Sales Order</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">{{ submittedColumnLabel() }}</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">
+                {{ item.invoice_number }}
+                @if (item.doc_type === 'invoice_received' && item.has_invoice_document) {
+                  <span class="ml-1 inline-flex text-xs font-medium text-blue-700" title="Invoice document attached">· Doc</span>
+                }
+              </td>
+              <td class="table-td">{{ item.counterparty_name }}</td>
+              <td class="table-td text-sm text-gray-600">
+                {{ item.sales_order_number ?? item.purchase_order_number ?? '—' }}
+              </td>
+              <td class="table-td font-semibold">
+                {{ formatCurrency(item.total_amount, item.currency_code) }}
+              </td>
+              <td class="table-td text-xs text-gray-500">
+                @if (submittedColumnValue(item); as col) {
+                  <div>{{ col.primary }}</div>
+                  <div>{{ col.secondary }}</div>
+                }
+              </td>
+              <td class="table-td">
+                <app-status-badge
+                  [status]="item.approval_status"
+                  [label]="approvalLabel(item.approval_status, item)"
+                />
+              </td>
+              <td class="table-td">
+                <div class="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    class="btn-ghost !text-xs !px-2"
+                    (click)="openDetail(item)"
+                  >
+                    View
+                  </button>
+                  @if (canApprove() && docTab() === 'received' && statusTab() === 'pending') {
+                    <button
+                      type="button"
+                      class="btn-primary !text-xs !px-2"
+                      [disabled]="acting()"
+                      (click)="approve(item)"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-ghost !text-xs !px-2 !text-red-700"
+                      [disabled]="acting()"
+                      (click)="openReject(item)"
+                    >
+                      Reject
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<app-modal [open]="showReject()" title="Reject Supplier Invoice" size="md" (close)="showReject.set(false)">
+  <p class="text-sm text-gray-600 mb-3">
+    Rejecting <strong>{{ rejecting()?.invoice_number }}</strong>. Procurement will be notified.
+  </p>
+  <label class="input-label">Reason</label>
+  <textarea
+    class="input-field w-full min-h-[80px]"
+    [ngModel]="rejectReason()"
+    (ngModelChange)="rejectReason.set($event)"
+    placeholder="Explain why this invoice is rejected..."
+  ></textarea>
+  <div class="flex justify-end gap-2 mt-4">
+    <button type="button" class="btn-ghost" (click)="showReject.set(false)">Cancel</button>
+    <button type="button" class="btn-primary !bg-red-700" [disabled]="acting()" (click)="confirmReject()">
+      Reject Invoice
+    </button>
+  </div>
+</app-modal>
+
+<app-finance-invoice-detail-modal
+  [open]="showDetail()"
+  [loading]="detailLoading()"
+  [detail]="detail()"
+  [canApproveActions]="canApprove() && docTab() === 'received' && statusTab() === 'pending'"
+  (close)="closeDetail()"
+  (approve)="approveFromDetail()"
+  (reject)="rejectFromDetail()"
+/>

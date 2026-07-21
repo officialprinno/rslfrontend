@@ -64,14 +64,13 @@
           }
         </tbody>
       </table>
-    </div>
-
-    <app-pagination
+      <app-pagination
       [page]="page()"
       [total]="total()"
       [pageSize]="100"
       (pageChange)="onPageChange($event)"
     />
+    </div>
   }
 </div>
 

@@ -1,0 +1,201 @@
+<div class="page-container">
+  <app-procurement-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (error() || !quotation()) {
+    <app-error-state title="Quotation not found" (retry)="load()" />
+  } @else if (quotation(); as q) {
+    <app-page-header [title]="q.quotation_number" [subtitle]="q.supplier_name">
+      <a routerLink="/procurement/quotations" class="btn-secondary">Back to list</a>
+      <a [routerLink]="['/procurement/rfq', q.rfq]" class="btn-secondary">Open RFQ</a>
+    </app-page-header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 space-y-6">
+        <div class="card p-6">
+          <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-semibold text-[#1B3A6B]">Quotation details</h2>
+              @if (q.is_auto_generated) {
+                <p class="text-sm text-gray-500 mt-1">Auto-generated from RFQ supplier response</p>
+              }
+            </div>
+            <app-status-badge [status]="statusFor(q)" [label]="statusLabel(q)" />
+          </div>
+
+          <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <div>
+              <dt class="text-gray-500">RFQ</dt>
+              <dd class="font-medium">
+                <a [routerLink]="['/procurement/rfq', q.rfq]" class="text-[#2E6DB4] hover:underline">{{ q.rfq_number }}</a>
+              </dd>
+            </div>
+            <div>
+              <dt class="text-gray-500">Supplier</dt>
+              <dd class="font-medium">{{ q.supplier_name }}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-500">Quotation date</dt>
+              <dd>{{ formatDate(q.quotation_date) }}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-500">Valid until</dt>
+              <dd>{{ formatDate(q.valid_until) }}</dd>
+            </div>
+            <div>
+              <dt class="text-gray-500">Delivery</dt>
+              <dd>{{ q.delivery_days }} days</dd>
+            </div>
+            <div>
+              <dt class="text-gray-500">Currency</dt>
+              <dd>{{ q.currency_code }} @if (q.exchange_rate !== 1) { (rate {{ q.exchange_rate }}) }</dd>
+            </div>
+            @if (q.incoterm) {
+              <div>
+                <dt class="text-gray-500">Incoterm</dt>
+                <dd>{{ q.incoterm }}</dd>
+              </div>
+            }
+            @if (q.payment_terms) {
+              <div>
+                <dt class="text-gray-500">Payment terms</dt>
+                <dd>{{ q.payment_terms }}</dd>
+              </div>
+            }
+            @if (q.warranty) {
+              <div>
+                <dt class="text-gray-500">Warranty</dt>
+                <dd>{{ q.warranty }}</dd>
+              </div>
+            }
+            @if (q.rfq_po_number) {
+              <div>
+                <dt class="text-gray-500">Purchase order</dt>
+                <dd class="font-medium">
+                  @if (q.rfq_po_id) {
+                    <a
+                      [routerLink]="['/procurement/purchase-orders', q.rfq_po_id, 'view']"
+                      class="text-[#2E6DB4] hover:underline"
+                    >
+                      {{ q.rfq_po_number }}
+                    </a>
+                  } @else {
+                    <span class="text-[#1B3A6B]">{{ q.rfq_po_number }}</span>
+                  }
+                </dd>
+              </div>
+            }
+          </dl>
+
+          @if (q.notes) {
+            <div class="mt-6 pt-4 border-t border-gray-100">
+              <p class="text-sm text-gray-500 mb-1">Notes</p>
+              <p class="text-sm text-gray-800">{{ q.notes }}</p>
+            </div>
+          }
+        </div>
+
+        <div class="card p-6">
+          <h3 class="font-semibold text-[#1B3A6B] mb-4">Line items</h3>
+          @if (!q.items.length) {
+            <p class="text-sm text-gray-500">No line items.</p>
+          } @else {
+            <div class="table-container">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th class="table-th">Item</th>
+                    <th class="table-th text-right">Qty</th>
+                    <th class="table-th text-right">Unit price</th>
+                    <th class="table-th text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (line of q.items; track line.id) {
+                    <tr class="table-row">
+                      <td class="table-td">
+                        <span class="font-medium">{{ line.item_name }}</span>
+                        @if (line.item_code) {
+                          <span class="block text-xs text-gray-500">{{ line.item_code }}</span>
+                        }
+                      </td>
+                      <td class="table-td text-right">{{ line.quantity }}</td>
+                      <td class="table-td text-right">{{ formatCurrency(line.unit_price, q.currency_code) }}</td>
+                      <td class="table-td text-right font-medium">
+                        {{ formatCurrency(lineTotal(line.quantity, line.unit_price), q.currency_code) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3" class="table-td text-right font-semibold">Total</td>
+                    <td class="table-td text-right font-bold text-[#1B3A6B]">
+                      {{ formatCurrency(q.quoted_amount ?? itemsTotal(q), q.currency_code) }}
+                    </td>
+                  </tr>
+                  @if (q.currency_code !== 'TZS' && q.amount_in_tzs) {
+                    <tr>
+                      <td colspan="3" class="table-td text-right text-gray-500">Approx. TZS</td>
+                      <td class="table-td text-right text-gray-600">{{ formatCurrency(q.amount_in_tzs, 'TZS') }}</td>
+                    </tr>
+                  }
+                </tfoot>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="space-y-6">
+        <div class="card p-6">
+          <h3 class="font-semibold text-[#1B3A6B] mb-4">Quotation file</h3>
+          @if (q.has_quotation_file || q.quotation_file_name || q.quotation_file_view_url) {
+            <p class="text-sm text-gray-600 mb-4">{{ q.quotation_file_name }}</p>
+            <div class="flex flex-col gap-2">
+              <button
+                type="button"
+                class="btn-primary w-full"
+                [disabled]="openingFile()"
+                (click)="viewPdf(q)"
+              >
+                {{ openingFile() ? 'Opening…' : 'View in app' }}
+              </button>
+              <button
+                type="button"
+                class="btn-secondary w-full"
+                [disabled]="openingFile()"
+                (click)="downloadPdf(q)"
+              >
+                Download
+              </button>
+            </div>
+          } @else {
+            <p class="text-sm text-gray-500">No quotation PDF attached for this response.</p>
+          }
+        </div>
+
+        <div class="card p-6 text-sm text-gray-600">
+          <p class="font-medium text-gray-800 mb-2">About this record</p>
+          <p>
+            This quotation is maintained automatically from the RFQ supplier response workflow.
+            To change amounts or files, edit the response on the RFQ page.
+          </p>
+        </div>
+      </div>
+    </div>
+  }
+</div>
+
+@if (showPreview()) {
+  <app-modal [open]="true" [title]="previewTitle()" size="xl" (close)="closePreview()">
+    @if (previewKind() === 'pdf' && safePreviewUrl()) {
+      <iframe [src]="safePreviewUrl()!" class="w-full h-[70vh] rounded-lg border" title="Quotation preview"></iframe>
+    } @else if (previewKind() === 'image' && safePreviewUrl()) {
+      <img [src]="safePreviewUrl()!" [alt]="previewTitle()" class="max-h-[70vh] mx-auto rounded-lg" />
+    } @else {
+      <p class="text-sm text-gray-600">Preview not available for this file type. Use Download instead.</p>
+    }
+  </app-modal>
+}

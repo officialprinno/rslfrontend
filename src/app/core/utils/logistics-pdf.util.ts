@@ -4,19 +4,22 @@ import autoTable from 'jspdf-autotable';
 import { DeliveryNote, DeliveryOrder } from '../models/logistics.model';
 import { formatDate, formatDateTime } from './format.util';
 import { COMPANY_DETAILS } from '../../modules/logistics/constants/logistics.constants';
+import { drawPdfHeaderLogo, drawPdfWatermark } from './brand.util';
 
 const MARGIN = 14;
+const HEADER_TEXT_X = MARGIN + 38;
 
 function addHeader(doc: jsPDF, title: string, docNumber: string): number {
   doc.setFillColor(27, 58, 107);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
+  drawPdfHeaderLogo(doc, MARGIN, 5, 34, 18);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(COMPANY_DETAILS.name, MARGIN, 12);
+  doc.text(COMPANY_DETAILS.name, HEADER_TEXT_X, 12);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(COMPANY_DETAILS.address, MARGIN, 19);
+  doc.text(COMPANY_DETAILS.address, HEADER_TEXT_X, 19);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text(title, doc.internal.pageSize.getWidth() - MARGIN, 12, { align: 'right' });
@@ -60,6 +63,7 @@ export function exportDeliveryNotePdf(note: DeliveryNote, order?: DeliveryOrder)
   y += 6;
   doc.text(`Signed at: ${note.signed_at ? formatDateTime(note.signed_at) : '________________'}`, MARGIN, y);
 
+  drawPdfWatermark(doc);
   doc.save(`${note.dn_number}.pdf`);
 }
 

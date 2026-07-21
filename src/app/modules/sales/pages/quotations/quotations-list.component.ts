@@ -11,13 +11,16 @@ import { SalesService } from '../../../../core/services/sales.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatCurrency, formatDate } from '../../../../core/utils/format.util';
+import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
+import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { SalesNavComponent } from '../../components/sales-nav/sales-nav.component';
+import { DELIVERY_METHODS, quotationIsConvertible, quotationIsEditable } from '../../constants/sales.constants';
 import { canConvertToSO, canCreateQuotation, canDeleteAnything } from '../../utils/sales-permissions.util';
 
 @Component({
@@ -32,6 +35,7 @@ import { canConvertToSO, canCreateQuotation, canDeleteAnything } from '../../uti
     ErrorStateComponent,
     TableSkeletonComponent,
     StatusBadgeComponent,
+    ModalComponent,
   ],
   templateUrl: './quotations-list.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -47,6 +51,7 @@ export class QuotationsListComponent implements OnInit {
   readonly customers = signal<Customer[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly workspaceEmpty = signal(false);
   readonly total = signal(0);
   readonly page = signal(1);
   readonly pageSize = signal(10);
@@ -61,6 +66,16 @@ export class QuotationsListComponent implements OnInit {
   readonly canAdd = () => canCreateQuotation(this.auth);
   readonly canConvert = () => canConvertToSO(this.auth);
   readonly canDelete = () => canDeleteAnything(this.auth);
+  readonly isDraft = (q: Quotation) => quotationIsEditable(q);
+  readonly isConvertible = (q: Quotation) => quotationIsConvertible(q);
+  readonly needsCustomerReply = (q: Quotation) =>
+    (q.customer_response === 'REVISION' || q.customer_response === 'REJECTED') && !q.sales_reply;
+  readonly deliveryMethods = DELIVERY_METHODS;
+  readonly showConvertModal = signal(false);
+  readonly converting = signal(false);
+  readonly convertTarget = signal<Quotation | null>(null);
+
+  convertDeliveryMethod: 'PICKUP' | 'COMPANY' | 'THIRD_PARTY' = 'COMPANY';
 
   readonly statuses = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'];
 
@@ -71,7 +86,7 @@ export class QuotationsListComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.error.set(false);
+    resetListLoadState(this.error, this.workspaceEmpty);
     const params: Record<string, string | number> = {
       page: this.page(),
       page_size: this.pageSize(),
@@ -91,7 +106,7 @@ export class QuotationsListComponent implements OnInit {
           this.quotations.set(d.results);
           this.total.set(d.count);
         },
-        error: () => this.error.set(true),
+        error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
   }
 
@@ -109,27 +124,59 @@ export class QuotationsListComponent implements OnInit {
             this.notification.success('Quotation sent');
             this.load();
           },
-          error: (e) => this.notification.error(getApiErrorMessage(e)),
         });
       });
   }
 
   onConvert(q: Quotation): void {
-    this.confirm
-      .open({
-        title: 'Convert to Sales Order',
-        message: `Convert ${q.quotation_number} to a sales order?`,
-        confirmLabel: 'Convert',
-      })
-      .subscribe((ok) => {
-        if (!ok) return;
-        this.sales.convertToSO(q.id).subscribe({
-          next: (so) => {
-            this.notification.success('Sales order created');
-            void this.router.navigate(['/sales/orders', so.id, 'view']);
-          },
-          error: (e) => this.notification.error(getApiErrorMessage(e)),
-        });
+    if (q.has_sales_order && q.sales_order_id) {
+      void this.router.navigate(['/sales/orders', q.sales_order_id, 'view']);
+      return;
+    }
+    const delivery = this.quotationDeliveryMethod(q);
+    if (delivery) {
+      this.performConvert(q, delivery);
+      return;
+    }
+    this.convertTarget.set(q);
+    this.convertDeliveryMethod = 'COMPANY';
+    this.showConvertModal.set(true);
+  }
+
+  submitConvert(): void {
+    const q = this.convertTarget();
+    if (!q) return;
+    this.performConvert(q, this.convertDeliveryMethod);
+  }
+
+  private quotationDeliveryMethod(
+    q: Quotation,
+  ): 'PICKUP' | 'COMPANY' | 'THIRD_PARTY' | null {
+    const method = q.delivery_method;
+    if (method === 'PICKUP' || method === 'COMPANY' || method === 'THIRD_PARTY') {
+      return method;
+    }
+    return null;
+  }
+
+  private performConvert(
+    q: Quotation,
+    deliveryMethod: 'PICKUP' | 'COMPANY' | 'THIRD_PARTY',
+  ): void {
+    this.converting.set(true);
+    this.sales
+      .convertToSO(q.id, { delivery_method: deliveryMethod })
+      .pipe(finalize(() => this.converting.set(false)))
+      .subscribe({
+        next: (so) => {
+          this.showConvertModal.set(false);
+          this.convertTarget.set(null);
+          this.notification.success(
+            so.so_number ? `Sales order ${so.so_number} created` : 'Sales order created',
+          );
+          void this.router.navigate(['/sales/orders', so.id, 'view']);
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e)),
       });
   }
 

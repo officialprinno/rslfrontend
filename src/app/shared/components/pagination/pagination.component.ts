@@ -10,11 +10,10 @@ import { TranslatePipe } from '@ngx-translate/core';
         <span>{{ 'common.rows_per_page' | translate }}</span>
         <select
           class="input-field !w-auto !py-1.5 !px-2 text-sm"
-          [value]="pageSize()"
           (change)="onPageSizeChange($event)"
         >
           @for (size of pageSizes; track size) {
-            <option [value]="size">{{ size }}</option>
+            <option [value]="size" [selected]="size === pageSize()">{{ size }}</option>
           }
         </select>
         <span class="ml-2">

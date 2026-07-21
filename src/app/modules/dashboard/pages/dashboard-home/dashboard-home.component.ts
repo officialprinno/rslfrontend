@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, effect, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { SlicePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../../core/services/auth.service';
+import { CompanyContextService } from '../../../../core/services/company-context.service';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { DepartmentContextService } from '../../../../core/services/department-context.service';
 import { SalesService } from '../../../../core/services/sales.service';
@@ -10,6 +11,15 @@ import { MultiDeptDashboardData } from '../../../../core/models/auth.models';
 import { SalesDashboardData } from '../../../../core/models/sales.model';
 import { formatCurrency } from '../../../../core/utils/format.util';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
+import {
+  ChartCardComponent,
+  DashboardInsight,
+  DashboardLayoutComponent,
+  DashboardSectionComponent,
+  InsightBannerComponent,
+  KpiCardComponent,
+  setupDashboardCompanyReload,
+} from '../../../../shared/dashboard';
 import {
   DASHBOARD_STATS,
   QUICK_ACTIONS,
@@ -19,27 +29,25 @@ import { QuickAction, StatCard } from '../../models/dashboard.models';
 
 @Component({
   selector: 'app-dashboard-home',
-  imports: [SlicePipe, RouterLink, StatusBadgeComponent],
+  imports: [
+    SlicePipe,
+    RouterLink,
+    StatusBadgeComponent,
+    DashboardLayoutComponent,
+    InsightBannerComponent,
+    KpiCardComponent,
+    ChartCardComponent,
+    DashboardSectionComponent,
+  ],
   templateUrl: './dashboard-home.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DashboardHomeComponent implements OnInit {
+export class DashboardHomeComponent {
   private readonly auth = inject(AuthService);
   private readonly sales = inject(SalesService);
   private readonly dashboard = inject(DashboardService);
-  private readonly deptContext = inject(DepartmentContextService);
-
-  readonly stats = DASHBOARD_STATS;
-  readonly quickActions = QUICK_ACTIONS;
-  readonly recentActivity = RECENT_ACTIVITY;
-  readonly salesData = signal<SalesDashboardData | null>(null);
-  readonly multiDeptData = signal<MultiDeptDashboardData | null>(null);
-  readonly multiDeptLoading = signal(false);
-  readonly formatCurrency = formatCurrency;
-
-  readonly showMultiDept = () =>
-    this.auth.isMultiDepartment() ||
-    (['procurement', 'sales', 'logistics'].filter((m) => this.auth.hasModuleAccess(m)).length >= 2);
+  readonly deptContext = inject(DepartmentContextService);
+  readonly companyContext = inject(CompanyContextService);
 
   constructor() {
     effect(() => {
@@ -48,19 +56,74 @@ export class DashboardHomeComponent implements OnInit {
         this.loadMultiDept(filter);
       }
     });
+
+    setupDashboardCompanyReload(() => {
+      this.multiDeptData.set(null);
+      this.salesData.set(null);
+      if (this.showMultiDept()) {
+        this.loadMultiDept(this.deptContext.activeDepartment(), true);
+      } else if (this.auth.hasModuleAccess('sales')) {
+        this.sales.getDashboard(undefined, true).subscribe({
+          next: (data) => this.salesData.set(data),
+          error: () => this.salesData.set(null),
+        });
+      }
+    });
   }
 
-  ngOnInit(): void {
-    if (this.auth.hasModuleAccess('sales') && !this.showMultiDept()) {
-      this.sales.getDashboard().subscribe({
-        next: (data) => this.salesData.set(data),
-        error: () => this.salesData.set(null),
+  readonly stats = DASHBOARD_STATS;
+  readonly quickActions = QUICK_ACTIONS;
+  readonly recentActivity = RECENT_ACTIVITY;
+  readonly salesData = signal<SalesDashboardData | null>(null);
+  readonly multiDeptData = signal<MultiDeptDashboardData | null>(null);
+  readonly multiDeptLoading = signal(false);
+  readonly refreshing = signal(false);
+  readonly lastUpdated = signal<Date | null>(null);
+  readonly formatCurrency = formatCurrency;
+
+  readonly showMultiDept = () =>
+    this.auth.isMultiDepartment() ||
+    (['procurement', 'sales', 'logistics'].filter((m) => this.auth.hasModuleAccess(m)).length >= 2);
+
+  readonly dashboardTitle = computed(() => `${this.greeting()}, ${this.userName()}`);
+
+  readonly dashboardSubtitle = computed(() =>
+    this.showMultiDept()
+      ? 'Unified operations overview across procurement, sales, logistics, and inventory'
+      : "Operations overview for Rock Solutions Limited — sales, inventory, and deliveries at a glance",
+  );
+
+  readonly salesInsights = computed((): DashboardInsight[] => {
+    const sd = this.salesData();
+    if (!sd || this.showMultiDept()) return [];
+    const items: DashboardInsight[] = [];
+    if (sd.overdue_invoices_count > 0) {
+      items.push({
+        id: 'overdue',
+        message: `${sd.overdue_invoices_count} overdue invoice(s)`,
+        tone: 'danger',
+        route: '/sales/invoices',
       });
     }
-    if (this.showMultiDept()) {
-      this.loadMultiDept(this.deptContext.activeDepartment());
+    if (sd.pending_so_approvals > 0) {
+      items.push({
+        id: 'pending-so',
+        message: `${sd.pending_so_approvals} sales order(s) awaiting approval`,
+        tone: 'warning',
+        route: '/sales/orders',
+      });
     }
-  }
+    if (!items.length) {
+      items.push({
+        id: 'conversion',
+        message: `Quotation conversion ${sd.quotation_conversion_rate}% this month`,
+        tone: 'success',
+      });
+    }
+    return items;
+  });
+
+  readonly hasFinanceAccess = () => this.auth.hasModuleAccess('finance');
 
   greeting(): string {
     const hour = new Date().getHours();
@@ -87,18 +150,14 @@ export class DashboardHomeComponent implements OnInit {
     return Math.max(...weeks.map((w) => +w.total), 1);
   }
 
-  statIcon(card: StatCard): string {
-    const icons: Record<StatCard['icon'], string> = {
-      sales:
-        'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-      orders:
-        'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
-      stock:
-        'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-      deliveries:
-        'M8 17h8M8 17v-4m8 4v-4m-8 0h8M3 9h18l-2 8H5L3 9zm2-4h14l1 4H4l1-4z',
+  statKpiIcon(card: StatCard): 'revenue' | 'document' | 'inventory' | 'delivery' {
+    const map: Record<StatCard['icon'], 'revenue' | 'document' | 'inventory' | 'delivery'> = {
+      sales: 'revenue',
+      orders: 'document',
+      stock: 'inventory',
+      deliveries: 'delivery',
     };
-    return icons[card.icon];
+    return map[card.icon];
   }
 
   actionIcon(action: QuickAction): string {
@@ -128,16 +187,32 @@ export class DashboardHomeComponent implements OnInit {
     return map[module] ?? 'bg-gray-100 text-gray-700';
   }
 
-  private loadMultiDept(filter: string): void {
+  onRefresh(): void {
+    if (this.showMultiDept()) {
+      this.loadMultiDept(this.deptContext.activeDepartment(), true);
+    } else if (this.auth.hasModuleAccess('sales')) {
+      this.salesData.set(null);
+      this.sales.getDashboard(undefined, true).subscribe({
+        next: (data) => this.salesData.set(data),
+        error: () => this.salesData.set(null),
+      });
+    }
+  }
+
+  loadMultiDept(filter: string, bypassCache = false): void {
     this.multiDeptLoading.set(true);
-    this.dashboard.getMultiDepartmentDashboard(filter).subscribe({
+    this.refreshing.set(true);
+    this.dashboard.getMultiDepartmentDashboard(filter, undefined, bypassCache).subscribe({
       next: (data) => {
         this.multiDeptData.set(data);
         this.multiDeptLoading.set(false);
+        this.refreshing.set(false);
+        this.lastUpdated.set(new Date());
       },
       error: () => {
         this.multiDeptData.set(null);
         this.multiDeptLoading.set(false);
+        this.refreshing.set(false);
       },
     });
   }

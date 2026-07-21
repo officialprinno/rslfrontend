@@ -1,8 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { environment } from '../../environments/environments';
+import { dashboardHttpParams } from '../../shared/dashboard';
+import { DashboardCacheService } from '../../shared/dashboard/services/dashboard-cache.service';
+import { DateRangeValue } from '../../shared/dashboard/models/dashboard.types';
 import { ApiResponse } from '../models/auth.models';
 import {
   AllowanceConfig,
@@ -18,9 +22,12 @@ import {
   DisciplinaryFormData,
   DisciplinaryRecord,
   Employee,
+  EmployeeDeduction,
+  EmployeeDeductionFormData,
   EmployeeFormData,
   EmployeeLeaveBalances,
   EmployeeListItem,
+  UnlinkedSystemUser,
   LeaveBalance,
   HrDashboard,
   LeaveCalendarEntry,
@@ -40,16 +47,24 @@ import {
 } from '../models/hr.model';
 import { ListParams, PaginatedData } from '../models/paginated.model';
 import { buildHttpParams, unwrapApi } from '../utils/api.util';
+import { fetchCachedDashboard } from '../utils/dashboard-fetch.util';
 
 @Injectable({ providedIn: 'root' })
 export class HrService {
   private readonly http = inject(HttpClient);
+  private readonly dashCache = inject(DashboardCacheService);
   private readonly baseUrl = `${environment.apiUrl}/hr`;
 
-  getDashboard(): Observable<HrDashboard> {
-    return this.http
-      .get<ApiResponse<HrDashboard>>(`${this.baseUrl}/dashboard/`)
-      .pipe(unwrapApi());
+  getDashboard(range?: DateRangeValue | null, bypassCache = false): Observable<HrDashboard> {
+    const url = `${this.baseUrl}/dashboard/`;
+    const params = dashboardHttpParams(range);
+    return fetchCachedDashboard<HrDashboard>(
+      this.http,
+      this.dashCache,
+      url,
+      params,
+      bypassCache,
+    );
   }
 
   getEmployees(params: ListParams = {}): Observable<PaginatedData<EmployeeListItem>> {
@@ -90,9 +105,54 @@ export class HrService {
       .pipe(unwrapApi());
   }
 
+  getEmployeesWithoutAccounts(): Observable<EmployeeListItem[]> {
+    return this.http
+      .get<ApiResponse<EmployeeListItem[]>>(`${this.baseUrl}/employees/without-accounts/`)
+      .pipe(unwrapApi());
+  }
+
+  getUsersWithoutEmployees(search = ''): Observable<UnlinkedSystemUser[]> {
+    const params = search.trim() ? { search: search.trim() } : {};
+    return this.http
+      .get<ApiResponse<UnlinkedSystemUser[]>>(
+        `${this.baseUrl}/employees/users-without-employees/`,
+        { params: buildHttpParams(params) },
+      )
+      .pipe(unwrapApi());
+  }
+
   getEmployeePayslips(id: number): Observable<Payslip[]> {
     return this.http
       .get<ApiResponse<Payslip[]>>(`${this.baseUrl}/employees/${id}/payslips/`)
+      .pipe(unwrapApi());
+  }
+
+  getEmployeeDeductions(employeeId: number): Observable<PaginatedData<EmployeeDeduction>> {
+    return this.http
+      .get<ApiResponse<PaginatedData<EmployeeDeduction>>>(`${this.baseUrl}/deductions/`, {
+        params: buildHttpParams({ employee: employeeId, page_size: 100, ordering: '-created_at' }),
+      })
+      .pipe(unwrapApi());
+  }
+
+  createDeduction(data: EmployeeDeductionFormData): Observable<EmployeeDeduction> {
+    return this.http
+      .post<ApiResponse<EmployeeDeduction>>(`${this.baseUrl}/deductions/`, data)
+      .pipe(unwrapApi());
+  }
+
+  updateDeduction(
+    id: number,
+    data: Partial<EmployeeDeductionFormData>,
+  ): Observable<EmployeeDeduction> {
+    return this.http
+      .patch<ApiResponse<EmployeeDeduction>>(`${this.baseUrl}/deductions/${id}/`, data)
+      .pipe(unwrapApi());
+  }
+
+  cancelDeduction(id: number): Observable<EmployeeDeduction> {
+    return this.http
+      .post<ApiResponse<EmployeeDeduction>>(`${this.baseUrl}/deductions/${id}/cancel/`, {})
       .pipe(unwrapApi());
   }
 
@@ -266,6 +326,28 @@ export class HrService {
       .pipe(unwrapApi());
   }
 
+  getMyEmployeeProfile(): Observable<{
+    id: number;
+    employee_number: string;
+    full_name: string;
+    department_name: string;
+    job_title: string;
+    is_hod: boolean;
+  } | null> {
+    return this.http
+      .get<
+        ApiResponse<{
+          id: number;
+          employee_number: string;
+          full_name: string;
+          department_name: string;
+          job_title: string;
+          is_hod: boolean;
+        } | null>
+      >(`${this.baseUrl}/employees/me/`)
+      .pipe(unwrapApi());
+  }
+
   getLeaveRequest(id: number): Observable<LeaveRequest> {
     return this.http
       .get<ApiResponse<LeaveRequest>>(`${this.baseUrl}/leave-requests/${id}/`)
@@ -286,9 +368,11 @@ export class HrService {
       .pipe(unwrapApi());
   }
 
-  approveLeaveRequest(id: number): Observable<LeaveRequest> {
+  approveLeaveRequest(id: number, comment = ''): Observable<LeaveRequest> {
     return this.http
-      .post<ApiResponse<LeaveRequest>>(`${this.baseUrl}/leave-requests/${id}/approve/`, {})
+      .post<ApiResponse<LeaveRequest>>(`${this.baseUrl}/leave-requests/${id}/approve/`, {
+        comment,
+      })
       .pipe(unwrapApi());
   }
 

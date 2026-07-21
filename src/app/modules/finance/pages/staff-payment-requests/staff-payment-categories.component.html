@@ -1,0 +1,119 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-staff-payment-subnav />
+  <app-page-header
+    title="Payment Categories"
+    subtitle="Spending limits, receipt rules, and default GL mapping for staff payments"
+  >
+    @if (canManage()) {
+      <button type="button" class="btn-primary" (click)="openCreate()">Add Category</button>
+    }
+  </app-page-header>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (!categories().length) {
+    <div class="card"><app-empty-state moduleName="Categories" (companySwitched)="load()" /></div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Name</th>
+            <th class="table-th">Limit</th>
+            <th class="table-th">Receipt</th>
+            <th class="table-th">GL Account</th>
+            <th class="table-th">Order</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (cat of categories(); track cat.id) {
+            <tr class="table-row">
+              <td class="table-td">
+                <div class="font-medium">{{ cat.name }}</div>
+                @if (cat.description) {
+                  <div class="text-xs text-gray-500">{{ cat.description }}</div>
+                }
+              </td>
+              <td class="table-td">
+                {{ cat.spending_limit ? formatCurrency(cat.spending_limit, 'TZS') : 'No limit' }}
+              </td>
+              <td class="table-td">{{ cat.requires_receipt ? 'Required' : 'Optional' }}</td>
+              <td class="table-td text-sm">
+                @if (cat.gl_account_code) {
+                  {{ cat.gl_account_code }} — {{ cat.gl_account_name }}
+                } @else {
+                  —
+                }
+              </td>
+              <td class="table-td">{{ cat.sort_order }}</td>
+              <td class="table-td">
+                @if (canManage()) {
+                  <button type="button" class="btn-ghost !text-xs !px-2" (click)="openEdit(cat)">Edit</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<app-modal
+  [open]="showModal()"
+  [title]="editing() ? 'Edit Category' : 'New Category'"
+  size="md"
+  (close)="showModal.set(false)"
+>
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="form-label">Name</label>
+      <input class="input-field w-full" formControlName="name" />
+    </div>
+    <div>
+      <label class="form-label">Description</label>
+      <textarea class="input-field w-full" rows="2" formControlName="description"></textarea>
+    </div>
+    <div>
+      <label class="form-label">Spending limit (TZS)</label>
+      <input type="number" class="input-field w-full" formControlName="spending_limit" min="0" step="0.01" />
+      <p class="text-xs text-gray-500 mt-1">Leave empty for no limit. Amounts above limit require GM approval.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <input type="checkbox" id="requires_receipt" formControlName="requires_receipt" />
+      <label for="requires_receipt" class="text-sm">Requires receipt attachment</label>
+    </div>
+    <div>
+      <label class="form-label">Default GL account</label>
+      <app-searchable-select
+        [options]="glOptions()"
+        placeholder="Optional expense account"
+        [value]="form.controls.gl_account.value"
+        (valueChange)="onGlAccountSelected($event)"
+      />
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="form-label">Sort order</label>
+        <input type="number" class="input-field w-full" formControlName="sort_order" />
+      </div>
+      <div class="flex items-end pb-2">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" formControlName="is_active" />
+          Active
+        </label>
+      </div>
+    </div>
+    @if (fieldErrors()['name']) {
+      <p class="text-sm text-red-600">{{ fieldErrors()['name'] }}</p>
+    }
+  </form>
+  <div modalFooter class="flex justify-end gap-2">
+    <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="save()">
+      {{ saving() ? 'Saving…' : 'Save' }}
+    </button>
+  </div>
+</app-modal>

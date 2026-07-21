@@ -1,0 +1,182 @@
+<div class="page-container">
+  <app-sales-nav />
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load credit note" (retry)="load()" />
+  } @else if (creditNote(); as cn) {
+    <app-page-header [title]="cn.cn_number" [subtitle]="cn.customer_name">
+      <a routerLink="/sales/credit-notes" class="btn-secondary">Back</a>
+    </app-page-header>
+
+    @if (cn.workflow_stage) {
+      <app-workflow-stepper [steps]="steps" [activeIndex]="workflowIndex(cn)" />
+    }
+
+    @if (cn.workflow_stage === 'REJECTED') {
+      <div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <strong>Rejected:</strong> {{ cn.rejection_reason }}
+      </div>
+    }
+
+    <div class="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <div class="card p-5 lg:col-span-2">
+        <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-wide text-gray-500">{{ typeLabel(cn) }}</p>
+            <h2 class="text-lg font-semibold">{{ cn.reason }}</h2>
+          </div>
+          <app-status-badge [status]="stage(cn)" />
+        </div>
+        <div class="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+          <div><span class="block text-xs text-gray-500">Invoice</span><strong>{{ cn.invoice_number }}</strong></div>
+          <div><span class="block text-xs text-gray-500">Warehouse</span><strong>{{ cn.warehouse_name || 'Not applicable' }}</strong></div>
+          <div><span class="block text-xs text-gray-500">Created by</span><strong>{{ cn.created_by_name }}</strong></div>
+          <div><span class="block text-xs text-gray-500">Created</span><strong>{{ formatDateTime(cn.created_at) }}</strong></div>
+        </div>
+        @if (cn.notes) {
+          <p class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{{ cn.notes }}</p>
+        }
+      </div>
+      <div class="card p-5">
+        <div class="flex justify-between py-2 text-sm"><span>Net credit</span><strong>{{ formatCurrency(cn.net_amount) }}</strong></div>
+        <div class="flex justify-between py-2 text-sm"><span>Tax reversal</span><strong>{{ formatCurrency(cn.tax_amount) }}</strong></div>
+        <div class="mt-2 flex justify-between border-t pt-3 text-base text-[#1B3A6B]">
+          <span class="font-semibold">Gross credit</span><strong>{{ formatCurrency(cn.amount) }}</strong>
+        </div>
+        @if (cn.journal_entry) {
+          <p class="mt-3 text-xs text-green-700">Journal posted · Entry #{{ cn.journal_entry }}</p>
+        }
+      </div>
+    </div>
+
+    @if (cn.lines.length) {
+      <div class="card mb-6 overflow-hidden">
+        <div class="border-b p-5"><h2 class="font-semibold">Credit lines</h2></div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead><tr>
+              <th class="table-th">Item</th><th class="table-th">Quantity</th>
+              <th class="table-th text-right">Unit price</th><th class="table-th text-right">Net</th>
+              <th class="table-th text-right">Tax</th><th class="table-th text-right">Gross</th>
+            </tr></thead>
+            <tbody>
+              @for (line of cn.lines; track line.id) {
+                <tr class="table-row">
+                  <td class="table-td"><strong>{{ line.item_name }}</strong><p class="text-xs text-gray-500">{{ line.item_code }}</p></td>
+                  <td class="table-td">{{ line.quantity }} {{ line.unit_of_measure }}</td>
+                  <td class="table-td text-right">{{ formatCurrency(line.original_unit_price) }}</td>
+                  <td class="table-td text-right">{{ formatCurrency(line.net_amount) }}</td>
+                  <td class="table-td text-right">{{ formatCurrency(line.tax_amount) }}</td>
+                  <td class="table-td text-right font-semibold">{{ formatCurrency(line.total_amount) }}</td>
+                </tr>
+                @for (inspection of line.inspections; track inspection.id) {
+                  <tr class="bg-blue-50/50 text-xs">
+                    <td class="px-4 py-2 text-[#1B3A6B]" colspan="6">
+                      Inventory inspection: {{ inspection.quantity_confirmed }} {{ line.unit_of_measure }} ·
+                      {{ inspection.condition }} · {{ inspection.decision.replaceAll('_', ' ') }} ·
+                      {{ inspection.inspected_by_name }}
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    <div class="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div class="card p-5">
+        <h2 class="mb-4 font-semibold">Workflow history</h2>
+        <div class="space-y-3 text-sm">
+          <div><span class="text-gray-500">Sales submitted:</span> {{ cn.submitted_by_name || 'Pending' }} @if (cn.submitted_at) { · {{ formatDateTime(cn.submitted_at) }} }</div>
+          <div><span class="text-gray-500">Inventory reviewed:</span> {{ cn.inventory_reviewed_by_name || 'Pending' }} @if (cn.inventory_reviewed_at) { · {{ formatDateTime(cn.inventory_reviewed_at) }} }</div>
+          <div><span class="text-gray-500">Finance reviewed:</span> {{ cn.finance_reviewed_by_name || 'Pending' }} @if (cn.finance_reviewed_at) { · {{ formatDateTime(cn.finance_reviewed_at) }} }</div>
+          <div><span class="text-gray-500">GM approved:</span> {{ cn.gm_approved_by_name || 'Pending' }} @if (cn.gm_approved_at) { · {{ formatDateTime(cn.gm_approved_at) }} }</div>
+          <div><span class="text-gray-500">Applied by Finance:</span> {{ cn.applied_by_name || 'Pending' }} @if (cn.applied_at) { · {{ formatDateTime(cn.applied_at) }} }</div>
+        </div>
+      </div>
+
+      <div class="card p-5">
+        <h2 class="mb-4 font-semibold">Attachments</h2>
+        @if (cn.attachments.length) {
+          <div class="mb-4 space-y-2">
+            @for (attachment of cn.attachments; track attachment.id) {
+              <a [href]="attachment.file" target="_blank" rel="noopener" class="block rounded-lg border p-3 text-sm hover:bg-gray-50">
+                <strong>{{ attachment.original_name || 'Attachment' }}</strong>
+                <span class="ml-2 text-xs text-gray-500">{{ attachment.attachment_type.replaceAll('_', ' ') }}</span>
+                @if (attachment.caption) { <p class="text-xs text-gray-600">{{ attachment.caption }}</p> }
+              </a>
+            }
+          </div>
+        } @else {
+          <p class="mb-4 text-sm text-gray-500">No supporting documents uploaded.</p>
+        }
+        @if (cn.can_submit) {
+          <div [formGroup]="attachmentForm" class="space-y-3 border-t pt-4">
+            <input type="file" accept="image/*,.pdf" class="input-field" (change)="chooseFile($event)" />
+            <input formControlName="caption" class="input-field" placeholder="Caption (optional)" />
+            <select formControlName="attachment_type" class="input-field">
+              <option value="SUPPORTING">Supporting document</option>
+              <option value="CUSTOMER_COMPLAINT">Customer complaint</option>
+              <option value="INSPECTION">Inspection evidence</option>
+              <option value="TAX_DOCUMENT">Tax document</option>
+            </select>
+            <button type="button" class="btn-secondary" [disabled]="uploading()" (click)="upload(cn)">
+              {{ uploading() ? 'Uploading…' : 'Upload Attachment' }}
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+
+    @if (cn.can_inventory_review && cn.credit_note_type === 'SALES_RETURN') {
+      <div class="card mb-6 p-5">
+        <h2 class="mb-1 font-semibold">Inventory inspection</h2>
+        <p class="mb-4 text-xs text-gray-500">Confirm every returned line and select its physical disposition.</p>
+        <div class="space-y-3">
+          @for (row of inspectionRows.controls; track $index; let i = $index) {
+            <div [formGroup]="$any(row)" class="grid grid-cols-1 gap-3 rounded-xl border p-4 md:grid-cols-5">
+              <div><span class="input-label">Item</span><strong>{{ cn.lines[i].item_name }}</strong></div>
+              <div><label class="input-label">Confirmed qty</label><input type="number" formControlName="quantity_confirmed" class="input-field" readonly /></div>
+              <div><label class="input-label">Condition</label><select formControlName="condition" class="input-field"><option value="GOOD">Good</option><option value="DAMAGED">Damaged</option><option value="DEFECTIVE">Defective</option><option value="UNUSABLE">Unusable</option><option value="OTHER">Other</option></select></div>
+              <div><label class="input-label">Decision</label><select formControlName="decision" class="input-field"><option value="RETURN_TO_STOCK">Return to Stock</option><option value="REPAIR">Repair</option><option value="QUARANTINE">Quarantine</option><option value="SCRAP">Scrap</option><option value="REJECT">Reject</option></select></div>
+              <div><label class="input-label">Notes</label><input formControlName="notes" class="input-field" /></div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="card flex flex-wrap items-center justify-end gap-3 p-5">
+      @if (!cn.workflow_stage && cn.status === 'DRAFT') {
+        <button type="button" class="btn-secondary" [disabled]="actionBusy()" (click)="legacyApprove(cn)">Approve Legacy Note</button>
+      }
+      @if (!cn.workflow_stage && cn.status === 'APPROVED') {
+        <button type="button" class="btn-primary" [disabled]="actionBusy()" (click)="apply(cn)">Apply Legacy Note</button>
+      }
+      @if (cn.can_reject) {
+        <button type="button" class="btn-secondary !border-red-300 !text-red-700" [disabled]="actionBusy()" (click)="reject(cn)">Reject</button>
+      }
+      @if (cn.can_submit) {
+        <button type="button" class="btn-primary" [disabled]="actionBusy()" (click)="submit(cn)">Submit to Inventory</button>
+      }
+      @if (cn.can_inventory_review) {
+        <button type="button" class="btn-primary" [disabled]="actionBusy()" (click)="inventoryReview(cn)">Complete Inventory Review</button>
+      }
+      @if (cn.can_finance_review) {
+        <button type="button" class="btn-primary" [disabled]="actionBusy()" (click)="financeReview(cn)">Complete Finance Review</button>
+      }
+      @if (cn.can_gm_approve) {
+        <button type="button" class="btn-primary" [disabled]="actionBusy()" (click)="gmApprove(cn)">GM Approve</button>
+      }
+      @if (cn.can_apply) {
+        <button type="button" class="btn-primary" [disabled]="actionBusy()" (click)="apply(cn)">Apply and Post</button>
+      }
+      @if (!cn.can_submit && !cn.can_inventory_review && !cn.can_finance_review && !cn.can_gm_approve && !cn.can_apply && cn.workflow_stage !== 'APPLIED') {
+        <p class="text-sm text-gray-500">This credit note is awaiting action from the next authorized department.</p>
+      }
+    </div>
+  }
+</div>

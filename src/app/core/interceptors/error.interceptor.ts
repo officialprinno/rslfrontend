@@ -3,41 +3,12 @@ import { inject } from '@angular/core';
 import { throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { ApiResponse } from '../models/auth.models';
 import { NotificationService } from '../services/notification.service';
+import { getApiErrorMessage } from '../utils/api.util';
+import { isRecordNotInWorkspaceError } from '../utils/workspace-empty-state.util';
 
 function extractErrorMessage(error: HttpErrorResponse): string {
-  const body = error.error as ApiResponse<unknown> | { message?: string; detail?: string } | null;
-
-  if (body && typeof body === 'object') {
-    if ('message' in body && body.message) {
-      return body.message;
-    }
-    if ('detail' in body && body.detail) {
-      return String(body.detail);
-    }
-    if ('errors' in body && body.errors) {
-      if (Array.isArray(body.errors)) {
-        return body.errors.join(', ');
-      }
-      const firstKey = Object.keys(body.errors)[0];
-      const messages = (body.errors as Record<string, string[]>)[firstKey];
-      if (messages?.length) {
-        return messages[0];
-      }
-    }
-  }
-
-  switch (error.status) {
-    case 0:
-      return 'Unable to reach the server. Check your connection.';
-    case 404:
-      return 'The requested resource was not found.';
-    case 500:
-      return 'A server error occurred. Please try again later.';
-    default:
-      return error.message || 'An unexpected error occurred.';
-  }
+  return getApiErrorMessage(error);
 }
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
@@ -51,6 +22,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       if (error.status === 403) {
         notification.error(extractErrorMessage(error));
+        return throwError(() => error);
+      }
+
+      if (isRecordNotInWorkspaceError(error)) {
         return throwError(() => error);
       }
 

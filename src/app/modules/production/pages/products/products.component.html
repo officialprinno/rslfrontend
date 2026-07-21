@@ -48,7 +48,7 @@
     </div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
@@ -171,7 +171,7 @@
             <input
               type="text"
               class="input-field"
-              [value]="specValues()[spec.key] ?? ''"
+              [value]="specValue(spec.key)"
               [placeholder]="spec.label"
               (input)="updateSpecValue(spec.key, $any($event.target).value)"
             />
@@ -208,10 +208,7 @@
                 />
               </div>
               <div class="col-span-1">
-                <button type="button" class="btn-ghost !text-red-600" (click)="removeCustomSpec(i)">×</button>
-              </div>
-            </div>
-          }
+                <button type="button" class="btn-ghost !text-red-600" (click)="removeCustomSpec(i)">×</button>`r`n              </div>`r`n            </div>`r`n          }
         </div>
       } @else {
         <p class="text-sm text-gray-500">No custom fields added.</p>

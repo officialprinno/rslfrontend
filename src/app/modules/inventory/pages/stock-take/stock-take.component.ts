@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { Item, StockTake, Warehouse } from '../../../../core/models/inventory.model';
@@ -25,6 +26,7 @@ import { canAddAdjustment, canApproveAdjustment } from '../../utils/inventory-pe
   imports: [
     FormsModule,
     ReactiveFormsModule,
+    RouterLink,
     PageHeaderComponent,
     InventoryNavComponent,
     ModalComponent,

@@ -20,10 +20,10 @@ export interface MultiSelectOption {
   selector: 'app-multi-select',
   imports: [FormsModule],
   template: `
-    <div class="relative" #container>
+    <div class="relative" #container [class.pb-[13rem]]="open()">
       <div
         class="input-field min-h-[42px] flex flex-wrap gap-1 items-center cursor-text"
-        (click)="open.set(true)"
+        (click)="focusOpen()"
       >
         @if (!selected().length) {
           <span class="text-gray-400 text-sm">{{ placeholder() }}</span>
@@ -35,24 +35,42 @@ export interface MultiSelectOption {
           </span>
         }
       </div>
-      @if (open() && filtered().length) {
-        <ul class="absolute z-[60] mt-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1">
-          @for (opt of filtered(); track opt.value) {
-            <li>
-              <button
-                type="button"
-                class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                [class.bg-blue-50]="isSelected(opt.value)"
-                (click)="toggle(opt.value)"
-              >
-                <span class="font-medium">{{ opt.label }}</span>
-                @if (opt.sublabel) {
-                  <span class="block text-xs text-gray-400">{{ opt.sublabel }}</span>
-                }
-              </button>
-            </li>
-          }
-        </ul>
+      @if (open()) {
+        <div
+          class="absolute z-[60] mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+        >
+          <div class="p-2 border-b border-gray-100">
+            <input
+              type="text"
+              class="input-field !py-2 text-sm"
+              [ngModel]="search()"
+              (ngModelChange)="search.set($event)"
+              placeholder="Search..."
+              (click)="$event.stopPropagation()"
+            />
+          </div>
+          <ul class="max-h-44 overflow-y-auto py-1">
+            @if (filtered().length) {
+              @for (opt of filtered(); track opt.value) {
+                <li>
+                  <button
+                    type="button"
+                    class="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                    [class.bg-blue-50]="isSelected(opt.value)"
+                    (click)="toggle(opt.value)"
+                  >
+                    <span class="font-medium">{{ opt.label }}</span>
+                    @if (opt.sublabel) {
+                      <span class="block text-xs text-gray-400">{{ opt.sublabel }}</span>
+                    }
+                  </button>
+                </li>
+              }
+            } @else {
+              <li class="px-3 py-4 text-sm text-gray-400 text-center">No matches found</li>
+            }
+          </ul>
+        </div>
       }
     </div>
   `,
@@ -69,10 +87,14 @@ export class MultiSelectComponent {
   private readonly containerRef = viewChild<ElementRef<HTMLElement>>('container');
 
   filtered(): MultiSelectOption[] {
-    const term = this.search().toLowerCase();
+    const term = this.search().toLowerCase().trim();
     const opts = this.options();
     if (!term) return opts;
-    return opts.filter((o) => o.label.toLowerCase().includes(term));
+    return opts.filter(
+      (o) =>
+        o.label.toLowerCase().includes(term) ||
+        (o.sublabel?.toLowerCase().includes(term) ?? false),
+    );
   }
 
   labelFor(id: number): string {
@@ -81,6 +103,10 @@ export class MultiSelectComponent {
 
   isSelected(id: number): boolean {
     return this.selected().includes(id);
+  }
+
+  focusOpen(): void {
+    this.open.set(true);
   }
 
   toggle(id: number): void {
@@ -94,6 +120,9 @@ export class MultiSelectComponent {
   @HostListener('document:click', ['$event'])
   onDocClick(e: MouseEvent): void {
     const el = this.containerRef()?.nativeElement;
-    if (el && !el.contains(e.target as Node)) this.open.set(false);
+    if (el && !el.contains(e.target as Node)) {
+      this.open.set(false);
+      this.search.set('');
+    }
   }
 }

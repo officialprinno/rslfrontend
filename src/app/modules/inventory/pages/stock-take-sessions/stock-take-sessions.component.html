@@ -1,0 +1,241 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header title="Monthly Stock Take">
+    <div class="flex flex-wrap gap-2 items-center">
+      <a routerLink="/inventory/stock-take-legacy" class="btn-ghost !text-xs">Quick take (legacy)</a>
+      @if (canStart()) {
+        <button type="button" class="btn-primary" (click)="openStart()">Start Stock Take</button>
+      }
+    </div>
+  </app-page-header>
+
+  <p class="text-sm text-gray-600 mb-4 max-w-3xl">
+    Per-warehouse monthly count (25th–month end by default). Export a blind sheet, upload physical counts,
+    review variance, then GM approval posts adjustments. Who starts a session is recorded automatically.
+  </p>
+
+  @if (canManageWindow()) {
+    <div class="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 max-w-3xl">
+      <div>
+        <div class="text-sm font-medium text-gray-900">Allow stock take anytime</div>
+        <p class="text-xs text-gray-500 mt-0.5">
+          Admin override. When off, only the monthly window (25th–month end) is open. When the window arrives, stock take always works.
+        </p>
+      </div>
+      <label class="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+        <input
+          type="checkbox"
+          class="rounded border-gray-300"
+          [ngModel]="allowOutsideWindow()"
+          [disabled]="savingSettings()"
+          (ngModelChange)="toggleAllowOutsideWindow($event)"
+        />
+        <span>{{ allowOutsideWindow() ? 'Open anytime' : 'Window only' }}</span>
+      </label>
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!sessions().length) {
+    <div class="card">
+      <app-empty-state
+        title="No stock take sessions"
+        message="Select a warehouse to start or resume this month’s count. Who starts it is recorded automatically."
+        [actionLabel]="canStart() ? 'Start Stock Take' : ''"
+        (actionClick)="openStart()"
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <div class="table-scroll-viewport">
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th class="table-th">Session #</th>
+              <th class="table-th">Period</th>
+              <th class="table-th">Warehouse</th>
+              <th class="table-th">Lines</th>
+              <th class="table-th">Counted</th>
+              <th class="table-th">Status</th>
+              <th class="table-th">Created</th>
+              <th class="table-th">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of sessions(); track s.id) {
+              <tr class="table-row">
+                <td class="table-td font-mono text-sm">{{ s.session_number }}</td>
+                <td class="table-td text-sm">{{ periodLabel(s) }}</td>
+                <td class="table-td">{{ s.warehouse_name }}</td>
+                <td class="table-td text-sm">{{ s.line_count ?? '—' }}</td>
+                <td class="table-td text-sm">{{ s.counted_line_count ?? '—' }}</td>
+                <td class="table-td"><app-status-badge [status]="s.status" /></td>
+                <td class="table-td text-xs">{{ formatDateTime(s.created_at) }}</td>
+                <td class="table-td">
+                  <a [routerLink]="['/inventory/stock-take', s.id]" class="btn-ghost !px-2 !py-1 !text-xs">Open</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+      />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showWarehouseModal()" title="Select Warehouse" (close)="showWarehouseModal.set(false)">
+  @if (warehousesLoading()) {
+    <app-table-skeleton [cols]="3" [rows]="4" />
+  } @else if (!warehouseOptions().length) {
+    <p class="text-sm text-gray-600">
+      No warehouses found for your company workspace. Create a warehouse first, then start a stock take.
+    </p>
+  } @else {
+    <div class="space-y-4">
+      @if (canManageSettings()) {
+        <label class="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            class="mt-0.5 rounded border-gray-300"
+            [ngModel]="allowOutsideWindow()"
+            [disabled]="savingSettings()"
+            (ngModelChange)="toggleAllowOutsideWindow($event)"
+          />
+          <span class="text-sm">
+            <span class="font-medium text-gray-900">Allow stock take anytime</span>
+            <span class="block text-xs text-gray-500 mt-0.5">
+              Admin only. Default window stays 25th–month end; turning this off returns to window-only.
+            </span>
+          </span>
+        </label>
+      } @else if (allowOutsideWindow() && !withinWindow()) {
+        <p class="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          Admin has opened stock take outside the monthly window.
+        </p>
+      }
+
+      <div>
+        <label class="input-label">Warehouse *</label>
+        <select
+          class="input-field"
+          [ngModel]="selectedWarehouseId()"
+          (ngModelChange)="onWarehousePicked($event ? +$event : null)"
+        >
+          <option [ngValue]="null">Select warehouse</option>
+          @for (w of warehouseOptions(); track w.id) {
+            <option [ngValue]="w.id">
+              {{ w.name }}
+              @if (w.can_resume) { (resume) }
+              @else if (!w.can_start_new) { (window closed / done) }
+            </option>
+          }
+        </select>
+      </div>
+
+      @if (selectedWarehouse(); as wh) {
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm space-y-1">
+          <div class="flex justify-between gap-2">
+            <span class="text-gray-500">Window</span>
+            <span>{{ wh.window_start }} → {{ wh.window_end }}</span>
+          </div>
+          <div class="flex justify-between gap-2">
+            <span class="text-gray-500">In window</span>
+            <span>{{ wh.within_window ? 'Yes' : 'No' }}</span>
+          </div>
+          @if (wh.allow_outside_window && !wh.within_window) {
+            <div class="flex justify-between gap-2">
+              <span class="text-gray-500">Anytime override</span>
+              <span class="text-emerald-700">On</span>
+            </div>
+          }
+          @if (wh.is_outbound_frozen) {
+            <div class="text-amber-700">Warehouse currently frozen for outbound.</div>
+          }
+          @if (wh.existing_session_number) {
+            <div class="flex justify-between gap-2">
+              <span class="text-gray-500">This period</span>
+              <span class="font-mono">{{ wh.existing_session_number }} ({{ wh.existing_session_status }})</span>
+            </div>
+          }
+          @if (wh.last_completed_session; as last) {
+            <div class="pt-2 border-t border-gray-200">
+              <div class="text-gray-500 text-xs mb-1">Last completed (read-only)</div>
+              <div class="font-mono text-xs">{{ last.session_number }}</div>
+              <div class="text-xs">
+                Variances: {{ last.variance_count }} · Net value: {{ last.net_variance_value }}
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (previewLoading()) {
+        <p class="text-sm text-gray-500">Loading warehouse items…</p>
+      } @else if (preview(); as p) {
+        <div class="rounded-lg border border-gray-200 p-3">
+          <div class="text-sm font-medium mb-2">
+            Snapshot preview — {{ p.item_count }} stocked item(s)
+          </div>
+          <div class="max-h-48 overflow-auto table-scroll-viewport">
+            <table class="w-full text-xs">
+              <thead>
+                <tr>
+                  <th class="table-th">Code</th>
+                  <th class="table-th">Name</th>
+                  <th class="table-th text-right">On hand</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of p.items.slice(0, 50); track item.item_id) {
+                  <tr class="table-row">
+                    <td class="table-td font-mono">{{ item.item_code }}</td>
+                    <td class="table-td">{{ item.item_name }}</td>
+                    <td class="table-td text-right">{{ item.system_quantity }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (p.item_count > 50) {
+            <p class="text-xs text-gray-500 mt-2">Showing first 50 of {{ p.item_count }}.</p>
+          }
+        </div>
+      }
+
+      <div>
+        <label class="input-label">Notes</label>
+        <textarea
+          class="input-field resize-none"
+          rows="2"
+          [ngModel]="startNotes()"
+          (ngModelChange)="startNotes.set($event)"
+        ></textarea>
+      </div>
+    </div>
+  }
+
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showWarehouseModal.set(false)">Cancel</button>
+    <button
+      type="button"
+      class="btn-primary"
+      [disabled]="starting() || !canConfirmStart()"
+      (click)="confirmStart()"
+    >
+      @if (starting()) {
+        <span class="spinner spinner-sm"></span>
+      }
+      {{ selectedWarehouse()?.can_resume ? 'Resume Session' : 'Start New Stock Take' }}
+    </button>
+  </div>
+</app-modal>

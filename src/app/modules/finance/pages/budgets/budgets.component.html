@@ -20,7 +20,7 @@
     <app-table-skeleton [cols]="3" />
   } @else if (!summary().length) {
     <div class="card mb-8">
-      <app-empty-state title="No budget summary" message="Create budgets to track department spending." />
+      <app-empty-state moduleName="Budgets" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-8">
@@ -62,12 +62,7 @@
     <app-table-skeleton [cols]="8" />
   } @else if (!budgets().length) {
     <div class="card">
-      <app-empty-state
-        title="No budgets"
-        message="Define budgets by department and expense account."
-        [actionLabel]="canManage() ? 'Create Budget' : ''"
-        (actionClick)="openCreate()"
-      />
+      <app-empty-state moduleName="Budgets" [actionLabel]="canManage() ? 'Create Budget' : ''" (actionClick)="openCreate()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

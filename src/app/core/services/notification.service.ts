@@ -17,12 +17,15 @@ export class NotificationService {
 
   readonly toasts = this.toastsSignal.asReadonly();
 
-  show(message: string, type: ToastType = 'info', durationMs = 5000): void {
+  show(message: string, type: ToastType = 'info', durationMs?: number): void {
     const id = ++this.nextId;
     const toast: ToastMessage = { id, type, message };
     this.toastsSignal.update((list) => [...list, toast]);
 
-    window.setTimeout(() => this.dismiss(id), durationMs);
+    const duration = durationMs ?? (type === 'error' ? 0 : 5000);
+    if (duration > 0) {
+      window.setTimeout(() => this.dismiss(id), duration);
+    }
   }
 
   success(message: string): void {
@@ -30,7 +33,10 @@ export class NotificationService {
   }
 
   error(message: string): void {
-    this.show(message, 'error', 7000);
+    if (this.toastsSignal().some((t) => t.type === 'error' && t.message === message)) {
+      return;
+    }
+    this.show(message, 'error', 0);
   }
 
   info(message: string): void {

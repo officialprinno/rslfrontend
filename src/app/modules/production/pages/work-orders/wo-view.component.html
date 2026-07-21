@@ -67,7 +67,7 @@
           </div>
         </div>
 
-        @if (wo.material_requirements?.length) {
+        @if (wo.material_requirements.length) {
           <h4 class="font-semibold text-sm mb-3 mt-6">Material Requirements</h4>
           <table class="w-full text-sm">
             <thead>
@@ -161,10 +161,7 @@
                 </p>
                 @if (ev.old_status && ev.new_status) {
                   <p class="text-xs text-gray-600 mt-1">{{ ev.old_status }} → {{ ev.new_status }}</p>
-                }
-              </div>
-            </div>
-          }
+                }`r`n              </div>`r`n            </div>`r`n          }
         </div>
       } @else {
         <div class="card p-8 text-center text-gray-500 text-sm">No execution events recorded yet.</div>

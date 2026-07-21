@@ -51,8 +51,9 @@ import { AuthService } from '../../../../../core/services/auth.service';
     }
     @if (showModal()) {
       <div class="modal-overlay" (click)="showModal.set(false)">
-        <div class="modal-container max-w-lg" (click)="$event.stopPropagation()">
+        <div class="modal-container max-w-lg modal-size-lg" (click)="$event.stopPropagation()">
           <div class="modal-body space-y-3">
+            <div class="modal-body-inner space-y-3">
             <h3 class="font-semibold">Log Vehicle Entry</h3>
             <input class="input-field w-full" placeholder="Registration *" [(ngModel)]="entryForm.registration_number" />
             <select class="input-field w-full" [(ngModel)]="entryForm.vehicle_type">
@@ -67,6 +68,7 @@ import { AuthService } from '../../../../../core/services/auth.service';
             <div class="flex gap-2 justify-end">
               <button type="button" class="btn-secondary" (click)="showModal.set(false)">Cancel</button>
               <button type="button" class="btn-primary" (click)="logEntry()">Save</button>
+            </div>
             </div>
           </div>
         </div>

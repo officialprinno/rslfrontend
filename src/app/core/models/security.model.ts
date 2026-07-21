@@ -22,7 +22,7 @@ export interface Visitor {
   id_type: 'NATIONAL_ID' | 'PASSPORT' | 'DRIVING_LICENCE';
   id_number: string;
   phone: string;
-  company: string;
+  organization_name: string;
   photo_url: string | null;
   email: string;
   purpose: 'MEETING' | 'DELIVERY' | 'CONTRACTOR' | 'INSPECTION' | 'OTHER';
@@ -54,7 +54,7 @@ export interface VehicleLog {
   color: string;
   driver_name: string;
   driver_id_number: string;
-  company: string;
+  organization_name: string;
   purpose: string;
   occupants_count: number;
   cargo_description: string;
@@ -244,7 +244,7 @@ export interface VisitorFormData {
   id_type: string;
   id_number: string;
   phone: string;
-  company?: string;
+  organization_name?: string;
   email?: string;
   purpose: string;
   host_employee: number;

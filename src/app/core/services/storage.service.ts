@@ -6,6 +6,8 @@ const ACCESS_TOKEN_KEY = 'rsl_access_token';
 const REFRESH_TOKEN_KEY = 'rsl_refresh_token';
 const USER_KEY = 'rsl_user';
 const PERMISSIONS_KEY = 'rsl_permissions';
+const ACTIVE_COMPANY_KEY = 'rsl_active_company';
+const REMEMBER_COMPANY_KEY = 'rsl_remember_company';
 
 @Injectable({
   providedIn: 'root',
@@ -73,5 +75,7 @@ export class StorageService {
     this.removeToken();
     this.removeUser();
     this.removePermissions();
+    localStorage.removeItem(ACTIVE_COMPANY_KEY);
+    localStorage.removeItem(REMEMBER_COMPANY_KEY);
   }
 }

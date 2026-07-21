@@ -1,0 +1,213 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\PrinnoTech\AppData\Roa ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...version of npm.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> rock-solutions-fms@0.0.0 build
+> ng build --configuration production
+
+> Building...
+ΓêÜ Building...
+Application bundle generation failed. [18.037 seconds] - 2026-07-05T17:06:33.238Z
+
+Γû▓ [WARNING] NG8113: PageHeaderComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:39:4:
+      39 Γöé     PageHeaderComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: InventoryNavComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:40:4:
+      40 Γöé     InventoryNavComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: ModalComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:41:4:
+      41 Γöé     ModalComponent,
+         Γò╡     ~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: PaginationComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:42:4:
+      42 Γöé     PaginationComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: StatusBadgeComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:43:4:
+      43 Γöé     StatusBadgeComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: SearchableSelectComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:44:4:
+      44 Γöé     SearchableSelectComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: EmptyStateComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:45:4:
+      45 Γöé     EmptyStateComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: ErrorStateComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:46:4:
+      46 Γöé     ErrorStateComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: TableSkeletonComponent is not used within the template of DamageReportsComponent [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:47:4:
+      47 Γöé     TableSkeletonComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: PageHeaderComponent is not used within the template of DriversComponent [plugin angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:61:4:
+      61 Γöé     PageHeaderComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: LogisticsNavComponent is not used within the template of DriversComponent [plugin 
+angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:63:4:
+      63 Γöé     LogisticsNavComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: PaginationComponent is not used within the template of DriversComponent [plugin angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:65:4:
+      65 Γöé     PaginationComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: ModalComponent is not used within the template of DriversComponent [plugin angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:67:4:
+      67 Γöé     ModalComponent,
+         Γò╡     ~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: EmptyStateComponent is not used within the template of DriversComponent [plugin angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:69:4:
+      69 Γöé     EmptyStateComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: ErrorStateComponent is not used within the template of DriversComponent [plugin angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:71:4:
+      71 Γöé     ErrorStateComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: TableSkeletonComponent is not used within the template of DriversComponent [plugin 
+angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:73:4:
+      73 Γöé     TableSkeletonComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: StatusBadgeComponent is not used within the template of DriversComponent [plugin 
+angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:75:4:
+      75 Γöé     StatusBadgeComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] NG8113: SearchableSelectComponent is not used within the template of DriversComponent [plugin 
+angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:77:4:
+      77 Γöé     SearchableSelectComponent,
+         Γò╡     ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] NG5002: Unexpected closing tag "div". It may happen when the tag has already been closed by another tag. For 
+more info see https://www.w3.org/TR/html5/syntax.html#closing-elements-that-have-implied-end-tags [plugin 
+angular-compiler]
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.html:197:2:
+      197 Γöé   </div>
+          Γò╡   ~~~~~~
+
+  Error occurs in the template of component DamageReportsComponent.
+
+    src/app/modules/inventory/pages/damage-reports/damage-reports.component.ts:49:15:
+      49 Γöé   templateUrl: './damage-reports.component.html',
+         Γò╡                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] NG5002: Unexpected closing tag "div". It may happen when the tag has already been closed by another tag. For 
+more info see https://www.w3.org/TR/html5/syntax.html#closing-elements-that-have-implied-end-tags [plugin 
+angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.html:238:6:
+      238 Γöé       </div>
+          Γò╡       ~~~~~~
+
+  Error occurs in the template of component DriversComponent.
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:81:15:
+      81 Γöé   templateUrl: './drivers.component.html',
+         Γò╡                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] NG5002: Unexpected closing block. The block may have been closed earlier. If you meant to write the `}` 
+character, you should use the "&#125;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.html:239:6:
+      239 Γöé       } @else {
+          Γò╡       ^
+
+  Error occurs in the template of component DriversComponent.
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:81:15:
+      81 Γöé   templateUrl: './drivers.component.html',
+         Γò╡                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+X [ERROR] NG5002: Unexpected closing tag "div". It may happen when the tag has already been closed by another tag. For 
+more info see https://www.w3.org/TR/html5/syntax.html#closing-elements-that-have-implied-end-tags [plugin 
+angular-compiler]
+
+    src/app/modules/logistics/pages/drivers/drivers.component.html:257:4:
+      257 Γöé     </div>
+          Γò╡     ~~~~~~
+
+  Error occurs in the template of component DriversComponent.
+
+    src/app/modules/logistics/pages/drivers/drivers.component.ts:81:15:
+      81 Γöé   templateUrl: './drivers.component.html',
+         Γò╡                ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

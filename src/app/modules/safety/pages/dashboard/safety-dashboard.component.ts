@@ -2,21 +2,28 @@ import { DecimalPipe, SlicePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
-  OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { interval, Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
 import { SafetyAlert, SafetyDashboard } from '../../../../core/models/safety.model';
 import { SafetyService } from '../../../../core/services/safety.service';
 import { formatDateTime } from '../../../../core/utils/format.util';
-import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
-import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
-import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
+import {
+  ChartCardComponent,
+  ChartCardDeferredComponent,
+  DashboardInsight,
+  DashboardLayoutComponent,
+  DashboardSectionComponent,
+  DateRangeValue,
+  InsightBannerComponent,
+  KpiCardComponent,
+  setupDashboardCompanyReload,
+} from '../../../../shared/dashboard';
 import { SafetyNavComponent } from '../../components/safety-nav/safety-nav.component';
 import {
   ALERT_COLORS,
@@ -33,21 +40,33 @@ import {
     DecimalPipe,
     SlicePipe,
     RouterLink,
-    PageHeaderComponent,
     SafetyNavComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
+    DashboardLayoutComponent,
+    InsightBannerComponent,
+    KpiCardComponent,
+    ChartCardDeferredComponent,
+    ChartCardComponent,
+    DashboardSectionComponent,
   ],
   templateUrl: './safety-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SafetyDashboardComponent implements OnInit, OnDestroy {
+export class SafetyDashboardComponent implements OnInit {
   private readonly safety = inject(SafetyService);
-  private refreshSub?: Subscription;
+
+  constructor() {
+    setupDashboardCompanyReload(() => {
+      this.data.set(null);
+      this.load(false, true);
+    });
+  }
 
   readonly data = signal<SafetyDashboard | null>(null);
   readonly loading = signal(true);
+  readonly refreshing = signal(false);
   readonly error = signal(false);
+  readonly lastUpdated = signal<Date | null>(null);
+  readonly dateRange = signal<DateRangeValue | null>(null);
 
   readonly formatDateTime = formatDateTime;
   readonly incidentTypeLabel = incidentTypeLabel;
@@ -57,33 +76,80 @@ export class SafetyDashboardComponent implements OnInit, OnDestroy {
     SEVERITY_COLORS[s as keyof typeof SEVERITY_COLORS] ?? 'badge-gray';
   readonly statusColor = (s: string) => INCIDENT_STATUS_COLORS[s] ?? 'badge-gray';
 
-  ngOnInit(): void {
-    this.load();
-    this.refreshSub = interval(120_000).subscribe(() => this.load(true));
-  }
+  readonly insights = computed((): DashboardInsight[] => {
+    const d = this.data();
+    if (!d) return [];
+    const items: DashboardInsight[] = [];
 
-  ngOnDestroy(): void {
-    this.refreshSub?.unsubscribe();
-  }
-
-  load(silent = false): void {
-    if (!silent) {
-      this.loading.set(true);
-      this.error.set(false);
+    for (const alert of this.criticalAlerts(d)) {
+      items.push({
+        id: `critical-${alert.reference_id}`,
+        message: alert.message,
+        tone: 'danger',
+        route: this.alertRoute(alert),
+      });
     }
+    if (d.open_incidents > 0) {
+      items.push({
+        id: 'open-incidents',
+        message: `${d.open_incidents} open incident(s) in selected period`,
+        tone: 'warning',
+        route: '/safety/incidents',
+      });
+    }
+    if (d.ppe_low_stock > 0) {
+      items.push({
+        id: 'ppe-low',
+        message: `${d.ppe_low_stock} PPE item(s) below reorder level`,
+        tone: 'warning',
+        route: '/safety/ppe',
+      });
+    }
+    if (!items.length) {
+      items.push({
+        id: 'safety-score',
+        message: `Safety score ${d.safety_score}/100 · ${d.days_without_incident} days without incident`,
+        tone: d.safety_score >= 80 ? 'success' : 'info',
+      });
+    }
+    return items.slice(0, 6);
+  });
+
+  ngOnInit(): void {
+    /* initial load handled by setupDashboardCompanyReload */
+  }
+
+  load(silent = false, bypassCache = false): void {
+    if (silent) {
+      this.refreshing.set(true);
+    } else {
+      this.loading.set(true);
+    }
+    this.error.set(false);
     this.safety
-      .getDashboard()
+      .getDashboard(this.dateRange(), bypassCache)
       .pipe(
         finalize(() => {
-          if (!silent) this.loading.set(false);
+          this.loading.set(false);
+          this.refreshing.set(false);
         }),
       )
       .subscribe({
-        next: (d) => this.data.set(d),
-        error: () => {
-          if (!silent) this.error.set(true);
+        next: (d) => {
+          this.data.set(d);
+          this.lastUpdated.set(new Date());
         },
+        error: () => this.error.set(true),
       });
+  }
+
+  onRefresh(): void {
+    this.load(true, true);
+  }
+
+  onDateRangeChange(range: DateRangeValue): void {
+    this.dateRange.set(range);
+    this.load(true);
   }
 
   maxChartValue(): number {

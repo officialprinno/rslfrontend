@@ -45,6 +45,7 @@ export interface DriverDashboard {
   completed_count: number;
   availability_status: DriverAvailability;
   active_trip_id: number | null;
+  active_trip_ids?: number[];
   current_vehicle: {
     id: number;
     registration_number: string;
@@ -116,6 +117,8 @@ export interface DriverTrip {
   confirmation: DeliveryConfirmation | null;
   trip_events: TripEvent[];
   created_at: string;
+  handover_confirmed?: boolean;
+  handover_confirmed_at?: string | null;
 }
 
 export interface StartDeliveryData {

@@ -38,12 +38,7 @@
     <app-table-skeleton [cols]="8" />
   } @else if (!records().length) {
     <div class="card">
-      <app-empty-state
-        title="No maintenance records"
-        message="Schedule service, repair, or inspection for your fleet."
-        actionLabel="Schedule Maintenance"
-        (actionClick)="openSchedule()"
-      />
+      <app-empty-state moduleName="Maintenance Records" actionLabel="Schedule Maintenance" (actionClick)="openSchedule()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

@@ -77,7 +77,16 @@ export class DeptRequestsComponent implements OnInit {
   }
 
   itemOptions(): SelectOption[] {
-    return this.items().map((i) => ({ value: i.id, label: `${i.code} — ${i.name}` }));
+    return this.items().map((i) => ({
+      value: i.id,
+      label: `${i.code} — ${i.name}`,
+      sublabel: `Unit: ${i.unit_of_measure || '—'}`,
+    }));
+  }
+
+  selectedUnit(): string {
+    const itemId = Number(this.form.value.item ?? 0);
+    return this.items().find((item) => item.id === itemId)?.unit_of_measure || 'unit';
   }
 
   load(): void {

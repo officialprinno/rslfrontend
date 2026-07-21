@@ -1,0 +1,229 @@
+<div class="min-h-screen bg-gray-100 py-8 px-4">
+  <div class="max-w-3xl mx-auto">
+    <div class="text-center mb-6 no-print">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#F0A500] text-[#1B3A6B] font-bold text-sm mb-3">RSL</div>
+      <h1 class="text-lg font-bold text-[#1B3A6B]">{{ company.name }}</h1>
+      <p class="text-sm text-gray-500">{{ pageTitle() }}</p>
+    </div>
+
+    @if (loading()) {
+      <div class="card p-8 text-center text-gray-500">Loading invoice…</div>
+    } @else if (error()) {
+      <div class="card p-8 text-center">
+        <p class="text-red-600 font-medium mb-2">Unable to load invoice</p>
+        <p class="text-sm text-gray-600">{{ error() }}</p>
+      </div>
+    } @else if (invoice(); as inv) {
+      <div class="no-print flex justify-end mb-3">
+        <button type="button" class="btn-primary" (click)="printReceipt()">Print Receipt</button>
+      </div>
+
+      <div id="invoice-public-print" class="card p-6 mb-4 bg-white">
+        <div class="border-b border-gray-200 pb-4 mb-6">
+          <div class="flex flex-wrap justify-between gap-4 items-start">
+            <div>
+              <h2 class="text-xl font-bold text-[#1B3A6B]">{{ company.name }}</h2>
+              <p class="text-xs text-gray-500">TIN: {{ company.tin }} | VRN: {{ company.vat }}</p>
+              <p class="text-sm text-gray-500">{{ company.address }}</p>
+            </div>
+            <div class="flex flex-wrap items-start gap-4">
+              @if (inv.public_view_url) {
+                <div class="text-center shrink-0">
+                  <app-qr-code [data]="inv.public_view_url" [size]="88" alt="Invoice QR code" />
+                  <p class="text-[10px] text-gray-500 mt-1 max-w-[88px] leading-tight">
+                    Scan to verify
+                  </p>
+                </div>
+              }
+              <div class="text-right">
+                @if (isPaid()) {
+                  <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1">
+                    Payment Receipt
+                  </p>
+                }
+                <h3 class="text-lg font-bold text-[#1B3A6B]">TAX INVOICE</h3>
+                <p class="text-sm font-medium">{{ inv.invoice_number }}</p>
+                @if (inv.so_number) {
+                  <p class="text-sm text-gray-500">Order: {{ inv.so_number }}</p>
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
+          <div>
+            <h4 class="font-semibold text-gray-700 mb-1">Bill To</h4>
+            <p class="font-medium">{{ inv.customer_name }}</p>
+            @if (inv.customer_tin) {
+              <p class="text-xs text-gray-500">TIN: {{ inv.customer_tin }}</p>
+            }
+          </div>
+          <div class="sm:text-right space-y-1">
+            <p><span class="text-gray-500">Invoice Date:</span> {{ formatDate(inv.invoice_date) }}</p>
+            <p><span class="text-gray-500">Due Date:</span> {{ formatDate(inv.due_date) }}</p>
+            <p><span class="text-gray-500">Payment Terms:</span> {{ inv.payment_term_display || inv.payment_term }}</p>
+            <p><span class="text-gray-500">Currency:</span> {{ inv.currency_code }}</p>
+            <p>
+              <span class="text-gray-500">TRA Receipt No.:</span>
+              {{ inv.tra_receipt_number || 'Pending issuance' }}
+            </p>
+            @if (inv.status) {
+              <p class="flex sm:justify-end items-center gap-2">
+                <span class="text-gray-500">Status:</span>
+                <app-status-badge [status]="inv.status" />
+              </p>
+            }
+            @if (inv.payment_status_display) {
+              <p><span class="text-gray-500">Payment:</span> {{ inv.payment_status_display }}</p>
+            }
+          </div>
+        </div>
+
+        <table class="w-full text-sm mb-4">
+          <thead>
+            <tr>
+              <th class="table-th">#</th>
+              <th class="table-th">Item</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Unit Price</th>
+              <th class="table-th">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of inv.items; track item.id ?? $index; let i = $index) {
+              <tr class="table-row">
+                <td class="table-td">{{ i + 1 }}</td>
+                <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
+                <td class="table-td">{{ item.quantity }}</td>
+                <td class="table-td">{{ formatCurrency(item.unit_price, inv.currency_code) }}</td>
+                <td class="table-td font-semibold">{{ formatCurrency(item.total_price ?? 0, inv.currency_code) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (inv.other_costs?.length) {
+          <h4 class="text-sm font-semibold mb-2">Other Costs</h4>
+          <table class="w-full text-sm mb-4">
+            <tbody>
+              @for (cost of inv.other_costs; track cost.id ?? $index) {
+                <tr class="table-row">
+                  <td class="table-td">{{ cost.cost_name }}</td>
+                  <td class="table-td text-right font-semibold">{{ formatCurrency(cost.amount, inv.currency_code) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+
+        <div class="text-right text-sm space-y-1 mb-4">
+          <p>Subtotal: {{ formatCurrency(inv.subtotal, inv.currency_code) }}</p>
+          <p>VAT: {{ formatCurrency(inv.tax_amount, inv.currency_code) }}</p>
+          <p class="text-base font-bold text-[#1B3A6B]">
+            Grand Total: {{ formatCurrency(inv.grand_total || inv.total_amount, inv.currency_code) }}
+          </p>
+          <p>Paid: {{ formatCurrency(inv.paid_amount, inv.currency_code) }}</p>
+          <p class="font-semibold">
+            Balance Due: {{ formatCurrency(inv.amount_due, inv.currency_code) }}
+          </p>
+        </div>
+
+        @if (isPaid()) {
+          <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-900 mb-4">
+            <p class="font-semibold">Payment received — thank you</p>
+            <p class="text-emerald-700 mt-1">
+              This document serves as your payment receipt for invoice {{ inv.invoice_number }}.
+            </p>
+          </div>
+        }
+
+        <p class="text-xs text-gray-500 border-t pt-4">
+          Issued in compliance with Tanzania Revenue Authority (TRA) requirements.
+          {{ company.name }} — TIN {{ company.tin }}, VRN {{ company.vat }}.
+        </p>
+      </div>
+
+      @if (!isPaid()) {
+        @if (inv.pending_payment_proof; as proof) {
+          <div class="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900 mb-4 no-print">
+            <p class="font-semibold">Payment proof pending verification</p>
+            <p class="mt-1">Reference {{ proof.reference_number }} — {{ formatCurrency(proof.amount, inv.currency_code) }}</p>
+            <p class="text-amber-700 mt-1">Submitted on {{ formatDate(proof.created_at) }}</p>
+          </div>
+        } @else if (submitted()) {
+          <div class="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-900 mb-4 no-print">
+            <p class="font-semibold">Payment proof submitted successfully</p>
+            <p class="text-emerald-700 mt-1">Our finance team will verify your payment and confirm shortly.</p>
+          </div>
+        } @else if (inv.can_submit_payment) {
+          <div class="card p-6 border-t no-print">
+            <h4 class="font-semibold text-[#1B3A6B] mb-2">Submit Payment Proof</h4>
+            <p class="text-sm text-gray-600 mb-4">
+              Upload your bank slip or M-Pesa confirmation, or write a message as you would in an email reply.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+              <div>
+                <label class="input-label">Amount Paid *</label>
+                <input type="number" class="input-field" min="0.01" step="0.01" [(ngModel)]="paymentForm.amount" />
+              </div>
+              <div>
+                <label class="input-label">Payment Method *</label>
+                <select class="input-field" [(ngModel)]="paymentForm.payment_method">
+                  @for (m of paymentMethods; track m.value) {
+                    <option [value]="m.value">{{ m.label }}</option>
+                  }
+                </select>
+              </div>
+              <div class="md:col-span-2">
+                <label class="input-label">Payment Reference *</label>
+                <input class="input-field" [(ngModel)]="paymentForm.reference_number" placeholder="Bank / M-Pesa reference" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="input-label">Your Email (optional)</label>
+                <input type="email" class="input-field" [(ngModel)]="paymentForm.customer_email" placeholder="For confirmation replies" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="input-label">Message / Email Reply</label>
+                <textarea rows="3" class="input-field resize-none" [(ngModel)]="paymentForm.customer_reply_message" placeholder="e.g. Payment made via CRDB transfer today…"></textarea>
+              </div>
+              <div class="md:col-span-2">
+                <label class="input-label">Attach Payment Proof (optional)</label>
+                <input type="file" class="input-field" accept="image/*,.pdf" (change)="onFileSelected($event)" />
+                <p class="text-xs text-gray-500 mt-1">PDF or image — bank slip, M-Pesa screenshot, etc.</p>
+              </div>
+              <div class="md:col-span-2">
+                <label class="input-label">Additional Notes</label>
+                <input class="input-field" [(ngModel)]="paymentForm.proof_notes" />
+              </div>
+            </div>
+
+            <button type="button" class="btn-primary" [disabled]="submitting()" (click)="submitPayment()">
+              Submit Payment Proof
+            </button>
+          </div>
+        } @else {
+          <div class="rounded-lg bg-gray-50 border p-4 text-sm text-gray-600 no-print">
+            Online payment submission is not required for this invoice at this time.
+          </div>
+        }
+      }
+
+      <p class="text-center text-xs text-gray-400 no-print">
+        &copy; {{ company.name }} — You may also reply to the invoice email with your payment reference and attachment.
+      </p>
+    }
+  </div>
+</div>
+
+<style>
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    body {
+      background: white;
+    }
+  }
+</style>

@@ -23,8 +23,10 @@ export class SalesNavComponent {
   readonly tabs = [
     { label: 'Dashboard', route: '/sales/dashboard' },
     { label: 'Customers', route: '/sales/customers' },
+    { label: 'Customer Prices', route: '/sales/customer-prices' },
     { label: 'Quotations', route: '/sales/quotations' },
     { label: 'Sales Orders', route: '/sales/orders' },
+    { label: 'Outstanding', route: '/sales/orders/outstanding' },
     { label: 'Invoices', route: '/sales/invoices' },
     { label: 'Payments', route: '/sales/payments' },
     { label: 'Credit Notes', route: '/sales/credit-notes' },

@@ -2,23 +2,29 @@ import { DecimalPipe, SlicePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
-  OnDestroy,
   OnInit,
   signal,
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { interval, Subscription } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
 import { ProductionDashboard } from '../../../../core/models/production.model';
 import { ProductionService } from '../../../../core/services/production.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { formatNumber } from '../../../../core/utils/format.util';
-import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
-import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
+import {
+  ChartCardDeferredComponent,
+  DashboardInsight,
+  DashboardLayoutComponent,
+  DashboardSectionComponent,
+  DateRangeValue,
+  InsightBannerComponent,
+  KpiCardComponent,
+  setupDashboardCompanyReload,
+} from '../../../../shared/dashboard';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
-import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { ProductionNavComponent } from '../../components/production-nav/production-nav.component';
 import { MACHINE_STATUS_BORDER, MATERIAL_STATUS_COLOR } from '../../constants/production.constants';
 import { isMachineOperator, isProductionSupervisor } from '../../utils/production-permissions.util';
@@ -29,58 +35,114 @@ import { isMachineOperator, isProductionSupervisor } from '../../utils/productio
     DecimalPipe,
     SlicePipe,
     RouterLink,
-    PageHeaderComponent,
     ProductionNavComponent,
     StatusBadgeComponent,
-    ErrorStateComponent,
-    TableSkeletonComponent,
+    DashboardLayoutComponent,
+    InsightBannerComponent,
+    KpiCardComponent,
+    ChartCardDeferredComponent,
+    DashboardSectionComponent,
   ],
   templateUrl: './production-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProductionDashboardComponent implements OnInit, OnDestroy {
+export class ProductionDashboardComponent implements OnInit {
   private readonly production = inject(ProductionService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
-  private refreshSub?: Subscription;
 
   readonly data = signal<ProductionDashboard | null>(null);
   readonly loading = signal(true);
+  readonly refreshing = signal(false);
   readonly error = signal(false);
+  readonly lastUpdated = signal<Date | null>(null);
+  readonly dateRange = signal<DateRangeValue | null>(null);
 
   readonly formatNumber = formatNumber;
   readonly materialStatusColor = MATERIAL_STATUS_COLOR;
   readonly machineStatusBorder = MACHINE_STATUS_BORDER;
 
+  readonly insights = computed((): DashboardInsight[] => {
+    const d = this.data();
+    if (!d) return [];
+    const items: DashboardInsight[] = [];
+
+    const lowMaterials = d.raw_material_status.filter(
+      (m) => m.status === 'LOW' || m.status === 'INSUFFICIENT',
+    );
+    if (lowMaterials.length) {
+      items.push({
+        id: 'materials',
+        message: `${lowMaterials.length} raw material(s) below required levels`,
+        tone: 'warning',
+        route: '/production/work-orders',
+      });
+    }
+    if (d.active_work_orders > 0) {
+      items.push({
+        id: 'active-wo',
+        message: `${d.active_work_orders} active work order(s) · ${d.efficiency_rate}% efficiency`,
+        tone: d.efficiency_rate >= 85 ? 'success' : 'info',
+        route: '/production/work-orders',
+      });
+    }
+    if (!items.length) {
+      items.push({
+        id: 'output',
+        message: `${formatNumber(d.units_today, 0)} units produced today`,
+        tone: 'success',
+      });
+    }
+    return items.slice(0, 4);
+  });
+
+  constructor() {
+    setupDashboardCompanyReload(() => {
+      if (isMachineOperator(this.auth) && !isProductionSupervisor(this.auth)) {
+        return;
+      }
+      this.data.set(null);
+      this.load(false, true);
+    });
+  }
+
   ngOnInit(): void {
     if (isMachineOperator(this.auth) && !isProductionSupervisor(this.auth)) {
       void this.router.navigate(['/production/operator']);
-      return;
     }
-    this.load();
-    this.refreshSub = interval(30_000).subscribe(() => this.load(true));
   }
 
-  ngOnDestroy(): void {
-    this.refreshSub?.unsubscribe();
-  }
-
-  load(silent = false): void {
-    if (!silent) {
+  load(silent = false, bypassCache = false): void {
+    if (silent) {
+      this.refreshing.set(true);
+    } else {
       this.loading.set(true);
-      this.error.set(false);
     }
+    this.error.set(false);
     this.production
-      .getProductionDashboard()
-      .pipe(finalize(() => {
-        if (!silent) this.loading.set(false);
-      }))
+      .getProductionDashboard(this.dateRange(), bypassCache)
+      .pipe(
+        finalize(() => {
+          this.loading.set(false);
+          this.refreshing.set(false);
+        }),
+      )
       .subscribe({
-        next: (d) => this.data.set(d),
-        error: () => {
-          if (!silent) this.error.set(true);
+        next: (d) => {
+          this.data.set(d);
+          this.lastUpdated.set(new Date());
         },
+        error: () => this.error.set(true),
       });
+  }
+
+  onRefresh(): void {
+    this.load(true, true);
+  }
+
+  onDateRangeChange(range: DateRangeValue): void {
+    this.dateRange.set(range);
+    this.load(true);
   }
 
   maxDailyOutput(): number {

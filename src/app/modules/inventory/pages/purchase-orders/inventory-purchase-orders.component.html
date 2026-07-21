@@ -1,0 +1,87 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header
+    title="Purchase Orders to Receive"
+    subtitle="Approved orders awaiting goods receipt (GRN)"
+  />
+
+  <div class="card p-4 mb-6 border border-blue-100 bg-blue-50 text-sm text-gray-700">
+    GRN receipt is only allowed after supplier order tracking shows <strong>Delivered</strong> (goods confirmed at site).
+    Use <a routerLink="/inventory/order-tracking" class="text-[#1B3A6B] underline font-medium">Order Tracking</a> to
+    email the supplier or update status from their reply.
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!orders().length) {
+    <div class="card">
+      <app-empty-state
+        title="No orders awaiting receipt"
+        message="Purchase orders appear here after procurement approval, until goods are fully received."
+      />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">PO Number</th>
+            <th class="table-th">Supplier</th>
+            <th class="table-th">Expected Delivery</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">PO Status</th>
+            <th class="table-th">Tracking</th>
+            <th class="table-th text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (po of orders(); track po.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ po.po_number }}</td>
+              <td class="table-td">{{ po.supplier_name }}</td>
+              <td class="table-td">{{ po.expected_delivery ? formatDate(po.expected_delivery) : '—' }}</td>
+              <td class="table-td">{{ formatCurrency(po.total_amount, po.currency_code) }}</td>
+              <td class="table-td"><app-status-badge [status]="po.status" /></td>
+              <td class="table-td">
+                @if (po.supplier_tracking_status) {
+                  <app-status-badge [status]="po.supplier_tracking_status" />
+                } @else {
+                  <span class="text-xs text-amber-700">No tracking</span>
+                }
+              </td>
+              <td class="table-td text-right space-x-1">
+                <a
+                  [routerLink]="['/inventory/purchase-orders', po.id]"
+                  class="btn-secondary !text-xs !px-3 !py-1 inline-block"
+                >
+                  View PO
+                </a>
+                @if (isReceivable(po) && canReceive() && po.can_receive_goods) {
+                  <a
+                    [routerLink]="['/inventory/grn/new']"
+                    [queryParams]="{ po: po.id }"
+                    class="btn-primary !text-xs !px-3 !py-1 inline-block"
+                  >
+                    Receive (GRN)
+                  </a>
+                } @else if (isReceivable(po) && canReceive() && !po.can_receive_goods) {
+                  <span class="text-xs text-amber-700">Awaiting delivery confirmation</span>
+                }
+                @if (canMarkReceived(po)) {
+                  <button
+                    type="button"
+                    class="btn-secondary !text-xs !px-3 !py-1 inline-block"
+                    (click)="markReceived(po)"
+                  >
+                    Mark Received
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination [total]="total()" [page]="page()" (pageChange)="page.set($event); load()" />
+    </div>
+  }
+</div>

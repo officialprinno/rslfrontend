@@ -1,0 +1,228 @@
+<div class="page-container">
+  @if (!employeePortal()) {
+    <app-finance-nav />
+    <app-staff-payment-subnav />
+  }
+  <app-page-header [title]="meta().title" [subtitle]="meta().subtitle">
+    @if (showSubmitCta()) {
+      <button type="button" class="btn-primary" (click)="openCreate()">New Request</button>
+    }
+  </app-page-header>
+
+  @if (employeePortal()) {
+    <nav class="flex flex-wrap gap-2 mb-4">
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+        [class.bg-[#1B3A6B]]="queue() === 'my'"
+        [class.text-white]="queue() === 'my'"
+        [class.border-[#1B3A6B]]="queue() === 'my'"
+        [class.bg-white]="queue() !== 'my'"
+        [class.text-gray-600]="queue() !== 'my'"
+        (click)="setQueue('my')"
+      >
+        All My Requests
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+        [class.bg-[#1B3A6B]]="queue() === 'history'"
+        [class.text-white]="queue() === 'history'"
+        [class.border-[#1B3A6B]]="queue() === 'history'"
+        [class.bg-white]="queue() !== 'history'"
+        [class.text-gray-600]="queue() !== 'history'"
+        (click)="setQueue('history')"
+      >
+        Completed
+      </button>
+    </nav>
+  }
+
+  @if (queue() === 'my' || queue() === 'history' || queue() === 'all') {
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+      <label class="text-sm text-gray-600">Filter by status</label>
+      <select
+        class="input-field w-56"
+        [ngModel]="statusFilter()"
+        (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+      >
+        <option value="">All statuses</option>
+        <option value="PENDING_HOD_APPROVAL">Pending HOD</option>
+        <option value="PENDING_GM_APPROVAL">Pending GM</option>
+        <option value="PENDING_FINANCE_APPROVAL">Pending Finance</option>
+        <option value="APPROVED">Approved</option>
+        <option value="LIQUIDATION_PENDING">Liquidation Pending</option>
+        <option value="LIQUIDATION_SUBMITTED">Liquidation Submitted</option>
+        <option value="CLOSED">Closed</option>
+        <option value="REJECTED">Rejected</option>
+      </select>
+    </div>
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="7" />
+  } @else if (!requests().length) {
+    <div class="card">
+      <app-empty-state moduleName="Staff Payments" (companySwitched)="load()" />
+      @if (emptyStateHint()) {
+        <p class="text-center text-sm text-gray-500 pb-4 px-6">{{ emptyStateHint() }}</p>
+      }
+      @if (showSubmitCta()) {
+        <div class="flex justify-center pb-8">
+          <button type="button" class="btn-primary" (click)="openCreate()">
+            Submit Payment Request
+          </button>
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Number</th>
+            <th class="table-th">Type</th>
+            <th class="table-th">Requester</th>
+            <th class="table-th">Category</th>
+            <th class="table-th">Amount</th>
+            <th class="table-th">Status</th>
+            @if (showJournalColumn()) {
+              <th class="table-th">Journal</th>
+            }
+            <th class="table-th">Submitted</th>
+            <th class="table-th">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of requests(); track r.id) {
+            <tr class="table-row">
+              <td class="table-td font-medium">{{ r.request_number }}</td>
+              <td class="table-td">{{ r.request_type_display }}</td>
+              <td class="table-td">{{ r.requested_by_name }}</td>
+              <td class="table-td">{{ r.category_detail?.name ?? '—' }}</td>
+              <td class="table-td font-semibold">
+                {{ formatCurrency(r.amount, r.currency_code) }}
+                @if (r.requires_escalation) {
+                  <span class="ml-1 text-xs text-amber-600" title="GM escalation">⚠</span>
+                }
+              </td>
+              <td class="table-td"><app-status-badge [status]="r.overall_status" /></td>
+              @if (showJournalColumn()) {
+                <td class="table-td text-xs text-gray-600">
+                  {{ r.journal_entry_number ?? '—' }}
+                  @if (r.liquidation_journal_entry_number) {
+                    <div class="text-gray-400">Liq: {{ r.liquidation_journal_entry_number }}</div>
+                  }
+                </td>
+              }
+              <td class="table-td text-xs text-gray-500">{{ formatDateTime(r.created_at) }}</td>
+              <td class="table-td">
+                <a
+                  [routerLink]="[detailBasePath(), r.id]"
+                  class="btn-ghost !text-xs !px-2"
+                >
+                  View
+                </a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+      [page]="page()"
+      [total]="total()"
+      [pageSize]="20"
+      (pageChange)="page.set($event); load()"
+    />
+    </div>
+  }
+</div>
+
+<app-modal [open]="showCreate()" title="New Staff Payment Request" size="lg" (close)="showCreate.set(false)">
+  <form [formGroup]="form" class="space-y-4" (ngSubmit)="submitCreate()">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="form-label">Request Type</label>
+        <select class="input-field w-full" formControlName="request_type">
+          <option value="REIMBURSEMENT">Reimbursement</option>
+          <option value="ADVANCE">Advance</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Category</label>
+        <select class="input-field w-full" formControlName="category_id">
+          <option [ngValue]="null">Select category</option>
+          @for (cat of categories(); track cat.id) {
+            <option [ngValue]="cat.id">
+              {{ cat.name }}
+              @if (cat.spending_limit) {
+                (limit {{ formatCurrency(cat.spending_limit, 'TZS') }})
+              }
+            </option>
+          }
+        </select>
+        @if (fieldErrors()['category_id']) {
+          <p class="text-sm text-red-600 mt-1">{{ fieldErrors()['category_id'] }}</p>
+        }
+      </div>
+      <div>
+        <label class="form-label">Amount (TZS)</label>
+        <input type="number" class="input-field w-full" formControlName="amount" min="0.01" step="0.01" />
+      </div>
+      <div>
+        <label class="form-label">Activity Date</label>
+        <input type="date" class="input-field w-full" formControlName="activity_date" />
+      </div>
+      <div>
+        <label class="form-label">Payment Method</label>
+        <select class="input-field w-full" formControlName="payment_method">
+          <option value="CASH">Cash</option>
+          <option value="BANK_TRANSFER">Bank Transfer</option>
+        </select>
+      </div>
+      @if (form.controls.payment_method.value === 'BANK_TRANSFER') {
+        <div>
+          <label class="form-label">Bank Account Details</label>
+          <input class="input-field w-full" formControlName="bank_account_details" />
+        </div>
+      }
+    </div>
+
+    @if (selectedCategory()?.spending_limit) {
+      <div class="rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
+        Category limit: {{ formatCurrency(selectedCategory()!.spending_limit!, 'TZS') }}
+      </div>
+    }
+    @if (escalationWarning()) {
+      <div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+        {{ escalationWarning() }}
+      </div>
+    }
+
+    <div>
+      <label class="form-label">Purpose</label>
+      <textarea class="input-field w-full" rows="3" formControlName="purpose"></textarea>
+    </div>
+
+    @if (form.controls.request_type.value === 'REIMBURSEMENT' && selectedCategory()?.requires_receipt) {
+      <div>
+        <label class="form-label">Receipts</label>
+        <input type="file" class="input-field w-full" multiple accept="image/*,.pdf" (change)="onFilesSelected($event)" />
+        @if (selectedFiles().length) {
+          <p class="text-xs text-gray-500 mt-1">{{ selectedFiles().length }} file(s) selected</p>
+        }
+      </div>
+    }
+
+    @if (fieldErrors()['attachments']) {
+      <p class="text-sm text-red-600">{{ fieldErrors()['attachments'] }}</p>
+    }
+  </form>
+
+  <div modalFooter class="flex justify-end gap-2">
+    <button type="button" class="btn-secondary" (click)="showCreate.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitCreate()">
+      {{ saving() ? 'Submitting…' : 'Submit Request' }}
+    </button>
+  </div>
+</app-modal>

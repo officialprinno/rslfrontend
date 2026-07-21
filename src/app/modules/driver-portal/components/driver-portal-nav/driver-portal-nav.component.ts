@@ -23,6 +23,7 @@ export class DriverPortalNavComponent {
   readonly tabs = [
     { label: 'Dashboard', route: '/driver-portal/dashboard' },
     { label: 'My Trips', route: '/driver-portal/trips' },
+    { label: 'Internal Routes', route: '/driver-portal/internal-routes' },
     { label: 'History', route: '/driver-portal/history' },
     { label: 'Vehicle', route: '/driver-portal/vehicle' },
     { label: 'Profile', route: '/driver-portal/profile' },

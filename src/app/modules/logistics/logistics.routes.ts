@@ -42,6 +42,14 @@ export const LOGISTICS_ROUTES: Routes = [
       import('./pages/deliveries/deliveries-list.component').then((m) => m.DeliveriesListComponent),
   },
   {
+    path: 'internal-routes',
+    ...logisticsGuard,
+    loadComponent: () =>
+      import('./pages/internal-routes/internal-routes-list.component').then(
+        (m) => m.InternalRoutesListComponent,
+      ),
+  },
+  {
     path: 'deliveries/new',
     ...logisticsGuard,
     loadComponent: () =>

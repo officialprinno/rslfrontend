@@ -22,10 +22,7 @@
     <app-table-skeleton [cols]="6" />
   } @else if (!payrolls().length) {
     <div class="card">
-      <app-empty-state
-        title="No payroll runs"
-        message="Payroll batches submitted by HR will appear here for finance approval."
-      />
+      <app-empty-state moduleName="Payroll Approvals" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
@@ -69,12 +66,12 @@
           }
         </tbody>
       </table>
-    </div>
-    <app-pagination
+      <app-pagination
       [page]="page()"
       [total]="total()"
       [pageSize]="10"
       (pageChange)="page.set($event); load()"
     />
+    </div>
   }
 </div>

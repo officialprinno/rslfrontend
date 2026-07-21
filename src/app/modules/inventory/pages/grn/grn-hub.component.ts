@@ -6,7 +6,6 @@ import { GoodsReceivedNote } from '../../../../core/models/procurement.model';
 import { AuthService } from '../../../../core/services/auth.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { ProcurementService } from '../../../../core/services/procurement.service';
-import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { formatDate } from '../../../../core/utils/format.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
@@ -16,6 +15,7 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { InventoryNavComponent } from '../../components/inventory-nav/inventory-nav.component';
 import { canManageGRN } from '../../../procurement/utils/procurement-permissions.util';
+import { CompanyContextService } from '../../../../core/services/company-context.service';
 
 @Component({
   selector: 'app-grn-hub',
@@ -36,6 +36,7 @@ export class GrnHubComponent implements OnInit {
   private readonly procurement = inject(ProcurementService);
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
+  private readonly companyCtx = inject(CompanyContextService);
 
   readonly grns = signal<GoodsReceivedNote[]>([]);
   readonly loading = signal(true);
@@ -44,7 +45,8 @@ export class GrnHubComponent implements OnInit {
   readonly page = signal(1);
   readonly pageSize = signal(10);
   readonly formatDate = formatDate;
-  readonly canConfirm = () => canManageGRN(this.auth);
+  readonly canConfirm = () => canManageGRN(this.auth, this.companyCtx);
+  readonly canAdd = () => canManageGRN(this.auth, this.companyCtx);
 
   ngOnInit(): void {
     this.load();
@@ -69,7 +71,6 @@ export class GrnHubComponent implements OnInit {
         this.notification.success(`GRN confirmed. Stock updated: ${summary}`);
         this.load();
       },
-      error: (e) => this.notification.error(getApiErrorMessage(e)),
     });
   }
 }

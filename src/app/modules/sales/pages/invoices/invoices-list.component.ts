@@ -87,4 +87,14 @@ export class InvoicesListComponent implements OnInit {
   rowClass(inv: Invoice): string {
     return this.isOverdue(inv) ? 'bg-red-50/60' : '';
   }
+
+  issueInvoice(inv: Invoice): void {
+    this.sales.issueInvoice(inv.id).subscribe({
+      next: () => {
+        this.notification.success('Invoice issued');
+        this.load();
+      },
+      error: (e) => this.notification.error(getApiErrorMessage(e)),
+    });
+  }
 }

@@ -57,7 +57,7 @@
           <tr [class.font-semibold]="v.status === 'OVERSTAYING'">
             <td>{{ v.visitor_number }}</td>
             <td>{{ v.full_name }}</td>
-            <td>{{ v.company || '—' }}</td>
+            <td>{{ v.organization_name || '—' }}</td>
             <td><span class="badge-blue text-xs">{{ v.purpose }}</span></td>
             <td>{{ v.host_employee_name }}</td>
             <td>{{ locationBadge(v.location_name).icon }} {{ v.location_name }}</td>

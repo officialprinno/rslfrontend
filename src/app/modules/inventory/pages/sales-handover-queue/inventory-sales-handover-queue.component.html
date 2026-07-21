@@ -1,0 +1,69 @@
+<div class="page-container">
+  <app-inventory-nav />
+
+  <app-page-header
+    title="Driver & Carrier Handover Queue"
+    subtitle="Confirm drivers or carriers collected dispatched items before delivery proceeds"
+  />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="5" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load handover queue" (retry)="load()" />
+  } @else {
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div class="xl:col-span-4 card overflow-hidden">
+        <div class="px-4 py-3 border-b bg-gray-50 text-sm font-medium text-gray-700">
+          Awaiting Handover ({{ orders().length }})
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr>
+              <th class="table-th">Order</th>
+              <th class="table-th">Customer</th>
+              <th class="table-th">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of orders(); track order.id) {
+              <tr
+                class="table-row cursor-pointer"
+                [class.!bg-blue-50]="selectedId() === order.id"
+                (click)="selectOrder(order)"
+              >
+                <td class="table-td font-medium">{{ order.so_number }}</td>
+                <td class="table-td">{{ order.customer_name }}</td>
+                <td class="table-td"><app-status-badge [status]="order.status" /></td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="3" class="table-td text-center text-gray-500 py-8">No orders awaiting handover.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="xl:col-span-8 space-y-4">
+        @if (loadingDetail()) {
+          <app-table-skeleton [cols]="4" />
+        } @else if (selectedDetail(); as detail) {
+          <div class="card p-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+              <div><span class="text-gray-500 block text-xs">Order</span><p class="font-medium">{{ detail.so_number }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Customer</span><p>{{ detail.customer_name }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Warehouse</span><p>{{ detail.warehouse_name || '—' }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Delivery Date</span><p>{{ detail.delivery_date || '—' }}</p></div>
+            </div>
+          </div>
+          <app-inv-so-handover-panel [order]="detail" (refreshed)="onWorkflowRefresh()" />
+          <a [routerLink]="['/sales/orders', detail.id, 'view']" class="btn-secondary inline-block">View in Sales</a>
+        } @else {
+          <div class="card p-8 text-center text-gray-500">
+            Select a dispatched order to confirm driver handover.
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

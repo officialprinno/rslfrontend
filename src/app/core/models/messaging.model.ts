@@ -51,6 +51,8 @@ export interface Conversation {
   last_message: Message | null;
   unread_count: number;
   is_muted: boolean;
+  broadcast_starts_at: string | null;
+  broadcast_expires_at: string | null;
   created_at: string;
 }
 
@@ -65,6 +67,8 @@ export interface AppNotification {
   reference_id: number | null;
   navigate_to: string | null;
   is_read: boolean;
+  broadcast_starts_at: string | null;
+  broadcast_expires_at: string | null;
   created_at: string;
 }
 
@@ -75,6 +79,8 @@ export interface BroadcastData {
   department_id?: number | null;
   user_ids?: number[];
   priority: MessagePriority;
+  broadcast_starts_at: string;
+  broadcast_expires_at: string;
 }
 
 export interface SendMessageData {

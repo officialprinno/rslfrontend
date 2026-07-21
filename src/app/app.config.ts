@@ -1,5 +1,5 @@
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
-import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
+import { APP_INITIALIZER, ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideTranslateLoader, provideTranslateService } from '@ngx-translate/core';
 import {
@@ -11,6 +11,7 @@ import { routes } from './app.routes';
 import { preferencesInitializer } from './core/i18n/preferences.initializer';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
+import { loadBrandLogo } from './core/utils/brand.util';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -31,5 +32,10 @@ export const appConfig: ApplicationConfig = {
       loader: provideTranslateLoader(TranslateHttpLoader),
     }),
     preferencesInitializer,
+    {
+      provide: APP_INITIALIZER,
+      useFactory: () => () => loadBrandLogo().catch(() => null),
+      multi: true,
+    },
   ],
 };

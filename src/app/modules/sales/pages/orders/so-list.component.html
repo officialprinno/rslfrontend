@@ -54,12 +54,7 @@
     <app-table-skeleton [cols]="9" />
   } @else if (!orders().length) {
     <div class="card">
-      <app-empty-state
-        title="No sales orders"
-        message="Create a sales order from a quotation or manually."
-        actionLabel="New Order"
-        (actionClick)="null"
-      />
+      <app-empty-state moduleName="Sales Orders" actionLabel="New Order" (actionClick)="null" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
@@ -90,7 +85,7 @@
               <td class="table-td text-sm">{{ so.created_by_name }}</td>
               <td class="table-td">
                 <a [routerLink]="['/sales/orders', so.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
-                @if (so.status === 'DRAFT') {
+                @if (salesOrderIsEditable(so.status)) {
                   <a [routerLink]="['/sales/orders', so.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
                   @if (canConfirm()) {
                     <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="confirmOrder(so)">

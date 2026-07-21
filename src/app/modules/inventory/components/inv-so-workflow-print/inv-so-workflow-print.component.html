@@ -1,0 +1,111 @@
+<button type="button" class="btn-secondary no-print" (click)="print()">Print Checklist</button>
+
+<div [id]="printId()" class="hidden print:block">
+  <h1>{{ title() }}</h1>
+  <p class="text-sm" style="margin-bottom: 12px">{{ company.name }}</p>
+
+  <div class="meta">
+    <div><strong>Order</strong>{{ order().so_number }}</div>
+    <div><strong>Customer</strong>{{ order().customer_name }}</div>
+    <div><strong>Printed</strong>{{ printedAt | date: 'medium' }}</div>
+    @if (order().warehouse_name) {
+      <div><strong>Warehouse</strong>{{ order().warehouse_name }}</div>
+    }
+    @if (order().delivery_date) {
+      <div><strong>Delivery Date</strong>{{ order().delivery_date }}</div>
+    }
+    @if (order().delivery_address || order().requested_delivery_location) {
+      <div style="grid-column: 1 / -1">
+        <strong>Delivery</strong>{{ order().requested_delivery_location || order().delivery_address }}
+      </div>
+    }
+    @if (kind() === 'handover' && order().dispatch_assignment; as a) {
+      @if (a.driver_name) {
+        <div><strong>Driver</strong>{{ a.driver_name }}</div>
+      }
+      @if (a.vehicle_registration) {
+        <div><strong>Vehicle</strong>{{ a.vehicle_registration }}</div>
+      }
+      @if (a.transport_company) {
+        <div><strong>Carrier</strong>{{ a.transport_company }}</div>
+      }
+    }
+  </div>
+
+  @if (kind() === 'stock' && stockCheck(); as check) {
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Ordered</th>
+          <th>On Hand (System)</th>
+          <th>Available</th>
+          <th>Shortfall</th>
+          <th>Physical Count</th>
+          <th>Damage / Variance Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of check.lines; track line.item_id) {
+          <tr>
+            <td>{{ line.item_code }} — {{ line.item_name }}</td>
+            <td>{{ line.quantity_ordered }}</td>
+            <td>{{ line.quantity_on_hand }}</td>
+            <td>{{ line.quantity_available }}</td>
+            <td>{{ line.shortfall }}</td>
+            <td style="min-width: 80px">&nbsp;</td>
+            <td style="min-width: 120px">&nbsp;</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <p class="text-sm" style="margin-top: 8px">
+      Warehouse: {{ check.warehouse_name }} · Record physical counts before verifying in the system.
+      If physical stock differs from on-hand, note variance — do not ask Sales to reduce the order quantity.
+    </p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty Ordered</th>
+          <th>Qty Reserved</th>
+          <th>Stock Outstanding</th>
+          <th>Physical Qty</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (line of order().items; track line.id) {
+          <tr>
+            <td>{{ line.item_code }} — {{ line.item_name }}</td>
+            <td>{{ line.quantity_ordered }}</td>
+            <td>{{ line.quantity_reserved ?? 0 }}</td>
+            <td>{{ line.stock_outstanding_qty ?? 0 }}</td>
+            <td style="min-width: 80px">&nbsp;</td>
+            <td style="min-width: 120px">&nbsp;</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <div style="margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; font-size: 12px">
+    <div>
+      <strong>Inventory Officer</strong>
+      <div style="border-bottom: 1px solid #333; margin-top: 28px">&nbsp;</div>
+      <div style="margin-top: 4px">Name &amp; Signature · Date</div>
+    </div>
+    <div>
+      @if (kind() === 'pickup') {
+        <strong>Customer / Receiver</strong>
+      } @else if (kind() === 'handover') {
+        <strong>Driver / Carrier Representative</strong>
+      } @else {
+        <strong>Verified By</strong>
+      }
+      <div style="border-bottom: 1px solid #333; margin-top: 28px">&nbsp;</div>
+      <div style="margin-top: 4px">Name &amp; Signature · Date</div>
+    </div>
+  </div>
+</div>

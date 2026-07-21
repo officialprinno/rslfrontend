@@ -3,8 +3,8 @@
 
   <div class="login-card__body">
     <div class="lg:hidden flex items-center justify-center gap-3 mb-8">
-      <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-base font-bold bg-[#F0A500] text-[#1B3A6B] shadow-lg">
-        RSL
+      <div class="h-12 rounded-2xl flex items-center justify-center bg-white px-2.5 shadow-lg">
+        <img src="logo.png" alt="Rock Solutions" class="h-7 w-auto object-contain" />
       </div>
       <div>
         <p class="font-bold text-[#1B3A6B] text-sm">{{ 'auth.company_name' | translate }}</p>
@@ -44,6 +44,12 @@
       </div>
     }
 
+    @if (showCompanySelector()) {
+      <app-company-selector
+        [companies]="pendingCompanies()"
+        (selected)="onCompanySelected()"
+      />
+    } @else {
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-5" novalidate>
       <div>
         <label for="email" class="input-label">{{ 'auth.work_email' | translate }}</label>
@@ -139,6 +145,7 @@
         }
       </button>
     </form>
+    }
 
     <div class="login-divider">
       <span>{{ 'common.authorized_only' | translate }}</span>

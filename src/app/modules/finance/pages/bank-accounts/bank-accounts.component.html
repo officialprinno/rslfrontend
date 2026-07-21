@@ -10,12 +10,7 @@
     <app-table-skeleton [cols]="3" />
   } @else if (!accounts().length) {
     <div class="card">
-      <app-empty-state
-        title="No bank accounts"
-        message="Register bank accounts to track cash balances and reconciliation."
-        [actionLabel]="canManage() ? 'Add Bank Account' : ''"
-        (actionClick)="openAdd()"
-      />
+      <app-empty-state moduleName="Bank Accounts" [actionLabel]="canManage() ? 'Add Bank Account' : ''" (actionClick)="openAdd()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

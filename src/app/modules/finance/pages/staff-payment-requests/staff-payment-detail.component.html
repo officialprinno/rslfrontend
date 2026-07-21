@@ -1,0 +1,153 @@
+<div class="page-container">
+  @if (!employeePortal()) {
+    <app-finance-nav />
+    <app-staff-payment-subnav />
+  }
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="4" />
+  } @else if (request(); as r) {
+    <app-page-header
+      [title]="r.request_number"
+      [subtitle]="r.request_type_display + ' — ' + r.overall_status_display"
+    >
+      <a [routerLink]="listPath()" class="btn-secondary">Back to list</a>
+    </app-page-header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-4">
+      <div class="card p-5 space-y-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <app-status-badge [status]="r.overall_status" />
+          @if (r.requires_escalation) {
+            <span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800">GM escalation</span>
+          }
+        </div>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div><dt class="text-gray-500">Requester</dt><dd class="font-medium">{{ r.requested_by_name }}</dd></div>
+          <div><dt class="text-gray-500">Department</dt><dd>{{ r.department_name }}</dd></div>
+          <div><dt class="text-gray-500">Category</dt><dd>{{ r.category_detail?.name ?? '—' }}</dd></div>
+          <div><dt class="text-gray-500">Amount</dt><dd class="font-semibold">{{ formatCurrency(r.amount, r.currency_code) }}</dd></div>
+          <div><dt class="text-gray-500">Activity date</dt><dd>{{ formatDate(r.activity_date) }}</dd></div>
+          <div><dt class="text-gray-500">Payment method</dt><dd>{{ r.payment_method_display }}</dd></div>
+          @if (r.bank_account_details) {
+            <div class="sm:col-span-2"><dt class="text-gray-500">Bank details</dt><dd>{{ r.bank_account_details }}</dd></div>
+          }
+          <div class="sm:col-span-2"><dt class="text-gray-500">Purpose</dt><dd>{{ r.purpose }}</dd></div>
+          @if (r.routing_notes) {
+            <div class="sm:col-span-2"><dt class="text-gray-500">Routing</dt><dd class="text-gray-700">{{ r.routing_notes }}</dd></div>
+          }
+          @if (r.escalation_reason) {
+            <div class="sm:col-span-2"><dt class="text-gray-500">Escalation</dt><dd class="text-amber-800">{{ r.escalation_reason }}</dd></div>
+          }
+        </dl>
+      </div>
+
+      @if (submissionAttachments().length) {
+        <div class="card p-5">
+          <h3 class="font-semibold mb-3">Submission attachments</h3>
+          <ul class="space-y-2">
+            @for (a of submissionAttachments(); track a.id) {
+              <li><app-open-file [fileUrl]="a.file_url ?? a.file">{{ a.file_type }}</app-open-file></li>
+            }
+          </ul>
+        </div>
+      }
+
+      @if (liquidationAttachments().length) {
+        <div class="card p-5">
+          <h3 class="font-semibold mb-3">Liquidation attachments</h3>
+          <ul class="space-y-2">
+            @for (a of liquidationAttachments(); track a.id) {
+              <li><app-open-file [fileUrl]="a.file_url ?? a.file">{{ a.file_type }}</app-open-file></li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+
+    <div class="space-y-4">
+      <div class="card p-5 text-sm space-y-2">
+        <h3 class="font-semibold">Workflow</h3>
+        <p>HOD: {{ r.hod_approval_status }}</p>
+        <p>GM: {{ r.gm_approval_status }}</p>
+        <p>Finance: {{ r.finance_approval_status }}</p>
+        @if (r.gl_account_code) {
+          <p>GL: {{ r.gl_account_code }} — {{ r.gl_account_name }}</p>
+        }
+        @if (r.journal_entry_number) {
+          <p>Payment JE: {{ r.journal_entry_number }}</p>
+        }
+        @if (r.liquidation_deadline) {
+          <p>Liquidation due: {{ formatDate(r.liquidation_deadline) }}</p>
+        }
+        @if (r.liquidation_journal_entry_number) {
+          <p>Liquidation JE: {{ r.liquidation_journal_entry_number }}</p>
+        }
+      </div>
+
+      @if (canHod(r)) {
+        <div class="card p-5 space-y-3">
+          <h3 class="font-semibold">HOD action</h3>
+          <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="hodApprove()">Approve</button>
+          <textarea class="input-field w-full" rows="2" placeholder="Rejection reason" [(ngModel)]="rejectReason"></textarea>
+          <button type="button" class="btn-danger w-full" [disabled]="saving()" (click)="hodReject()">Reject</button>
+        </div>
+      }
+
+      @if (canGm(r)) {
+        <div class="card p-5 space-y-3">
+          <h3 class="font-semibold">GM action</h3>
+          <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="gmApprove()">Approve</button>
+          <textarea class="input-field w-full" rows="2" placeholder="Rejection reason" [(ngModel)]="rejectReason"></textarea>
+          <button type="button" class="btn-danger w-full" [disabled]="saving()" (click)="gmReject()">Reject</button>
+        </div>
+      }
+
+      @if (canFinance(r)) {
+        <div class="card p-5 space-y-3">
+          <h3 class="font-semibold">Finance approval</h3>
+          <label class="form-label">Expense GL account</label>
+          <app-searchable-select
+            [options]="expenseAccounts()"
+            placeholder="Select expense account"
+            (valueChange)="onGlAccountSelected($event)"
+          />
+          <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="financeApprove()">Approve</button>
+          <textarea class="input-field w-full" rows="2" placeholder="Rejection reason" [(ngModel)]="rejectReason"></textarea>
+          <button type="button" class="btn-danger w-full" [disabled]="saving()" (click)="financeReject()">Reject</button>
+        </div>
+      }
+
+      @if (canPay(r)) {
+        <div class="card p-5 space-y-3">
+          <h3 class="font-semibold">Disburse payment</h3>
+          <input class="input-field w-full" placeholder="Payment reference (optional)" [(ngModel)]="paymentReference" />
+          <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="markPaid()">Mark Paid</button>
+        </div>
+      }
+
+      @if (canLiquidate(r)) {
+        <div class="card p-5 space-y-3">
+          <h3 class="font-semibold">Submit liquidation</h3>
+          <textarea class="input-field w-full" rows="2" placeholder="Notes" [(ngModel)]="liquidationNotes"></textarea>
+          <input type="file" class="input-field w-full" multiple accept="image/*,.pdf" (change)="onLiquidationFiles($event)" />
+          <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="submitLiquidation()">Submit</button>
+        </div>
+      }
+
+      @if (canReviewLiquidation(r)) {
+        <div class="card p-5 space-y-3">
+          <h3 class="font-semibold">Review liquidation</h3>
+          @if (r.liquidation_notes) {
+            <p class="text-sm text-gray-600">{{ r.liquidation_notes }}</p>
+          }
+          <button type="button" class="btn-primary w-full" [disabled]="saving()" (click)="approveLiquidation()">Approve</button>
+          <textarea class="input-field w-full" rows="2" placeholder="Rejection reason" [(ngModel)]="rejectReason"></textarea>
+          <button type="button" class="btn-danger w-full" [disabled]="saving()" (click)="rejectLiquidation()">Reject</button>
+        </div>
+      }
+    </div>
+  </div>
+  }
+</div>

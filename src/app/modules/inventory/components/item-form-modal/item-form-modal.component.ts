@@ -17,7 +17,7 @@ import { InventoryService } from '../../../../core/services/inventory.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { extractFieldErrors } from '../../../../core/utils/api.util';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
-import { generateItemCode, ITEM_TYPES, ITEM_TYPE_LABELS, ITEM_USAGE_OPTIONS, UNITS_OF_MEASURE } from '../../constants/inventory.constants';
+import { generateItemCode, DIMENSION_UNITS, ITEM_TYPES, ITEM_TYPE_LABELS, ITEM_USAGE_OPTIONS, UNITS_OF_MEASURE, WEIGHT_UNITS } from '../../constants/inventory.constants';
 
 @Component({
   selector: 'app-item-form-modal',
@@ -46,6 +46,8 @@ export class ItemFormModalComponent {
   readonly itemTypes = ITEM_TYPES;
   readonly itemUsageOptions = ITEM_USAGE_OPTIONS;
   readonly units = UNITS_OF_MEASURE;
+  readonly dimensionUnits = DIMENSION_UNITS;
+  readonly weightUnits = WEIGHT_UNITS;
   readonly itemTypeLabel = (t: ItemFormData['item_type']) => ITEM_TYPE_LABELS[t];
 
   readonly form = this.fb.nonNullable.group({
@@ -61,7 +63,14 @@ export class ItemFormModalComponent {
     reorder_level: [0, [Validators.required, Validators.min(0)]],
     currency: [null as number | null, Validators.required],
     unit_cost: [0, [Validators.required, Validators.min(0)]],
-    selling_price: [0, [Validators.required, Validators.min(0)]],
+    length: [null as number | null, [Validators.min(0)]],
+    width: [null as number | null, [Validators.min(0)]],
+    height: [null as number | null, [Validators.min(0)]],
+    thickness: [null as number | null, [Validators.min(0)]],
+    diameter: [null as number | null, [Validators.min(0)]],
+    dimension_unit: ['m'],
+    weight_per_unit: [null as number | null, [Validators.min(0)]],
+    weight_unit: ['Kg'],
     is_active: [true],
   });
 
@@ -112,7 +121,14 @@ export class ItemFormModalComponent {
         reorder_level: editing.reorder_level,
         currency: editing.currency,
         unit_cost: editing.unit_cost,
-        selling_price: editing.selling_price,
+        length: editing.length ?? null,
+        width: editing.width ?? null,
+        height: editing.height ?? null,
+        thickness: editing.thickness ?? null,
+        diameter: editing.diameter ?? null,
+        dimension_unit: editing.dimension_unit || 'm',
+        weight_per_unit: editing.weight_per_unit ?? null,
+        weight_unit: editing.weight_unit || 'Kg',
         is_active: editing.is_active,
       });
     } else {
@@ -129,7 +145,14 @@ export class ItemFormModalComponent {
         reorder_level: 0,
         currency: null,
         unit_cost: 0,
-        selling_price: 0,
+        length: null,
+        width: null,
+        height: null,
+        thickness: null,
+        diameter: null,
+        dimension_unit: 'm',
+        weight_per_unit: null,
+        weight_unit: 'Kg',
         is_active: true,
       });
     }
@@ -152,13 +175,22 @@ export class ItemFormModalComponent {
     this.loading.set(true);
     this.fieldErrors.set({});
     const raw = this.form.getRawValue();
+    const optionalNum = (v: number | null | undefined) =>
+      v === null || v === undefined || v === ('' as unknown as number) ? null : Number(v);
     const data: ItemFormData = {
       ...raw,
       category: Number(raw.category),
       currency: Number(raw.currency),
       reorder_level: Number(raw.reorder_level),
       unit_cost: Number(raw.unit_cost),
-      selling_price: Number(raw.selling_price),
+      length: optionalNum(raw.length),
+      width: optionalNum(raw.width),
+      height: optionalNum(raw.height),
+      thickness: optionalNum(raw.thickness),
+      diameter: optionalNum(raw.diameter),
+      dimension_unit: raw.dimension_unit || 'm',
+      weight_per_unit: optionalNum(raw.weight_per_unit),
+      weight_unit: raw.weight_unit || 'Kg',
     };
     const editing = this.item();
     const request$ = editing

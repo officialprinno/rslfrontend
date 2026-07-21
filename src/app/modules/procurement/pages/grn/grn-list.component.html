@@ -4,9 +4,13 @@
     @if (canAdd()) { <a routerLink="/procurement/grn/new" class="btn-primary">New GRN</a> }
   </app-page-header>
 
+  <p class="text-sm text-gray-600 mb-4">
+    GRNs created by Inventory/Store are listed here. Match them to supplier invoices on the PO page (three-way match) — do not create a duplicate GRN.
+  </p>
+
   @if (loading()) { <app-table-skeleton [cols]="8" /> }
   @else if (!grns().length) {
-    <div class="card"><app-empty-state title="No GRNs" message="Record goods received against purchase orders." actionLabel="New GRN" (actionClick)="null" /></div>
+    <div class="card"><app-empty-state moduleName="GRNs" actionLabel="New GRN" (actionClick)="null" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
       <table class="w-full">

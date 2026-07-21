@@ -48,6 +48,29 @@ export function canApproveLeave(auth: AuthService): boolean {
   );
 }
 
+export function isGmUser(auth: AuthService): boolean {
+  return auth.hasRole(ROLES.SUPER_ADMIN) || auth.hasRole(ROLES.GENERAL_MANAGER);
+}
+
+export function canApproveLeaveRequest(
+  auth: AuthService,
+  req: { status: string; approval_route?: string },
+): boolean {
+  if (req.status !== 'PENDING') return false;
+  if (req.approval_route === 'GM') {
+    return isGmUser(auth);
+  }
+  return (
+    auth.hasRole(ROLES.SUPER_ADMIN) ||
+    auth.hasRole(ROLES.HR_OFFICER) ||
+    auth.hasPermission('hr', 'approve')
+  );
+}
+
+export function isHodLeaveRecord(req: { approval_route?: string }): boolean {
+  return req.approval_route === 'GM';
+}
+
 export function canApplyLeave(auth: AuthService): boolean {
   return canViewHr(auth) || auth.isAuthenticated();
 }

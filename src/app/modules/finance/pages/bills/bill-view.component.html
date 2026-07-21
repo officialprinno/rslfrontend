@@ -1,0 +1,150 @@
+<div class="page-container">
+  <app-finance-nav />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (notInWorkspace()) {
+    <div class="card">
+      <app-company-workspace-empty-state moduleName="Bills" backLink="/finance/bills" />
+    </div>
+  } @else if (error()) {
+    <app-error-state title="Unable to load bill" (retry)="load()" />
+  } @else if (bill(); as b) {
+    <app-page-header [title]="b.bill_number" [subtitle]="b.vendor_name">
+      <div class="flex gap-2">
+        <a routerLink="/finance/bills" class="btn-secondary">Back</a>
+        @if (b.status === 'DRAFT') {
+          <a [routerLink]="['/finance/bills', b.id, 'edit']" class="btn-secondary">Edit</a>
+          <button type="button" class="btn-primary" [disabled]="saving()" (click)="openBill()">Convert to Open</button>
+        }
+        @if (b.status === 'OPEN' || b.status === 'PARTIAL') {
+          <button type="button" class="btn-primary" (click)="showPayment.set(true)">Record Payment</button>
+        }
+      </div>
+    </app-page-header>
+
+    <div class="card p-6 mb-6">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
+        <div><span class="text-gray-500 block text-xs">Status</span><app-status-badge [status]="b.status" /></div>
+        <div><span class="text-gray-500 block text-xs">Vendor Bill #</span><p class="font-medium">{{ b.vendor_bill_number || '—' }}</p></div>
+        <div><span class="text-gray-500 block text-xs">Bill Date</span><p>{{ formatDate(b.bill_date) }}</p></div>
+        <div><span class="text-gray-500 block text-xs">Due Date</span><p>{{ formatDate(b.due_date) }}</p></div>
+        <div><span class="text-gray-500 block text-xs">Order #</span><p>{{ b.order_number || '—' }}</p></div>
+        <div><span class="text-gray-500 block text-xs">Payment Terms</span><p>{{ b.payment_terms }}</p></div>
+        @if (b.subject) {
+          <div class="md:col-span-2"><span class="text-gray-500 block text-xs">Subject</span><p>{{ b.subject }}</p></div>
+        }
+      </div>
+
+      <table class="w-full text-sm mb-4">
+        <thead>
+          <tr>
+            <th class="table-th">Item</th>
+            <th class="table-th">Account</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th text-right">Qty</th>
+            <th class="table-th text-right">Rate</th>
+            <th class="table-th text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (line of b.lines; track line.id) {
+            <tr class="table-row">
+              <td class="table-td">{{ line.description }}</td>
+              <td class="table-td text-xs">{{ line.account_code }} — {{ line.account_name }}</td>
+              <td class="table-td">{{ line.customer_name || '—' }}</td>
+              <td class="table-td text-right tabular-nums">{{ line.quantity }}</td>
+              <td class="table-td text-right tabular-nums">{{ formatCurrency(line.rate, b.currency_code) }}</td>
+              <td class="table-td text-right font-medium">{{ formatCurrency(line.amount, b.currency_code) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <div class="text-right text-sm space-y-1 max-w-xs ml-auto">
+        <p>Subtotal: {{ formatCurrency(b.subtotal, b.currency_code) }}</p>
+        @if (+b.discount_amount > 0) { <p>Discount: −{{ formatCurrency(b.discount_amount, b.currency_code) }}</p> }
+        @if (+b.tax_amount > 0) { <p>Tax: {{ formatCurrency(b.tax_amount, b.currency_code) }}</p> }
+        <p class="text-lg font-bold">Total: {{ formatCurrency(b.total_amount, b.currency_code) }}</p>
+        <p class="text-green-700">Paid: {{ formatCurrency(b.amount_paid, b.currency_code) }}</p>
+        <p class="text-amber-700 font-semibold">Balance Due: {{ formatCurrency(b.balance_due, b.currency_code) }}</p>
+      </div>
+
+      @if (b.payment_proof_url) {
+        <div class="mt-4 pt-4 border-t flex items-center gap-3">
+          <span class="text-xs font-semibold uppercase text-gray-500">Payment Proof</span>
+          <app-open-file
+            [fileUrl]="b.payment_proof_url"
+            [fileName]="b.payment_proof_name || 'Payment proof'"
+            buttonClass="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100"
+          >
+            📄 {{ b.payment_proof_name || 'View document' }}
+          </app-open-file>
+        </div>
+      }
+
+      @if (b.notes) {
+        <p class="mt-4 pt-4 border-t text-sm text-gray-600"><span class="text-gray-500">Notes:</span> {{ b.notes }}</p>
+      }
+    </div>
+
+    @if (b.payments.length) {
+      <div class="card p-6">
+        <h4 class="font-semibold text-[#1B3A6B] mb-4">Payments</h4>
+        <table class="w-full text-sm">
+          <thead>
+            <tr>
+              <th class="table-th">Date</th>
+              <th class="table-th">Amount</th>
+              <th class="table-th">Method</th>
+              <th class="table-th">Reference</th>
+              <th class="table-th">Recorded By</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of b.payments; track p.id) {
+              <tr class="table-row">
+                <td class="table-td">{{ formatDate(p.payment_date) }}</td>
+                <td class="table-td font-medium">{{ formatCurrency(p.amount, b.currency_code) }}</td>
+                <td class="table-td">{{ p.payment_method }}</td>
+                <td class="table-td">{{ p.reference || '—' }}</td>
+                <td class="table-td">{{ p.recorded_by_name || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+
+<app-modal [open]="showPayment()" title="Record Payment" (close)="showPayment.set(false)">
+  <div class="space-y-4">
+    <div>
+      <label class="input-label">Amount *</label>
+      <input type="number" class="input-field" [(ngModel)]="paymentForm.amount" min="0.01" step="0.01" />
+    </div>
+    <div>
+      <label class="input-label">Payment Date *</label>
+      <input type="date" class="input-field" [(ngModel)]="paymentForm.payment_date" />
+    </div>
+    <div>
+      <label class="input-label">Method</label>
+      <select class="input-field" [(ngModel)]="paymentForm.payment_method">
+        @for (m of paymentMethods; track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+      </select>
+    </div>
+    <div>
+      <label class="input-label">Reference</label>
+      <input class="input-field" [(ngModel)]="paymentForm.reference" />
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <textarea class="input-field resize-none" rows="2" [(ngModel)]="paymentForm.notes"></textarea>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showPayment.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="submitPayment()">Record Payment</button>
+  </div>
+</app-modal>

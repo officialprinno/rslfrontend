@@ -28,6 +28,14 @@ export const SALES_ROUTES: Routes = [
       import('./pages/customers/customer-detail.component').then((m) => m.CustomerDetailComponent),
   },
   {
+    path: 'customer-prices',
+    ...salesGuard,
+    loadComponent: () =>
+      import('./pages/customer-prices/customer-prices.component').then(
+        (m) => m.CustomerPricesComponent,
+      ),
+  },
+  {
     path: 'quotations',
     ...salesGuard,
     loadComponent: () =>
@@ -50,6 +58,14 @@ export const SALES_ROUTES: Routes = [
     ...salesGuard,
     loadComponent: () =>
       import('./pages/quotations/quotation-view.component').then((m) => m.QuotationViewComponent),
+  },
+  {
+    path: 'orders/outstanding',
+    ...salesGuard,
+    loadComponent: () =>
+      import('./pages/orders/outstanding-orders.component').then(
+        (m) => m.OutstandingOrdersComponent,
+      ),
   },
   {
     path: 'orders',
@@ -111,6 +127,22 @@ export const SALES_ROUTES: Routes = [
     loadComponent: () =>
       import('./pages/credit-notes/credit-notes-list.component').then(
         (m) => m.CreditNotesListComponent,
+      ),
+  },
+  {
+    path: 'credit-notes/new',
+    ...salesGuard,
+    loadComponent: () =>
+      import('./pages/credit-notes/credit-note-form.component').then(
+        (m) => m.CreditNoteFormComponent,
+      ),
+  },
+  {
+    path: 'credit-notes/:id/view',
+    ...salesGuard,
+    loadComponent: () =>
+      import('./pages/credit-notes/credit-note-view.component').then(
+        (m) => m.CreditNoteViewComponent,
       ),
   },
 ];

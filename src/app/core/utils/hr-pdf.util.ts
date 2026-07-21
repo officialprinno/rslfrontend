@@ -8,21 +8,24 @@ import {
   maskBankAccount,
 } from '../../modules/hr/constants/hr.constants';
 import { formatDate } from './format.util';
+import { drawPdfHeaderLogo, drawPdfWatermark } from './brand.util';
 
 const BRAND_RGB: [number, number, number] = [27, 58, 107];
 const MARGIN = 14;
+const HEADER_TEXT_X = MARGIN + 38;
 
 function addHeader(doc: jsPDF, title: string, subtitle: string): number {
   doc.setFillColor(...BRAND_RGB);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 36, 'F');
+  drawPdfHeaderLogo(doc, MARGIN, 7, 34, 22);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text(COMPANY_DETAILS.name, MARGIN, 12);
+  doc.text(COMPANY_DETAILS.name, HEADER_TEXT_X, 12);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`TIN: ${COMPANY_DETAILS.tin} | VRN: ${COMPANY_DETAILS.vat}`, MARGIN, 18);
-  doc.text(COMPANY_DETAILS.address, MARGIN, 23);
+  doc.text(`TIN: ${COMPANY_DETAILS.tin} | VRN: ${COMPANY_DETAILS.vat}`, HEADER_TEXT_X, 18);
+  doc.text(COMPANY_DETAILS.address, HEADER_TEXT_X, 23);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(title, doc.internal.pageSize.getWidth() - MARGIN, 12, { align: 'right' });
@@ -159,6 +162,7 @@ export function exportPayslipPdf(payslip: Payslip): void {
     y,
   );
 
+  drawPdfWatermark(doc);
   addFooter(doc);
 
   const periodSlug = payslip.period_display.replace(/\s+/g, '-').toLowerCase();

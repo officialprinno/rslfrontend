@@ -1,0 +1,370 @@
+<div class="page-container">
+  <app-finance-nav />
+
+  <app-page-header
+    [title]="editId() ? 'Edit Recurring Bill' : 'New Recurring Bill'"
+    subtitle="Automate vendor bills — set the template once, generate on schedule"
+  >
+    <a routerLink="/finance/recurring-bills" class="btn-secondary">← Back to Recurring Bills</a>
+  </app-page-header>
+
+  @if (loading() || !referenceDataLoaded()) {
+    <div class="card p-12 text-center text-gray-500">
+      {{ loading() ? 'Loading profile…' : 'Loading chart of accounts…' }}
+    </div>
+  } @else {
+    <!-- Profile identity -->
+    <section class="card overflow-hidden mb-6">
+      <div class="px-6 py-4 bg-gradient-to-r from-[#1B3A6B] to-[#2a5298] text-white">
+        <h2 class="text-lg font-semibold">Recurring Profile</h2>
+        <p class="text-sm text-blue-100 mt-0.5">Name this profile and link the vendor</p>
+      </div>
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div class="xl:col-span-2">
+          <label class="input-label">Profile Name <span class="text-red-500">*</span></label>
+          <input
+            class="input-field"
+            [(ngModel)]="form.name"
+            (ngModelChange)="bumpForm()"
+            placeholder="e.g. Monthly office rent — Landlord Ltd"
+          />
+        </div>
+        <div>
+          <label class="input-label">Vendor <span class="text-red-500">*</span></label>
+          <div class="flex gap-2">
+            <app-searchable-select
+              class="flex-1"
+              placeholder="Select or search vendor"
+              [options]="vendorOptions()"
+              [value]="form.vendor || null"
+              (valueChange)="form.vendor = +$event!"
+            />
+            <button
+              type="button"
+              class="shrink-0 px-3 py-2 text-sm font-medium rounded-lg border border-[#1B3A6B] text-[#1B3A6B] bg-white hover:bg-blue-50 transition-colors"
+              (click)="showVendorModal.set(true)"
+            >
+              + New
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="input-label">Vendor Bill #</label>
+          <input class="input-field" [(ngModel)]="form.vendor_bill_number" placeholder="Reference on supplier invoice" />
+        </div>
+        <div>
+          <label class="input-label">Order Number</label>
+          <input class="input-field" [(ngModel)]="form.order_number" placeholder="PO / contract reference" />
+        </div>
+        <div class="md:col-span-2 xl:col-span-3">
+          <label class="input-label">Subject</label>
+          <input class="input-field" [(ngModel)]="form.subject" maxlength="250" placeholder="Brief description shown on generated bills" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Schedule -->
+    <section class="card overflow-hidden mb-6">
+      <div class="px-6 py-4 bg-slate-800 text-white flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Recurrence Schedule</h2>
+          <p class="text-sm text-slate-300 mt-0.5">When bills should be auto-generated</p>
+        </div>
+        <span class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-medium text-white">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          Active on save
+        </span>
+      </div>
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
+        <div>
+          <label class="input-label">Frequency <span class="text-red-500">*</span></label>
+          <select class="input-field" [(ngModel)]="form.frequency" (ngModelChange)="bumpForm()">
+            @for (f of frequencies; track f.value) {
+              <option [value]="f.value">{{ f.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Start Date <span class="text-red-500">*</span></label>
+          <input type="date" class="input-field" [(ngModel)]="form.start_date" (ngModelChange)="bumpForm()" />
+        </div>
+        <div>
+          <label class="input-label">End Date</label>
+          <input type="date" class="input-field" [(ngModel)]="form.end_date" (ngModelChange)="bumpForm()" />
+          <p class="text-xs text-gray-400 mt-1">Leave blank for no end date</p>
+        </div>
+        @if (form.frequency === 'MONTHLY') {
+          <div>
+            <label class="input-label">Day of Month</label>
+            <input
+              type="number"
+              class="input-field"
+              [(ngModel)]="form.day_of_month"
+              (ngModelChange)="bumpForm()"
+              min="1"
+              max="28"
+              placeholder="1–28"
+            />
+          </div>
+        }
+        <div class="md:col-span-2 xl:col-span-4">
+          <div class="flex flex-wrap items-center gap-6 p-4 rounded-xl bg-slate-50 border border-slate-100">
+            <label class="flex items-center gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                [(ngModel)]="form.auto_open"
+                (ngModelChange)="bumpForm()"
+                class="w-4 h-4 rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              />
+              <span class="text-sm font-medium text-gray-800">Auto-open generated bills</span>
+            </label>
+            <p class="text-sm text-gray-600 flex-1 min-w-[200px]">
+              {{ scheduleSummary() }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bill defaults -->
+    <section class="card overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <h2 class="text-lg font-semibold text-[#1B3A6B]">Bill Defaults</h2>
+        <p class="text-sm text-gray-500">Applied to every bill this profile generates</p>
+      </div>
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div>
+          <label class="input-label">Payment Terms</label>
+          <select class="input-field" [(ngModel)]="form.payment_terms">
+            @for (t of paymentTerms; track t.value) {
+              <option [value]="t.value">{{ t.label }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="input-label">Accounts Payable <span class="text-red-500">*</span></label>
+          <app-searchable-select
+            placeholder="Search by account name or code"
+            [categoryGroups]="apAccountGroups()"
+            [dropdownMaxHeight]="'18rem'"
+            [value]="form.accounts_payable"
+            (valueChange)="form.accounts_payable = $event ? +$event : null"
+          />
+          <p class="text-xs text-gray-400 mt-1">Applied to every bill generated from this profile.</p>
+        </div>
+        <div>
+          <label class="input-label">Currency</label>
+          <select class="input-field" [(ngModel)]="form.currency">
+            @for (c of currencies(); track c.id) {
+              <option [ngValue]="c.id">{{ c.code }} — {{ c.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tax -->
+    <section class="card p-4 mb-6 flex flex-wrap items-center gap-3 bg-slate-50 border-slate-200">
+      <span class="text-xs font-semibold uppercase tracking-wide text-gray-500 mr-1">Tax</span>
+      <select class="input-field !w-auto !py-1.5 !text-sm" [(ngModel)]="form.tax_treatment" (ngModelChange)="bumpForm()">
+        @for (t of taxTreatments; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+      </select>
+      <select class="input-field !w-auto !py-1.5 !text-sm" [(ngModel)]="form.tax_level" (ngModelChange)="bumpForm()">
+        @for (t of taxLevels; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
+      </select>
+      @if (form.tax_level === 'TRANSACTION') {
+        <app-searchable-select
+          class="min-w-[220px]"
+          placeholder="Transaction tax"
+          [options]="taxOptions()"
+          [value]="form.transaction_tax ?? null"
+          (valueChange)="form.transaction_tax = $event ? +$event : null; bumpForm()"
+        />
+      }
+    </section>
+
+    <!-- Line items -->
+    <section class="card overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-[#1B3A6B]">Line Items</h2>
+          <p class="text-sm text-gray-500">Template copied to each generated bill</p>
+        </div>
+        <button type="button" class="btn-secondary !text-sm" (click)="addLine()">+ Add Row</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <th class="px-4 py-3 font-semibold min-w-[180px]">Item Details</th>
+              <th class="px-4 py-3 font-semibold min-w-[160px]">Account</th>
+              <th class="px-4 py-3 font-semibold w-24 text-center">Qty</th>
+              <th class="px-4 py-3 font-semibold w-28 text-right">Rate</th>
+              <th class="px-4 py-3 font-semibold min-w-[150px]">Customer</th>
+              <th class="px-4 py-3 font-semibold w-28 text-right">Amount</th>
+              <th class="px-4 py-3 w-8"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            @for (line of form.lines; track $index; let i = $index) {
+              <tr class="hover:bg-slate-50/50 transition-colors">
+                <td class="px-4 py-2">
+                  <input class="input-field !text-sm !border-gray-200" [(ngModel)]="line.description" placeholder="Description" />
+                </td>
+                <td class="px-4 py-2">
+                  <app-searchable-select
+                    placeholder="Search account"
+                    [categoryGroups]="accountOptionGroups()"
+                    [dropdownMaxHeight]="'16rem'"
+                    [value]="lineHasValidAccount(line) ? line.account : null"
+                    (valueChange)="onLineAccountChange(line, $event)"
+                  />
+                </td>
+                <td class="px-4 py-2">
+                  <input
+                    type="number"
+                    class="input-field !text-sm text-center tabular-nums"
+                    [(ngModel)]="line.quantity"
+                    min="0"
+                    (ngModelChange)="bumpForm()"
+                  />
+                </td>
+                <td class="px-4 py-2">
+                  <input
+                    type="number"
+                    class="input-field !text-sm text-right tabular-nums"
+                    [(ngModel)]="line.rate"
+                    min="0"
+                    step="0.01"
+                    (ngModelChange)="bumpForm()"
+                  />
+                </td>
+                <td class="px-4 py-2">
+                  <div class="flex gap-1">
+                    <app-searchable-select
+                      class="flex-1"
+                      placeholder="Customer"
+                      [options]="customerOptions()"
+                      [value]="line.customer ?? null"
+                      (valueChange)="line.customer = $event ? +$event : null"
+                    />
+                    <button
+                      type="button"
+                      class="shrink-0 px-2 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50"
+                      (click)="openCustomerModal(i)"
+                    >
+                      +
+                    </button>
+                  </div>
+                </td>
+                <td class="px-4 py-2 text-right tabular-nums font-medium text-gray-900">
+                  {{ formatAccountingAmount(lineAmount(line), currencyCode()) }}
+                </td>
+                <td class="px-4 py-2 text-center">
+                  @if (form.lines.length > 1) {
+                    <button type="button" class="text-gray-400 hover:text-red-600 text-lg leading-none" (click)="removeLine(i)">×</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Summary + notes -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <section class="card p-6 lg:col-span-2">
+        <label class="input-label">Internal Notes</label>
+        <textarea
+          class="input-field !min-h-[100px]"
+          [(ngModel)]="form.notes"
+          placeholder="Notes for your team — not printed on the vendor bill"
+        ></textarea>
+      </section>
+      <section class="card overflow-hidden">
+        <div class="px-5 py-3 bg-[#1B3A6B] text-white">
+          <h3 class="font-semibold">Per-Bill Estimate</h3>
+          <p class="text-xs text-blue-200">{{ currencyCode() }}</p>
+        </div>
+        <div class="p-5 space-y-3 text-sm">
+          <div class="flex justify-between text-gray-600">
+            <span>Subtotal</span>
+            <span class="tabular-nums font-medium">{{ formatAccountingAmount(subtotal(), currencyCode()) }}</span>
+          </div>
+          <div class="flex justify-between text-gray-600">
+            <span>Discount / Adj.</span>
+            <span class="tabular-nums">—</span>
+          </div>
+          <div class="pt-3 border-t border-gray-200 flex justify-between items-center">
+            <span class="font-semibold text-gray-900">Estimated Total</span>
+            <span class="text-xl font-bold text-[#1B3A6B] tabular-nums">
+              {{ formatAccountingAmount(estimatedTotal(), currencyCode()) }}
+            </span>
+          </div>
+
+          <div class="pt-4 mt-2 border-t border-dashed border-gray-200">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              Payment Proof (optional)
+            </p>
+            <p class="text-xs text-gray-400 mb-3">Copied to each bill this profile generates</p>
+            @if (paymentProofUrl) {
+              <div class="flex items-center justify-between gap-2 p-3 rounded-lg bg-green-50 border border-green-100">
+                <app-open-file
+                  [fileUrl]="paymentProofUrl"
+                  [fileName]="paymentProofName || 'Payment proof'"
+                  buttonClass="text-sm text-green-800 hover:underline truncate flex-1 text-left"
+                >
+                  📄 {{ paymentProofName || 'View document' }}
+                </app-open-file>
+                <button type="button" class="text-xs text-gray-500 hover:text-red-600" (click)="clearPaymentProof()">Remove</button>
+              </div>
+            } @else if (paymentProofFile || paymentProofName) {
+              <div class="flex items-center justify-between gap-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                <app-open-file
+                  [file]="paymentProofFile"
+                  [fileName]="paymentProofFile?.name || paymentProofName || 'Payment proof'"
+                  buttonClass="text-sm text-blue-800 hover:underline truncate flex-1 text-left"
+                >
+                  ✓ {{ paymentProofFile?.name || paymentProofName }}
+                </app-open-file>
+                <button type="button" class="text-xs text-gray-500 hover:text-red-600" (click)="clearPaymentProof()">Remove</button>
+              </div>
+            } @else {
+              <label class="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-[#1B3A6B]/40 hover:bg-blue-50/30 cursor-pointer transition-colors">
+                <span class="text-xl">📤</span>
+                <span class="text-sm font-medium text-gray-700">Upload payment proof</span>
+                <span class="text-xs text-gray-400 text-center">Receipt, bank slip, or standing order confirmation</span>
+                <input type="file" class="hidden" accept=".pdf,.png,.jpg,.jpeg" (change)="onPaymentProofSelected($event)" />
+              </label>
+            }
+            @if (paymentProofUrl || paymentProofFile) {
+              <label class="mt-2 block text-center text-xs text-[#1B3A6B] cursor-pointer hover:underline">
+                Replace document
+                <input type="file" class="hidden" accept=".pdf,.png,.jpg,.jpeg" (change)="onPaymentProofSelected($event)" />
+              </label>
+            }
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="card p-4 flex flex-wrap items-center justify-end gap-3">
+      <a routerLink="/finance/recurring-bills" class="btn-secondary">Cancel</a>
+      <button type="button" class="btn-primary min-w-[160px]" [disabled]="saving()" (click)="save()">
+        {{ saving() ? 'Saving…' : (editId() ? 'Update Profile' : 'Create Profile') }}
+      </button>
+    </div>
+  }
+
+  <app-new-vendor-modal
+    [open]="showVendorModal()"
+    (created)="onVendorCreated($event.vendor)"
+    (closed)="showVendorModal.set(false)"
+  />
+  <app-new-customer-modal
+    [open]="showCustomerModal()"
+    (created)="onCustomerCreated($event.customer)"
+    (closed)="showCustomerModal.set(false); customerModalLineIndex.set(null)"
+  />
+</div>

@@ -4,7 +4,8 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { environment } from '../../environments/environments';
-import { ApiResponse, Permission, Role, User, UserCredential, UserWritePayload } from '../models/auth.models';
+import { ApiResponse, CreateUserFromEmployeePayload, Permission, Role, User, UserCredential, UserWritePayload } from '../models/auth.models';
+import { PendingEmployeeAccountsSummary, UserProvisioningPreview } from '../models/hr.model';
 import { UserOption } from '../models/inventory.model';
 import { PaginatedData } from '../models/paginated.model';
 import { buildHttpParams, unwrapApi } from '../utils/api.util';
@@ -71,6 +72,26 @@ export class UsersService {
 
   createUser(payload: UserWritePayload): Observable<User> {
     return this.http.post<ApiResponse<User>>(`${this.usersUrl}/`, payload).pipe(unwrapApi());
+  }
+
+  createUserFromEmployee(payload: CreateUserFromEmployeePayload): Observable<User> {
+    return this.http
+      .post<ApiResponse<User>>(`${this.usersUrl}/create-from-employee/`, payload)
+      .pipe(unwrapApi());
+  }
+
+  getProvisioningPreview(employeeId: number): Observable<UserProvisioningPreview> {
+    return this.http
+      .get<ApiResponse<UserProvisioningPreview>>(`${this.usersUrl}/provisioning-preview/`, {
+        params: buildHttpParams({ employee: employeeId }),
+      })
+      .pipe(unwrapApi());
+  }
+
+  getPendingEmployeeAccounts(): Observable<PendingEmployeeAccountsSummary> {
+    return this.http
+      .get<ApiResponse<PendingEmployeeAccountsSummary>>(`${this.usersUrl}/pending-employee-accounts/`)
+      .pipe(unwrapApi());
   }
 
   updateUser(id: number, payload: UserWritePayload): Observable<User> {

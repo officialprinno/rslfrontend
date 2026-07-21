@@ -74,18 +74,17 @@
     <app-table-skeleton [cols]="10" />
   } @else if (error()) {
     <app-error-state (retry)="load()" />
+  } @else if (workspaceEmpty()) {
+    <div class="card">
+      <app-empty-state moduleName="Inspections" [actionLabel]="canSchedule() ? 'Schedule Inspection' : ''" (actionClick)="openSchedule()" (companySwitched)="load()" />
+    </div>
   } @else if (!inspections().length) {
     <div class="card">
-      <app-empty-state
-        title="No inspections found"
-        message="Schedule a safety inspection or adjust your filters."
-        [actionLabel]="canSchedule() ? 'Schedule Inspection' : ''"
-        (actionClick)="openSchedule()"
-      />
+      <app-empty-state moduleName="Inspections" [actionLabel]="canSchedule() ? 'Schedule Inspection' : ''" (actionClick)="openSchedule()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>

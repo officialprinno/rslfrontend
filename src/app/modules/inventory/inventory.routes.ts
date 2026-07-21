@@ -53,10 +53,84 @@ export const INVENTORY_ROUTES: Routes = [
       ),
   },
   {
+    path: 'sales-outstanding',
+    ...inventoryGuard,
+    loadComponent: () =>
+      import('../sales/pages/orders/outstanding-orders.component').then(
+        (m) => m.OutstandingOrdersComponent,
+      ),
+    data: { module: 'inventory', action: 'read', navShell: 'inventory' },
+  },
+  {
+    path: 'sales-stock-queue',
+    canActivate: [roleGuard],
+    data: { module: 'inventory', action: 'create' },
+    loadComponent: () =>
+      import('./pages/sales-stock-queue/inventory-sales-stock-queue.component').then(
+        (m) => m.InventorySalesStockQueueComponent,
+      ),
+  },
+  {
+    path: 'sales-handover-queue',
+    canActivate: [roleGuard],
+    data: { module: 'inventory', action: 'create' },
+    loadComponent: () =>
+      import('./pages/sales-handover-queue/inventory-sales-handover-queue.component').then(
+        (m) => m.InventorySalesHandoverQueueComponent,
+      ),
+  },
+  {
+    path: 'sales-pickup-queue',
+    canActivate: [roleGuard],
+    data: { module: 'inventory', action: 'create' },
+    loadComponent: () =>
+      import('./pages/sales-pickup-queue/inventory-sales-pickup-queue.component').then(
+        (m) => m.InventorySalesPickupQueueComponent,
+      ),
+  },
+  {
     path: 'grn',
     ...inventoryGuard,
     loadComponent: () =>
       import('./pages/grn/grn-hub.component').then((m) => m.GrnHubComponent),
+  },
+  {
+    path: 'grn/new',
+    canActivate: [roleGuard],
+    data: { module: 'inventory', action: 'create' },
+    loadComponent: () =>
+      import('../procurement/pages/grn/grn-form.component').then((m) => m.GrnFormComponent),
+  },
+  {
+    path: 'grn/:id/edit',
+    canActivate: [roleGuard],
+    data: { module: 'inventory', action: 'create' },
+    loadComponent: () =>
+      import('../procurement/pages/grn/grn-form.component').then((m) => m.GrnFormComponent),
+  },
+  {
+    path: 'grn/:id/view',
+    ...inventoryGuard,
+    data: { inventoryContext: true },
+    loadComponent: () =>
+      import('../procurement/pages/grn/grn-view.component').then((m) => m.GrnViewComponent),
+  },
+  {
+    path: 'purchase-orders',
+    ...inventoryGuard,
+    loadComponent: () =>
+      import('./pages/purchase-orders/inventory-purchase-orders.component').then(
+        (m) => m.InventoryPurchaseOrdersComponent,
+      ),
+  },
+  {
+    path: 'purchase-orders/:id',
+    canActivate: [roleGuard],
+    data: { module: 'inventory', action: 'read', inventoryContext: true },
+    loadComponent: () =>
+      import('../procurement/pages/purchase-orders/po-view.component').then(
+        (m) => m.PoViewComponent,
+      ),
   },
   {
     path: 'production-receipts',
@@ -89,6 +163,22 @@ export const INVENTORY_ROUTES: Routes = [
     ...inventoryGuard,
     loadComponent: () =>
       import('./pages/adjustments/adjustments.component').then((m) => m.AdjustmentsComponent),
+  },
+  {
+    path: 'damage-reports',
+    ...inventoryGuard,
+    loadComponent: () =>
+      import('./pages/damage-reports/damage-reports.component').then(
+        (m) => m.DamageReportsComponent,
+      ),
+  },
+  {
+    path: 'order-tracking',
+    ...inventoryGuard,
+    loadComponent: () =>
+      import('./pages/order-tracking/order-tracking.component').then(
+        (m) => m.OrderTrackingComponent,
+      ),
   },
   {
     path: 'my-requests',
@@ -181,6 +271,22 @@ export const INVENTORY_ROUTES: Routes = [
   },
   {
     path: 'stock-take',
+    ...inventoryGuard,
+    loadComponent: () =>
+      import('./pages/stock-take-sessions/stock-take-sessions.component').then(
+        (m) => m.StockTakeSessionsComponent,
+      ),
+  },
+  {
+    path: 'stock-take/:id',
+    ...inventoryGuard,
+    loadComponent: () =>
+      import('./pages/stock-take-sessions/stock-take-session-detail.component').then(
+        (m) => m.StockTakeSessionDetailComponent,
+      ),
+  },
+  {
+    path: 'stock-take-legacy',
     ...inventoryGuard,
     loadComponent: () =>
       import('./pages/stock-take/stock-take.component').then((m) => m.StockTakeComponent),

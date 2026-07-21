@@ -50,3 +50,15 @@ export function canScheduleMaintenance(auth: AuthService): boolean {
 export function canRecordFuel(auth: AuthService): boolean {
   return canManageDeliveries(auth);
 }
+
+export function canManageInternalRoutes(auth: AuthService): boolean {
+  return canManageDeliveries(auth);
+}
+
+export function canFilterInternalRoutesByCompany(auth: AuthService): boolean {
+  return (
+    auth.hasRole(ROLES.SUPER_ADMIN) ||
+    auth.hasRole(ROLES.HOD_LOGISTICS) ||
+    auth.hasRole(ROLES.GENERAL_MANAGER)
+  );
+}

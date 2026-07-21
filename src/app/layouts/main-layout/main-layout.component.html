@@ -24,3 +24,41 @@
     <app-app-footer />
   </div>
 </div>
+
+<app-notifications-panel
+  [open]="notificationShell.drawerOpen()"
+  [refreshVersion]="notificationShell.refreshVersion()"
+  (close)="notificationShell.closeDrawer()"
+  (changed)="notificationShell.notifyListChanged()"
+/>
+
+@if (notificationShell.activeBroadcast(); as broadcast) {
+  <div class="modal-overlay z-110!" role="alertdialog" aria-modal="true" aria-labelledby="broadcast-reminder-title">
+    <div class="modal-container modal-size-md max-w-lg">
+      <div class="modal-header">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xl">📢</span>
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-wide text-orange-600">Unread broadcast</p>
+            <h2 id="broadcast-reminder-title" class="text-lg font-semibold text-gray-900 truncate">
+              {{ broadcast.title }}
+            </h2>
+          </div>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-body-inner">
+          <p class="whitespace-pre-wrap text-sm leading-6 text-gray-700">{{ broadcast.body }}</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="notificationShell.markBroadcastRead(broadcast)">
+          Mark read
+        </button>
+        <button type="button" class="btn-primary" (click)="notificationShell.openBroadcast(broadcast)">
+          Open
+        </button>
+      </div>
+    </div>
+  </div>
+}

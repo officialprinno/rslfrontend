@@ -1,0 +1,39 @@
+<app-modal [open]="open()" title="New Customer" size="lg" (close)="closed.emit(); reset()">
+  <p class="text-sm text-gray-500 -mt-2 mb-5">Register a customer for billable expense lines. Used when allocating costs to a client or project.</p>
+
+  <div class="space-y-5">
+    <div>
+      <label class="input-label">Display Name <span class="text-red-500">*</span></label>
+      <input class="input-field" [(ngModel)]="form.name" placeholder="Customer or project name" autofocus />
+    </div>
+
+    <div>
+      <h4 class="text-xs font-bold uppercase tracking-wider text-[#1B3A6B] mb-3 pb-2 border-b border-gray-100">Contact Details</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="input-label">Email</label>
+          <input type="email" class="input-field" [(ngModel)]="form.email" placeholder="contact@example.com" />
+        </div>
+        <div>
+          <label class="input-label">Phone</label>
+          <input class="input-field" [(ngModel)]="form.phone" placeholder="+255 7XX XXX XXX" />
+        </div>
+        <div>
+          <label class="input-label">TIN / Company ID</label>
+          <input class="input-field" [(ngModel)]="form.tin_number" />
+        </div>
+        <div class="md:col-span-2">
+          <label class="input-label">Address</label>
+          <textarea class="input-field resize-none" rows="2" [(ngModel)]="form.address"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div modalFooter class="flex gap-2 justify-end w-full">
+    <button type="button" class="btn-secondary" (click)="closed.emit(); reset()">Cancel</button>
+    <button type="button" class="btn-primary min-w-[130px]" [disabled]="saving()" (click)="submit()">
+      {{ saving() ? 'Saving…' : 'Save Customer' }}
+    </button>
+  </div>
+</app-modal>

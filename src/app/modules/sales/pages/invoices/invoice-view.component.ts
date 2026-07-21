@@ -9,17 +9,21 @@ import { ConfirmDialogService } from '../../../../core/services/confirm-dialog.s
 import { NotificationService } from '../../../../core/services/notification.service';
 import { SalesService } from '../../../../core/services/sales.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
-import { formatCurrency, formatDate } from '../../../../core/utils/format.util';
+import { downloadBlob } from '../../../../core/utils/download.util';
+import { formatCurrency, formatDate, formatDateTime } from '../../../../core/utils/format.util';
 import { exportInvoicePdf, printDocument } from '../../../../core/utils/sales-pdf.util';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
+import { QrCodeComponent } from '../../../../shared/components/qr-code/qr-code.component';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
+import { FinanceNavComponent } from '../../../finance/components/finance-nav/finance-nav.component';
 import { SalesNavComponent } from '../../components/sales-nav/sales-nav.component';
 import { WorkflowStepperComponent } from '../../components/workflow-stepper/workflow-stepper.component';
 import { COMPANY_DETAILS, PAYMENT_METHODS, WORKFLOW_STEPS } from '../../constants/sales.constants';
 import { canManageInvoice, canRecordPayment } from '../../utils/sales-permissions.util';
+import { formatExchangeRateLabel, isForeignCurrency } from '../../utils/sales-currency.util';
 
 @Component({
   selector: 'app-invoice-view',
@@ -27,8 +31,10 @@ import { canManageInvoice, canRecordPayment } from '../../utils/sales-permission
     ReactiveFormsModule,
     RouterLink,
     PageHeaderComponent,
+    FinanceNavComponent,
     SalesNavComponent,
     WorkflowStepperComponent,
+    QrCodeComponent,
     StatusBadgeComponent,
     TableSkeletonComponent,
     ErrorStateComponent,
@@ -50,14 +56,19 @@ export class InvoiceViewComponent implements OnInit {
   readonly error = signal(false);
   readonly showPayment = signal(false);
   readonly savingPayment = signal(false);
+  readonly exportingPdf = signal(false);
   readonly invoiceSteps = WORKFLOW_STEPS.invoice;
   readonly company = COMPANY_DETAILS;
   readonly paymentMethods = PAYMENT_METHODS;
 
   readonly formatCurrency = formatCurrency;
   readonly formatDate = formatDate;
+  readonly formatDateTime = formatDateTime;
+  readonly formatExchangeRateLabel = formatExchangeRateLabel;
+  readonly isForeignCurrency = isForeignCurrency;
   readonly canManage = () => canManageInvoice(this.auth);
   readonly canPay = () => canRecordPayment(this.auth);
+  readonly financeContext = signal(false);
 
   readonly paymentForm = this.fb.group({
     amount: [0, Validators.required],
@@ -69,6 +80,7 @@ export class InvoiceViewComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.financeContext.set(Boolean(this.route.snapshot.data['financeContext']));
     this.load();
   }
 
@@ -123,9 +135,13 @@ export class InvoiceViewComponent implements OnInit {
   send(): void {
     const inv = this.invoice();
     if (!inv) return;
+    if (!inv.customer_email) {
+      this.notification.error('Customer has no email on file. Update the customer master first.');
+      return;
+    }
     this.sales.sendInvoice(inv.id).subscribe({
-      next: () => {
-        this.notification.success('Invoice sent to customer');
+      next: ({ message }) => {
+        this.notification.success(message || 'Invoice emailed to customer');
         this.load();
       },
       error: (e) => this.notification.error(getApiErrorMessage(e)),
@@ -135,7 +151,8 @@ export class InvoiceViewComponent implements OnInit {
   openPayment(): void {
     const inv = this.invoice();
     if (!inv) return;
-    this.paymentForm.patchValue({ amount: Number(inv.balance) });
+    const due = Number(inv.payment_breakdown?.amount_due ?? inv.balance ?? 0);
+    this.paymentForm.patchValue({ amount: due });
     this.showPayment.set(true);
   }
 
@@ -173,6 +190,16 @@ export class InvoiceViewComponent implements OnInit {
 
   exportPdf(): void {
     const inv = this.invoice();
-    if (inv) exportInvoicePdf(inv);
+    if (!inv) return;
+    this.exportingPdf.set(true);
+    this.sales
+      .downloadInvoicePdf(inv.id)
+      .pipe(finalize(() => this.exportingPdf.set(false)))
+      .subscribe({
+        next: (blob) => downloadBlob(blob, `${inv.invoice_number}.pdf`),
+        error: () => {
+          if (inv) void exportInvoicePdf(inv);
+        },
+      });
   }
 }

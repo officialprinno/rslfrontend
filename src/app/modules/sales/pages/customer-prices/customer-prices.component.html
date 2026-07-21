@@ -1,0 +1,241 @@
+<div class="page-container">
+  <app-sales-nav />
+  <app-page-header
+    title="Customer Prices"
+    subtitle="Set a selling price per customer for each item"
+  >
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        class="btn-secondary"
+        [disabled]="exporting()"
+        (click)="downloadCsv()"
+      >
+        @if (exporting()) {
+          <span class="spinner spinner-sm"></span>
+        }
+        Download CSV
+      </button>
+      @if (canManage()) {
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="importing()"
+          (click)="onUploadClick(csvInput)"
+        >
+          @if (importing()) {
+            <span class="spinner spinner-sm"></span>
+          }
+          Upload CSV
+        </button>
+        <input
+          #csvInput
+          type="file"
+          accept=".csv,text/csv"
+          class="hidden"
+          (change)="onCsvSelected($event)"
+        />
+        <button type="button" class="btn-primary" (click)="openAdd()">Add Price</button>
+      }
+    </div>
+  </app-page-header>
+
+  <p class="mb-4 text-sm text-gray-500">
+    Select a customer, then Download CSV to get all items with approved prices.
+    Fill the <span class="font-medium text-gray-700">customer_price</span> column and Upload CSV to save.
+  </p>
+
+  @if (showImportErrors() && importErrors().length) {
+    <div class="card mb-4 border border-amber-200 bg-amber-50 p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h4 class="text-sm font-semibold text-amber-900">Some CSV rows had errors</h4>
+          <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+            @for (err of importErrors(); track err) {
+              <li>{{ err }}</li>
+            }
+          </ul>
+        </div>
+        <button type="button" class="btn-ghost !text-xs" (click)="showImportErrors.set(false)">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="card mb-4">
+    <app-list-filter-bar>
+      <div filterSearch class="flex-1 min-w-[12rem]">
+        <label class="input-label">Search</label>
+        <input
+          type="search"
+          class="input-field"
+          placeholder="Customer, item code, name..."
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event); page.set(1); load()"
+        />
+      </div>
+      <ng-container filterFields>
+        <div class="w-56">
+          <label class="input-label">Customer</label>
+          <select
+            class="input-field"
+            [ngModel]="customerFilter()"
+            (ngModelChange)="customerFilter.set($event); page.set(1); load()"
+          >
+            <option [ngValue]="null">All customers</option>
+            @for (c of customers(); track c.id) {
+              <option [ngValue]="c.id">{{ c.name }}</option>
+            }
+          </select>
+        </div>
+      </ng-container>
+    </app-list-filter-bar>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!prices().length) {
+    <div class="card">
+      <app-empty-state
+        moduleName="Customer Prices"
+        [actionLabel]="canManage() ? 'Add Price' : ''"
+        (actionClick)="openAdd()"
+        (companySwitched)="load()"
+      />
+    </div>
+  } @else {
+    <app-enterprise-data-table>
+      <thead>
+        <tr>
+          <th class="table-th table-col-lg">Customer</th>
+          <th class="table-th table-col-md">Item Code</th>
+          <th class="table-th table-col-lg">Item Name</th>
+          <th class="table-th table-col-sm">Unit</th>
+          <th class="table-th table-col-num">Customer Price</th>
+          <th class="table-th table-col-num">Approved Price</th>
+          <th class="table-th table-col-lg">Notes</th>
+          <th class="table-th table-col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of prices(); track row.id) {
+          <tr class="table-row">
+            <td class="table-td table-col-lg">
+              <app-table-cell-text [value]="row.customer_name" weight="medium" />
+            </td>
+            <td class="table-td table-col-md">
+              <app-table-cell-text [value]="row.item_code" />
+            </td>
+            <td class="table-td table-col-lg">
+              <app-table-cell-text [value]="row.item_name" />
+            </td>
+            <td class="table-td table-col-sm">
+              <app-table-cell-text [value]="row.unit_of_measure || '—'" />
+            </td>
+            <td class="table-td table-col-num font-semibold">
+              <app-table-cell-text
+                [value]="formatCurrency(row.unit_price, row.currency_code)"
+              />
+            </td>
+            <td class="table-td table-col-num text-gray-500">
+              <app-table-cell-text
+                [value]="
+                  row.approved_selling_price != null
+                    ? formatCurrency(row.approved_selling_price, row.currency_code)
+                    : '—'
+                "
+              />
+            </td>
+            <td class="table-td table-col-lg">
+              <app-table-cell-text [value]="row.notes || '—'" />
+            </td>
+            <td class="table-td table-col-actions">
+              @if (rowActions(row).length) {
+                <app-table-actions
+                  [actions]="rowActions(row)"
+                  (actionClick)="onRowAction($event, row)"
+                />
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+      <app-pagination
+        tableFooter
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+        (pageSizeChange)="pageSize.set($event); page.set(1); load()"
+      />
+    </app-enterprise-data-table>
+  }
+</div>
+
+<app-modal
+  [open]="showForm()"
+  [title]="editing() ? 'Edit Customer Price' : 'Add Customer Price'"
+  size="md"
+  (close)="showForm.set(false)"
+>
+  <form [formGroup]="form" class="space-y-4">
+    <div>
+      <label class="input-label">Customer *</label>
+      <select formControlName="customer" class="input-field">
+        <option [ngValue]="null">Select customer</option>
+        @for (c of customers(); track c.id) {
+          <option [ngValue]="c.id">{{ c.name }}</option>
+        }
+      </select>
+      @if (fieldErrors()['customer']) {
+        <p class="text-sm text-red-600 mt-1">{{ fieldErrors()['customer'] }}</p>
+      }
+    </div>
+    <div>
+      <label class="input-label">Item *</label>
+      <select formControlName="item" class="input-field" (change)="onItemSelected()">
+        <option [ngValue]="null">Select item</option>
+        @for (item of items(); track item.id) {
+          <option [ngValue]="item.id">{{ itemLabel(item) }}</option>
+        }
+      </select>
+      @if (fieldErrors()['item']) {
+        <p class="text-sm text-red-600 mt-1">{{ fieldErrors()['item'] }}</p>
+      }
+      @if (selectedItem(); as item) {
+        <p class="text-xs text-gray-500 mt-1">
+          Unit: {{ item.unit_of_measure || '—' }} · Approved price:
+          {{
+            formatCurrency(
+              item.approved_selling_price ?? item.selling_price,
+              customers().find((c) => c.id === form.getRawValue().customer)?.currency_code
+            )
+          }}
+        </p>
+      }
+    </div>
+    <div>
+      <label class="input-label">Unit Price *</label>
+      <input type="number" formControlName="unit_price" class="input-field" min="0.01" step="0.01" />
+      @if (fieldErrors()['unit_price']) {
+        <p class="text-sm text-red-600 mt-1">{{ fieldErrors()['unit_price'] }}</p>
+      }
+    </div>
+    <div>
+      <label class="input-label">Notes</label>
+      <input type="text" formControlName="notes" class="input-field" placeholder="Optional note" />
+    </div>
+  </form>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showForm.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="saving()" (click)="onSubmit()">
+      @if (saving()) {
+        <span class="spinner spinner-sm"></span>
+      }
+      Save
+    </button>
+  </div>
+</app-modal>

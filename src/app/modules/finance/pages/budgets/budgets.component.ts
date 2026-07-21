@@ -14,7 +14,6 @@ import { EmptyStateComponent } from '../../../../shared/components/empty-state/e
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
 import { PaginationComponent } from '../../../../shared/components/pagination/pagination.component';
-import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { FinanceNavComponent } from '../../components/finance-nav/finance-nav.component';
 import {
@@ -35,7 +34,6 @@ import { canManageBudgets, canViewFinance } from '../../utils/finance-permission
     PaginationComponent,
     EmptyStateComponent,
     TableSkeletonComponent,
-    StatusBadgeComponent,
   ],
   templateUrl: './budgets.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,37 +1,52 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
+import { CompanyWorkspaceEmptyStateComponent } from '../company-workspace-empty-state/company-workspace-empty-state.component';
+
+/**
+ * Backward-compatible alias — delegates to the shared company workspace empty state
+ * when moduleName/recordLabel is set; otherwise shows a simple custom message.
+ */
 @Component({
   selector: 'app-empty-state',
+  imports: [CompanyWorkspaceEmptyStateComponent],
   template: `
-    <div class="py-16 px-6 text-center">
-      <div class="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-[#EEF4FB] border border-[#D6E4F5]">
-        <svg
-          class="w-8 h-8 text-[#1B3A6B]/40"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" [attr.d]="iconPath()" />
-        </svg>
+    @if (moduleName() || recordLabel()) {
+      <app-company-workspace-empty-state
+        [moduleName]="moduleName() || recordLabel()"
+        [recordLabel]="recordLabel()"
+        [actionLabel]="actionLabel()"
+        [showSwitchCompany]="showSwitchCompany()"
+        (actionClick)="actionClick.emit()"
+        (companySwitched)="companySwitched.emit()"
+      />
+    } @else {
+      <div class="py-16 px-6 text-center">
+        <div class="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-[#EEF4FB] border border-[#D6E4F5]">
+          <svg class="w-8 h-8 text-[#1B3A6B]/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" [attr.d]="iconPath()" />
+          </svg>
+        </div>
+        <h3 class="text-base font-semibold text-gray-900 mb-1">{{ title() || 'No data found' }}</h3>
+        <p class="text-sm text-gray-500 max-w-md mx-auto mb-6 leading-relaxed">{{ message() }}</p>
+        @if (actionLabel()) {
+          <button type="button" (click)="actionClick.emit()" class="btn-primary">{{ actionLabel() }}</button>
+        }
       </div>
-      <h3 class="text-base font-semibold text-gray-900 mb-1">{{ title() }}</h3>
-      <p class="text-sm text-gray-500 max-w-sm mx-auto mb-6 leading-relaxed">{{ message() }}</p>
-      @if (actionLabel()) {
-        <button type="button" (click)="actionClick.emit()" class="btn-primary">
-          {{ actionLabel() }}
-        </button>
-      }
-    </div>
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class EmptyStateComponent {
-  readonly title = input.required<string>();
+  readonly title = input('');
+  readonly moduleName = input('');
+  readonly recordLabel = input('');
   readonly message = input('No data available.');
   readonly actionLabel = input<string>('');
+  readonly showSwitchCompany = input(true);
   readonly icon = input<'inbox' | 'document' | 'folder'>('inbox');
 
   readonly actionClick = output<void>();
+  readonly companySwitched = output<void>();
 
   iconPath(): string {
     const paths = {

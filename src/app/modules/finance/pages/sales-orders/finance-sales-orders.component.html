@@ -1,0 +1,98 @@
+<div class="page-container">
+  <app-finance-nav />
+  <app-page-header
+    title="Sales Orders"
+    subtitle="Review sales orders, generate invoices, and confirm customer payments"
+  />
+
+  <div class="card p-4 mb-4 flex flex-wrap gap-3 items-center">
+    <input
+      type="text"
+      class="input-field flex-1 min-w-[180px]"
+      placeholder="Search SO number or customer..."
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event); page.set(1); load()"
+    />
+    <select
+      class="input-field w-44"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All Status</option>
+      @for (st of statusOptions; track st) {
+        <option [value]="st">{{ st }}</option>
+      }
+    </select>
+    <button
+      type="button"
+      class="btn-secondary !text-xs"
+      (click)="statusFilter.set('QUOTATION_ACCEPTED'); page.set(1); load()"
+    >
+      Ready for Invoice
+    </button>
+    <button
+      type="button"
+      class="btn-secondary !text-xs"
+      (click)="statusFilter.set('AWAITING_PAYMENT'); page.set(1); load()"
+    >
+      Awaiting Payment
+    </button>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="8" />
+  } @else if (!orders().length) {
+    <div class="card">
+      <app-empty-state moduleName="Sales Orders" (companySwitched)="load()" />
+    </div>
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">SO Number</th>
+            <th class="table-th">Customer</th>
+            <th class="table-th">Delivery Date</th>
+            <th class="table-th">Total</th>
+            <th class="table-th">Status</th>
+            <th class="table-th">Payment</th>
+            <th class="table-th">Delivery</th>
+            <th class="table-th text-right">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (so of orders(); track so.id) {
+            <tr
+              class="table-row cursor-pointer hover:!bg-blue-50"
+              [routerLink]="['/finance/sales-orders', so.id, 'view']"
+            >
+              <td class="table-td font-medium text-[#1B3A6B]">{{ so.so_number }}</td>
+              <td class="table-td">{{ so.customer_name }}</td>
+              <td class="table-td">{{ formatDate(so.delivery_date) }}</td>
+              <td class="table-td font-semibold">{{ formatCurrency(so.total_amount, so.currency_code) }}</td>
+              <td class="table-td"><app-status-badge [status]="so.status" /></td>
+              <td class="table-td">
+                <div class="flex flex-col items-start gap-1">
+                  <app-status-badge [status]="so.payment_status" />
+                  @if (so.can_verify_payment) {
+                    <span class="text-xs font-medium text-amber-700">Confirm payment</span>
+                  }
+                </div>
+              </td>
+              <td class="table-td"><app-status-badge [status]="so.delivery_status" /></td>
+              <td class="table-td text-right">
+                <span class="btn-ghost !px-2 !py-1 !text-xs inline-block">View</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="15"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

@@ -26,10 +26,7 @@
     <app-table-skeleton [cols]="8" />
   } @else if (!notes().length) {
     <div class="card">
-      <app-empty-state
-        title="No delivery notes"
-        message="Delivery notes are created when deliveries are marked as delivered."
-      />
+      <app-empty-state moduleName="Delivery Notes" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

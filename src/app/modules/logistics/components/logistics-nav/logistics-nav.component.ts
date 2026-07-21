@@ -25,6 +25,7 @@ export class LogisticsNavComponent {
     { label: 'Vehicles', route: '/logistics/vehicles' },
     { label: 'Drivers', route: '/logistics/drivers' },
     { label: 'Deliveries', route: '/logistics/deliveries' },
+    { label: 'Internal Routes', route: '/logistics/internal-routes' },
     { label: 'Sales Queue', route: '/logistics/sales-queue' },
     { label: 'Delivery Notes', route: '/logistics/delivery-notes' },
     { label: 'Maintenance', route: '/logistics/maintenance' },

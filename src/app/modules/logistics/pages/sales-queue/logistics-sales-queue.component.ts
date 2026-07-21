@@ -45,11 +45,11 @@ export class LogisticsSalesQueueComponent implements OnInit {
   readonly loading = signal(true);
   readonly loadingDetail = signal(false);
   readonly error = signal(false);
-  readonly queue = signal<LogisticsSalesQueue>('delivery_cost');
+  readonly queue = signal<LogisticsSalesQueue>('dispatch');
 
   readonly queueTabs: { label: string; value: LogisticsSalesQueue }[] = [
-    { label: 'Delivery Cost', value: 'delivery_cost' },
     { label: 'Dispatch', value: 'dispatch' },
+    { label: 'Dispatched', value: 'dispatched' },
     { label: 'In Transit', value: 'in_transit' },
     { label: 'All', value: 'all' },
   ];

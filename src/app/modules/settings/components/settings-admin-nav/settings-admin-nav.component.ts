@@ -30,6 +30,7 @@ export class SettingsAdminNavComponent {
   readonly tabs = [
     { label: 'Admin Home', route: '/settings/admin' },
     { label: 'Users', route: '/settings/users' },
+    { label: 'Create Account', route: '/admin/users/create' },
     { label: 'Roles', route: '/settings/roles' },
     { label: 'Permissions', route: '/settings/permissions' },
   ];

@@ -32,10 +32,10 @@
   @if (loading()) { <app-table-skeleton [cols]="8" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
   @else if (!movements().length) {
-    <div class="card"><app-empty-state title="No movements" message="Stock movements will appear as transactions occur." /></div>
+    <div class="card"><app-empty-state moduleName="Stock Movements" (companySwitched)="load()" /></div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>

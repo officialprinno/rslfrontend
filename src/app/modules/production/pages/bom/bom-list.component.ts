@@ -10,6 +10,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { ProductionService } from '../../../../core/services/production.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { formatCurrency, formatDate, formatNumber } from '../../../../core/utils/format.util';
+import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { ModalComponent } from '../../../../shared/components/modal/modal.component';
@@ -48,6 +49,7 @@ export class BomListComponent implements OnInit {
   readonly products = signal<Product[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly workspaceEmpty = signal(false);
   readonly total = signal(0);
   readonly page = signal(1);
   readonly pageSize = signal(10);
@@ -78,7 +80,7 @@ export class BomListComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.error.set(false);
+    resetListLoadState(this.error, this.workspaceEmpty);
     const params: Record<string, string | number> = {
       page: this.page(),
       page_size: this.pageSize(),
@@ -96,7 +98,7 @@ export class BomListComponent implements OnInit {
           this.boms.set(d.results);
           this.total.set(d.count);
         },
-        error: () => this.error.set(true),
+        error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
   }
 

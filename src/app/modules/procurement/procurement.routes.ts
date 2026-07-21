@@ -1,9 +1,9 @@
 import { Routes } from '@angular/router';
 
-import { roleGuard } from '../../core/guards/role.guard';
+import { procurementModuleGuard } from '../../core/guards/procurement-module.guard';
 
 const procurementGuard = {
-  canActivate: [roleGuard],
+  canActivate: [procurementModuleGuard],
   data: { module: 'procurement', action: 'read' },
 };
 
@@ -65,6 +65,14 @@ export const PROCUREMENT_ROUTES: Routes = [
     loadComponent: () =>
       import('./pages/quotations/quotations-list.component').then(
         (m) => m.QuotationsListComponent,
+      ),
+  },
+  {
+    path: 'quotations/:id',
+    ...procurementGuard,
+    loadComponent: () =>
+      import('./pages/quotations/quotation-detail.component').then(
+        (m) => m.QuotationDetailComponent,
       ),
   },
   {

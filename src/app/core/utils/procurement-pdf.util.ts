@@ -3,20 +3,23 @@ import autoTable from 'jspdf-autotable';
 
 import { GoodsReceivedNote, PurchaseOrder } from '../models/procurement.model';
 import { formatCurrency, formatDate } from './format.util';
+import { drawPdfHeaderLogo, drawPdfWatermark } from './brand.util';
 
 const BRAND_RGB: [number, number, number] = [27, 58, 107];
 const MARGIN = 14;
+const HEADER_TEXT_X = MARGIN + 38;
 
 function addHeader(doc: jsPDF, title: string, docNumber: string): number {
   doc.setFillColor(27, 58, 107);
   doc.rect(0, 0, doc.internal.pageSize.getWidth(), 28, 'F');
+  drawPdfHeaderLogo(doc, MARGIN, 5, 34, 18);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('Rock Solutions Limited', MARGIN, 12);
+  doc.text('Rock Solutions Limited', HEADER_TEXT_X, 12);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('Factory Management System', MARGIN, 19);
+  doc.text('Factory Management System', HEADER_TEXT_X, 19);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text(title, doc.internal.pageSize.getWidth() - MARGIN, 12, { align: 'right' });
@@ -47,6 +50,7 @@ function addMetaGrid(doc: jsPDF, startY: number, rows: [string, string][]): numb
 }
 
 function addFooter(doc: jsPDF): void {
+  drawPdfWatermark(doc);
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);

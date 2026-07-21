@@ -112,6 +112,33 @@
             </div>
           }
         </div>
+
+        <div class="card p-5 space-y-4">
+          <h2 class="section-title">Company Access</h2>
+          <p class="text-sm text-gray-500">Companies this user can log into. One must be marked as default.</p>
+          @for (row of companyRows(); track row.company) {
+            <div class="flex items-center justify-between gap-3 p-3 rounded border border-gray-100">
+              <label class="inline-flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  [ngModel]="row.selected"
+                  (ngModelChange)="toggleCompany(row.company, $event)"
+                />
+                {{ companyName(row.company) }}
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="radio"
+                  name="defaultCompanyEdit"
+                  [checked]="row.default_company"
+                  [disabled]="!row.selected"
+                  (change)="setDefaultCompany(row.company)"
+                />
+                Default
+              </label>
+            </div>
+          }
+        </div>
       </div>
 
       <div class="card p-5">

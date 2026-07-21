@@ -177,12 +177,12 @@
           }
         </tbody>
       </table>
-    </div>
-    <app-pagination
+      <app-pagination
       [page]="page()"
       [total]="total()"
       [pageSize]="15"
       (pageChange)="page.set($event); load()"
     />
+    </div>
   }
 </div>

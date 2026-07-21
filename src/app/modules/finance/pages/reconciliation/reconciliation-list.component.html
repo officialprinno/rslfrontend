@@ -6,10 +6,7 @@
     <app-table-skeleton [cols]="7" />
   } @else if (!reconciliations().length) {
     <div class="card">
-      <app-empty-state
-        title="No reconciliations"
-        message="Start a reconciliation from a bank account to match statement lines."
-      />
+      <app-empty-state moduleName="Bank Reconciliations" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">

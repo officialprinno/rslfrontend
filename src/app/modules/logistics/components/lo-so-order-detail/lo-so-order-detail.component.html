@@ -10,7 +10,7 @@
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
     <div><span class="text-gray-500 block text-xs">Delivery Date</span><p class="font-medium">{{ formatDate(order().delivery_date) }}</p></div>
     <div><span class="text-gray-500 block text-xs">Warehouse</span><p>{{ order().warehouse_name || '—' }}</p></div>
-    <div><span class="text-gray-500 block text-xs">Delivery Method</span><p>{{ order().delivery_method || '—' }}</p></div>
+    <div><span class="text-gray-500 block text-xs">Delivery Type</span><p class="font-medium">{{ deliveryTypeLabel(order().delivery_method) }}</p></div>
     <div><span class="text-gray-500 block text-xs">Payment</span><p><app-status-badge [status]="order().payment_status ?? 'UNPAID'" /></p></div>
     <div><span class="text-gray-500 block text-xs">Inventory</span><p><app-status-badge [status]="order().inventory_status ?? 'NONE'" /></p></div>
     <div><span class="text-gray-500 block text-xs">LPO</span><p>{{ order().lpo_number || '—' }}</p></div>
@@ -56,6 +56,21 @@
           @if (f.departed) {
             <div><span class="text-gray-500">Departed</span><p>{{ formatDateTime(f.departed) }}</p></div>
           }
+          @if (order().status === 'DISPATCHED' && order().dispatch_assignment) {
+            <div>
+              <span class="text-gray-500">Inventory Handover</span>
+              <p>
+                @if (order().dispatch_assignment!.handover_confirmed) {
+                  <app-status-badge status="HANDED_OVER" label="Handed Over" />
+                  @if (order().dispatch_assignment!.handover_confirmed_at) {
+                    <span class="text-xs text-gray-600 block mt-1">{{ formatDateTime(order().dispatch_assignment!.handover_confirmed_at!) }}</span>
+                  }
+                } @else {
+                  <app-status-badge status="AWAITING_HANDOVER" label="Awaiting Handover" />
+                }
+              </p>
+            </div>
+          }
           @if (order().delivery_order?.origin_warehouse_name) {
             <div><span class="text-gray-500">Origin</span><p>{{ order().delivery_order!.origin_warehouse_name }}</p></div>
           }
@@ -68,42 +83,118 @@
   </div>
 
   <div>
-    <h5 class="font-semibold text-[#1B3A6B] mb-3">Order Items</h5>
-    <table class="w-full text-sm">
-      <thead>
-        <tr>
-          <th class="table-th">Item</th>
-          <th class="table-th">Qty Ordered</th>
-          <th class="table-th">Qty Delivered</th>
-          <th class="table-th">Unit Price</th>
-          <th class="table-th">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (item of order().items; track item.id) {
-          <tr class="table-row">
-            <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
-            <td class="table-td">{{ item.quantity_ordered }}</td>
-            <td class="table-td">{{ item.quantity_delivered ?? 0 }}</td>
-            <td class="table-td">{{ formatMoney(item.unit_price, order().currency_code) }}</td>
-            <td class="table-td font-medium">{{ formatMoney(item.total_price, order().currency_code) }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <div class="flex flex-wrap items-end justify-between gap-2 mb-3">
+      <div>
+        <h5 class="font-semibold text-[#1B3A6B]">Order Items — This Dispatch</h5>
+        <p class="text-xs text-gray-500 mt-0.5">
+          Quantities on the left · delivery &amp; value for this wave on the right
+        </p>
+      </div>
+      @if (hasActiveDispatchLine()) {
+        <span class="text-xs font-semibold text-[#1B3A6B] bg-blue-50 border border-blue-100 rounded-full px-3 py-1">
+          {{ formatQty(dispatchQtyTotal()) }} units to dispatch
+        </span>
+      }
+    </div>
+
+    @if (hasStockOutstanding()) {
+      <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+        Customer paid for <strong>invoiced/reserved</strong> quantity only — dispatch
+        <strong>{{ formatQty(dispatchQtyTotal()) }}</strong> units on this wave, not the full order.
+        Stock outstanding remains for a later fulfillment wave.
+      </p>
+    }
+
+    <div class="rounded-xl border border-gray-200 overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="lo-dispatch-table">
+          <thead>
+            <tr>
+              <th class="col-item text-left">Item</th>
+              <th class="col-qty text-right">Ordered</th>
+              <th class="col-qty text-right">Invoiced</th>
+              <th class="col-qty text-right">Delivered</th>
+              <th class="col-qty text-right">Outstanding</th>
+              <th class="col-dispatch text-center bg-blue-50/80 text-[#1B3A6B]">Dispatch</th>
+              <th class="col-money text-right">Unit Price</th>
+              <th class="col-money text-right">Dispatch Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of order().items; track item.id) {
+              <tr
+                class="table-row"
+                [class.is-active-wave]="dispatchQty(item) > 0"
+                [class.is-idle-wave]="dispatchQty(item) <= 0"
+              >
+                <td class="col-item text-left">
+                  <p class="font-medium text-gray-900 truncate">{{ item.item_code }}</p>
+                  <p class="text-xs text-gray-500 truncate">{{ item.item_name }}</p>
+                </td>
+                <td class="col-qty text-right text-tabular text-gray-600">{{ formatQty(item.quantity_ordered) }} {{ item.unit_of_measure }}</td>
+                <td class="col-qty text-right text-tabular text-gray-600">{{ formatQty(item.invoiced_qty) }} {{ item.unit_of_measure }}</td>
+                <td class="col-qty text-right text-tabular text-gray-600">{{ formatQty(item.quantity_delivered) }} {{ item.unit_of_measure }}</td>
+                <td class="col-qty text-right text-tabular">
+                  @if (+(item.stock_outstanding_qty ?? 0) > 0) {
+                    <span class="text-amber-700 font-semibold">{{ formatQty(item.stock_outstanding_qty) }}</span>
+                  } @else {
+                    <span class="text-gray-400">—</span>
+                  }
+                </td>
+                <td class="col-dispatch text-center">
+                  @if (dispatchQty(item) > 0) {
+                    <span class="lo-dispatch-qty">{{ formatQty(item.dispatch_qty) }} {{ item.unit_of_measure }}</span>
+                  } @else {
+                    <span class="lo-dispatch-qty lo-dispatch-qty--zero">0</span>
+                  }
+                </td>
+                <td class="col-money text-right text-tabular whitespace-nowrap">
+                  {{ formatMoney(item.unit_price, order().currency_code) }}
+                </td>
+                <td class="col-money text-right text-tabular whitespace-nowrap font-semibold text-[#1B3A6B]">
+                  @if (dispatchQty(item) > 0) {
+                    {{ formatMoney(lineDispatchTotal(item), order().currency_code) }}
+                  } @else {
+                    <span class="text-gray-400 font-normal">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <div class="text-right text-sm space-y-1 border-t pt-4">
-    <p>Subtotal: {{ formatMoney(order().subtotal, order().currency_code) }}</p>
-    @if (order().delivery_cost) {
-      <p>Delivery Cost: {{ formatMoney(order().delivery_cost, order().currency_code) }}</p>
-    }
-    @if (order().tax_amount) {
-      <p>Tax: {{ formatMoney(order().tax_amount, order().currency_code) }}</p>
-    }
-    <p class="text-lg font-bold text-[#1B3A6B]">
-      Grand Total: {{ formatMoney((order().total_amount ?? 0) + (order().delivery_cost ?? 0), order().currency_code) }}
+  <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 border-t pt-4">
+    <p class="text-xs text-gray-500 max-w-md">
+      Dispatch totals are for <strong>this wave only</strong> (qty to dispatch × unit price).
+      Full order value is {{ formatMoney(order().total_amount ?? 0, order().currency_code) }}.
+      Transport costs are on the delivery order.
     </p>
+    <div class="lo-dispatch-summary rounded-xl border border-[#1B3A6B]/15 bg-[#1B3A6B]/4 p-4 text-sm shrink-0">
+      <p class="text-xs font-semibold uppercase tracking-wide text-[#1B3A6B] mb-2">This Dispatch</p>
+      <div class="space-y-1.5 text-tabular">
+        <div class="flex justify-between gap-6">
+          <span class="text-gray-600">Subtotal</span>
+          <span class="font-medium">{{ formatMoney(dispatchSubtotal(), order().currency_code) }}</span>
+        </div>
+        @if (dispatchTax() > 0) {
+          <div class="flex justify-between gap-6">
+            <span class="text-gray-600">Tax</span>
+            <span class="font-medium">{{ formatMoney(dispatchTax(), order().currency_code) }}</span>
+          </div>
+        }
+        <div class="flex justify-between gap-6 border-t border-[#1B3A6B]/10 pt-2 mt-2">
+          <span class="font-semibold text-[#1B3A6B]">Wave Total</span>
+          <span class="text-lg font-bold text-[#1B3A6B]">{{ formatMoney(dispatchTotal(), order().currency_code) }}</span>
+        </div>
+        <div class="flex justify-between gap-6 text-xs text-gray-500 pt-1">
+          <span>Units</span>
+          <span>{{ formatQty(dispatchQtyTotal()) }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   @if (order().notes) {

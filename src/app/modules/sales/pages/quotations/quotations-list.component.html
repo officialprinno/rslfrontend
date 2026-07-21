@@ -40,13 +40,18 @@
 
   @if (loading()) { <app-table-skeleton [cols]="8" /> }
   @else if (error()) { <app-error-state (retry)="load()" /> }
+  @else if (workspaceEmpty()) {
+    <div class="card">
+      <app-empty-state moduleName="Quotations" [actionLabel]="canAdd() ? 'New Quotation' : ''" (actionClick)="null" (companySwitched)="load()" />
+    </div>
+  }
   @else if (!quotations().length) {
     <div class="card">
-      <app-empty-state title="No quotations" message="Create quotations for your customers." [actionLabel]="canAdd() ? 'New Quotation' : ''" />
+      <app-empty-state moduleName="Quotations" [actionLabel]="canAdd() ? 'New Quotation' : ''" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
@@ -68,26 +73,32 @@
                 <td class="table-td">{{ q.mine_name }}</td>
                 <td class="table-td" [class.text-red-600]="isExpired(q)">{{ formatDate(q.valid_until) }}</td>
                 <td class="table-td font-semibold">{{ formatCurrency(q.total_amount, q.currency_code) }}</td>
-                <td class="table-td"><app-status-badge [status]="q.status" /></td>
+                <td class="table-td">
+                  <div class="flex flex-col gap-1">
+                    <app-status-badge [status]="q.status" />
+                    @if (needsCustomerReply(q)) {
+                      <span class="inline-flex text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 w-fit">
+                        Customer feedback
+                      </span>
+                    }
+                  </div>
+                </td>
                 <td class="table-td text-sm">{{ formatDate(q.created_at) }}</td>
                 <td class="table-td">
                   <div class="flex flex-wrap gap-1">
                     <a [routerLink]="['/sales/quotations', q.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
-                    @if (q.status === 'DRAFT' && canAdd()) {
+                    @if (isDraft(q) && canAdd()) {
                       <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
                       <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onSend(q)">Send</button>
                     }
-                    @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canAdd() && !q.has_sales_order) {
-                      <a [routerLink]="['/sales/quotations', q.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
-                    }
-                    @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canConvert()) {
+                    @if (isConvertible(q) && canConvert()) {
                       <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onConvert(q)">Convert</button>
                     }
-                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onDuplicate(q)">Duplicate</button>
-                    @if (q.status === 'DRAFT' && canDelete()) {
-                      <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(q)">Delete</button>
+                    @if (q.has_sales_order && q.sales_order_id) {
+                      <a [routerLink]="['/sales/orders', q.sales_order_id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View SO</a>
                     }
-                    @if ((q.status === 'SENT' || q.status === 'ACCEPTED') && canDelete() && !q.has_sales_order) {
+                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs" (click)="onDuplicate(q)">Duplicate</button>
+                    @if (isDraft(q) && canDelete()) {
                       <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-red-600" (click)="onDelete(q)">Delete</button>
                     }
                   </div>
@@ -101,3 +112,29 @@
     </div>
   }
 </div>
+
+<app-modal [open]="showConvertModal()" title="Convert to Sales Order" (close)="showConvertModal.set(false)">
+  <div class="space-y-4 text-sm">
+    @if (convertTarget(); as q) {
+      <p class="text-gray-600">
+        Convert <strong>{{ q.quotation_number }}</strong> for <strong>{{ q.customer_name }}</strong>.
+        No delivery type on this quotation — choose one before creating the sales order.
+      </p>
+    }
+    <div>
+      <label class="input-label">Delivery Type *</label>
+      <select class="input-field" [(ngModel)]="convertDeliveryMethod">
+        @for (m of deliveryMethods; track m.value) {
+          <option [ngValue]="m.value">{{ m.label }}</option>
+        }
+      </select>
+      <p class="text-xs text-gray-500 mt-1">Company delivery sends the order to Logistics for vehicle and driver assignment.</p>
+    </div>
+  </div>
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="showConvertModal.set(false)">Cancel</button>
+    <button type="button" class="btn-primary" [disabled]="converting()" (click)="submitConvert()">
+      Create Sales Order
+    </button>
+  </div>
+</app-modal>

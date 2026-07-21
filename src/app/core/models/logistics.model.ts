@@ -100,6 +100,7 @@ export interface DeliveryItem {
   item_id?: number;
   item_code?: string;
   item_name?: string;
+  unit_of_measure?: string;
   quantity_ordered?: number;
   quantity_delivered?: number;
   quantity: number;
@@ -109,9 +110,24 @@ export interface DeliveryItem {
   notes?: string;
 }
 
+export interface DeliveryConfirmation {
+  receiver_name: string;
+  receiver_position: string;
+  receiver_phone: string;
+  receiver_company: string;
+  quantity_delivered: number;
+  delivery_notes: string;
+  signature_data?: string;
+  proof_photo_url?: string;
+  proof_document_url?: string;
+  confirmed_at: string;
+}
+
 export interface DeliveryOrder {
   id: number;
   do_number: string;
+  delivery_note_id?: number | null;
+  delivery_note_number?: string | null;
   sales_order: number;
   so_id: number;
   so_number: string;
@@ -133,6 +149,12 @@ export interface DeliveryOrder {
   actual_departure: string | null;
   actual_arrival: string | null;
   distance_km: number;
+  transport_method?: string;
+  fuel_cost?: number;
+  loading_cost?: number;
+  offloading_cost?: number;
+  additional_charges?: number;
+  internal_delivery_cost?: number;
   status: DOStatus;
   trip_status?: string;
   logistics_review_status?: string;
@@ -146,6 +168,7 @@ export interface DeliveryOrder {
   failure_reason?: string;
   notes: string;
   items: DeliveryItem[];
+  confirmation?: DeliveryConfirmation | null;
   created_by_name: string;
   created_at: string;
   updated_at: string;
@@ -272,6 +295,17 @@ export interface ComplianceAlert {
   days_remaining: number;
 }
 
+export interface LogisticsDashboardActivity {
+  type: 'DELIVERY_ORDER' | 'FUEL';
+  entity_id: number;
+  reference: string;
+  status: string;
+  detail: string;
+  amount: string | null;
+  created_at: string;
+  created_by_name: string | null;
+}
+
 export interface LogisticsDashboard {
   active_deliveries: number;
   deliveries_today: number;
@@ -281,6 +315,7 @@ export interface LogisticsDashboard {
   compliance_alerts: ComplianceAlert[];
   weekly_deliveries: { week: string; count: number }[];
   weekly_fuel_costs: { week: string; total: string }[];
+  recent_activities?: LogisticsDashboardActivity[];
 }
 
 export interface VehicleHistory {
@@ -290,7 +325,7 @@ export interface VehicleHistory {
   stats: { total_trips: number; total_km: number; fuel_this_month: number };
 }
 
-export type LogisticsSalesQueue = 'delivery_cost' | 'dispatch' | 'in_transit' | 'all';
+export type LogisticsSalesQueue = 'dispatch' | 'dispatched' | 'in_transit' | 'all';
 
 export interface LogisticsSalesOrder {
   id: number;
@@ -304,6 +339,8 @@ export interface LogisticsSalesOrder {
   subtotal?: number;
   total_amount?: number;
   delivery_date?: string | null;
+  scheduled_pickup_date?: string | null;
+  pickup_ready?: boolean;
   delivery_order_id?: number | null;
   delivery_cost_detail?: {
     delivery_distance_km: string;

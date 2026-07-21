@@ -1,4 +1,3 @@
-import { DecimalPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -20,11 +19,15 @@ import {
   SearchableSelectComponent,
   SelectOption,
 } from '../../../../shared/components/searchable-select/searchable-select.component';
-import { DELIVERY_METHODS, TRANSPORT_METHODS } from '../../../sales/constants/sales.constants';
+import { DELIVERY_METHODS } from '../../../sales/constants/sales.constants';
+
+const DELIVERY_TYPE_LABELS = Object.fromEntries(
+  DELIVERY_METHODS.map((m) => [m.value, m.label]),
+) as Record<string, string>;
 
 @Component({
   selector: 'app-lo-so-workflow-panel',
-  imports: [DecimalPipe, FormsModule, SearchableSelectComponent],
+  imports: [FormsModule, SearchableSelectComponent],
   templateUrl: './lo-so-workflow-panel.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -35,26 +38,12 @@ export class LoSoWorkflowPanelComponent {
   readonly order = input.required<LogisticsSalesOrder>();
   readonly refreshed = output<void>();
 
-  readonly transportMethods = TRANSPORT_METHODS;
-  readonly deliveryMethods = DELIVERY_METHODS;
   readonly saving = signal(false);
   readonly vehicles = signal<Vehicle[]>([]);
   readonly drivers = signal<Driver[]>([]);
   readonly loadingFleet = signal(false);
   private fleetLoaded = false;
 
-  deliveryCost = {
-    delivery_distance_km: 0,
-    transport_method: 'ROAD',
-    vehicle_type: '',
-    fuel_cost: 0,
-    loading_cost: 0,
-    offloading_cost: 0,
-    additional_charges: 0,
-    notes: '',
-  };
-
-  deliveryMethod = 'COMPANY';
   vehicleForm = { vehicle_id: null as number | null, driver_id: null as number | null, driver_phone: '' };
   thirdPartyForm = {
     transport_company: '',
@@ -72,9 +61,17 @@ export class LoSoWorkflowPanelComponent {
 
   constructor() {
     effect(() => {
-      const status = this.order().status;
-      if (status === 'READY_FOR_DELIVERY' && !this.fleetLoaded && !this.loadingFleet()) {
+      const o = this.order();
+      if (
+        o.status === 'READY_FOR_DELIVERY' &&
+        o.delivery_method === 'COMPANY' &&
+        !this.fleetLoaded &&
+        !this.loadingFleet()
+      ) {
         this.loadFleetOptions();
+      }
+      if (o.delivery_method === 'PICKUP' && o.scheduled_pickup_date) {
+        this.pickupForm.pickup_date = o.scheduled_pickup_date;
       }
     });
   }
@@ -109,8 +106,8 @@ export class LoSoWorkflowPanelComponent {
   loadFleetOptions(): void {
     this.loadingFleet.set(true);
     forkJoin({
-      vehicles: this.logistics.getVehicles({ status: 'AVAILABLE', page_size: 200, is_active: true }),
-      drivers: this.logistics.getDrivers({ is_available: true, page_size: 200, is_active: true }),
+      vehicles: this.logistics.getVehicles({ assignable: true, page_size: 200, is_active: true }),
+      drivers: this.logistics.getDrivers({ assignable: true, page_size: 200, is_active: true }),
     }).subscribe({
       next: ({ vehicles, drivers }) => {
         this.vehicles.set(vehicles.results);
@@ -129,18 +126,9 @@ export class LoSoWorkflowPanelComponent {
     this.refreshed.emit();
   }
 
-  calculateDeliveryCost(): void {
-    this.run(
-      () => this.logistics.calculateSalesOrderDeliveryCost(this.order().id, this.deliveryCost),
-      'Delivery cost submitted to Sales',
-    );
-  }
-
-  setDeliveryMethod(): void {
-    this.run(
-      () => this.logistics.setSalesOrderDeliveryMethod(this.order().id, this.deliveryMethod),
-      'Delivery method set',
-    );
+  deliveryTypeLabel(method?: string | null): string {
+    if (!method) return 'Not set';
+    return DELIVERY_TYPE_LABELS[method] ?? method;
   }
 
   assignVehicle(): void {
@@ -163,9 +151,13 @@ export class LoSoWorkflowPanelComponent {
   }
 
   assignThirdParty(): void {
+    if (!this.thirdPartyForm.transport_company.trim()) {
+      this.notification.error('Enter the transport company name.');
+      return;
+    }
     this.run(
       () => this.logistics.assignSalesOrderThirdParty(this.order().id, this.thirdPartyForm),
-      'Third party assigned',
+      'Carrier assigned',
     );
   }
 
@@ -177,9 +169,20 @@ export class LoSoWorkflowPanelComponent {
   }
 
   confirmPickup(): void {
+    if (!this.pickupForm.pickup_date) {
+      this.notification.error('Select a scheduled pickup date.');
+      return;
+    }
+    const updating = !!this.order().scheduled_pickup_date;
     this.run(
-      () => this.logistics.confirmSalesOrderPickup(this.order().id, this.pickupForm),
-      'Pickup completed',
+      () =>
+        this.logistics.scheduleSalesOrderPickup(this.order().id, {
+          pickup_date: this.pickupForm.pickup_date,
+          notes: this.pickupForm.notes,
+        }),
+      updating
+        ? 'Pickup date updated — inventory notified'
+        : 'Pickup scheduled — inventory notified',
     );
   }
 

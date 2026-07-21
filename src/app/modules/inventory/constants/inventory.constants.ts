@@ -112,6 +112,10 @@ export const UNITS_OF_MEASURE = [
   'sets',
 ] as const;
 
+export const DIMENSION_UNITS = ['m', 'mm', 'cm', 'ft', 'in'] as const;
+
+export const WEIGHT_UNITS = ['Kg', 'g', 'Ton', 'Lb'] as const;
+
 export function generateItemCode(): string {
   const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
   return `ITM-${suffix}`;

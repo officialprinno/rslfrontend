@@ -164,7 +164,13 @@
                     }
                     <p class="text-sm whitespace-pre-wrap">{{ msg.body }}</p>
                     @for (att of msg.attachments; track att.id) {
-                      <a [href]="att.file_path" target="_blank" class="msg-attachment">📎 {{ att.file_name }}</a>
+                      <app-open-file
+                        [fileUrl]="att.file_path"
+                        [fileName]="att.file_name"
+                        buttonClass="msg-attachment"
+                      >
+                        📎 {{ att.file_name }}
+                      </app-open-file>
                     }
                   </div>
                 }
@@ -223,8 +229,9 @@
 
 @if (showNewModal()) {
   <div class="modal-overlay" (click)="showNewModal.set(false)">
-    <div class="modal-container max-w-md" (click)="$event.stopPropagation()">
+    <div class="modal-container max-w-md modal-size-md" (click)="$event.stopPropagation()">
       <div class="modal-body">
+      <div class="modal-body-inner">
       <h3 class="text-lg font-semibold text-gray-900 mb-4">New Message</h3>
       <input
         type="search"
@@ -263,6 +270,7 @@
         <button type="button" class="btn-primary" [disabled]="!selectedUsers().length" (click)="startConversation()">
           Start Conversation
         </button>
+      </div>
       </div>
       </div>
     </div>

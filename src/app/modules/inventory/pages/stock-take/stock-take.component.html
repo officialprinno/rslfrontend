@@ -1,6 +1,7 @@
 <div class="page-container">
   <app-inventory-nav />
-  <app-page-header title="Physical Stock Take">
+  <app-page-header title="Quick Stock Take (Legacy)">
+    <a routerLink="/inventory/stock-take" class="btn-ghost !text-xs">Monthly stock take →</a>
     @if (canAdd()) {
       <button type="button" class="btn-primary" (click)="openNew()">New Stock Take</button>
     }
@@ -15,7 +16,7 @@
       <div class="flex justify-end px-4 pt-3">
         <button type="button" class="btn-ghost !text-xs" (click)="exportExcel()">Export to Excel</button>
       </div>
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>

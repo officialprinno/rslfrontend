@@ -50,6 +50,15 @@ export function aggregateStockByItem(stocks: Stock[]): Map<number, number> {
   return map;
 }
 
+/** Sum available quantity (on hand minus reserved) per item across warehouses. */
+export function aggregateAvailableStockByItem(stocks: Stock[]): Map<number, number> {
+  const map = new Map<number, number>();
+  stocks.forEach((s) => {
+    map.set(s.item, (map.get(s.item) ?? 0) + Number(s.quantity_available));
+  });
+  return map;
+}
+
 export function buildItemCostMap(items: Item[]): Map<number, number> {
   const map = new Map<number, number>();
   items.forEach((i) => map.set(i.id, Number(i.unit_cost)));

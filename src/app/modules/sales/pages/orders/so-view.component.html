@@ -3,16 +3,23 @@
 
   @if (loading()) {
     <app-table-skeleton [cols]="6" />
+  } @else if (notInWorkspace()) {
+    <div class="card">
+      <app-company-workspace-empty-state moduleName="Sales Orders" backLink="/sales/orders" />
+    </div>
   } @else if (error()) {
     <app-error-state title="Unable to load sales order" (retry)="load()" />
   } @else if (order(); as o) {
     <app-page-header [title]="o.so_number" [subtitle]="o.customer_name">
+      <button type="button" class="btn-primary" [disabled]="exportingPdf()" (click)="exportPdf()">
+        {{ exportingPdf() ? 'Generating…' : 'Sales Order PDF' }}
+      </button>
       <a routerLink="/sales/orders" class="btn-secondary">Back</a>
     </app-page-header>
 
-    <app-workflow-stepper [steps]="orderSteps" [activeIndex]="workflowIndex(o.status)" />
+    <app-workflow-stepper [steps]="orderStepsFor(o)" [activeIndex]="workflowIndex(o)" />
 
-    @if (canManage() && o.status !== 'CANCELLED' && !o.status.startsWith('COMPLETED')) {
+    @if (showWorkflowPanel()) {
       <app-so-workflow-panel [order]="o" (refreshed)="load()" />
     }
 
@@ -61,9 +68,6 @@
           <div class="text-right text-sm space-y-1">
             <p>Subtotal: {{ formatCurrency(o.subtotal, o.currency_code) }}</p>
             <p>Tax: {{ formatCurrency(o.tax_amount, o.currency_code) }}</p>
-            @if (o.delivery_cost) {
-              <p>Delivery Cost: {{ formatCurrency(o.delivery_cost, o.currency_code) }}</p>
-            }
             <p class="text-lg font-bold text-[#1B3A6B]">
               Quotation Total: {{ formatCurrency(orderGrandTotal(o), o.currency_code) }}
             </p>
@@ -80,9 +84,6 @@
               <div><span class="text-gray-500">Delivery Location</span><p class="font-medium">{{ deliveryDestination(o) }}</p></div>
               @if (o.warehouse_name) {
                 <div><span class="text-gray-500">Origin Warehouse</span><p>{{ o.warehouse_name }}</p></div>
-              }
-              @if (o.delivery_cost_detail) {
-                <div><span class="text-gray-500">Distance</span><p>{{ o.delivery_cost_detail.delivery_distance_km }} km · {{ o.delivery_cost_detail.transport_method }}</p></div>
               }
             </div>
             <div class="space-y-3">
@@ -106,6 +107,21 @@
                 @if (a.dispatch_date) {
                   <div><span class="text-gray-500">Dispatch Date</span><p>{{ formatDate(a.dispatch_date) }}</p></div>
                 }
+                @if (o.status === 'DISPATCHED' || o.status === 'IN_TRANSIT') {
+                  <div>
+                    <span class="text-gray-500">Inventory Handover</span>
+                    <p>
+                      @if (a.handover_confirmed) {
+                        <app-status-badge status="HANDED_OVER" label="Handed Over" />
+                        @if (a.handover_confirmed_by_name) {
+                          <span class="text-xs text-gray-600 block">Confirmed by {{ a.handover_confirmed_by_name }}</span>
+                        }
+                      } @else if (o.delivery_method === 'COMPANY' || o.delivery_method === 'THIRD_PARTY') {
+                        <app-status-badge status="AWAITING_HANDOVER" label="Awaiting Handover" />
+                      }
+                    </p>
+                  </div>
+                }
               } @else {
                 <p class="text-gray-500">Fleet assignment pending — handled by Logistics.</p>
               }
@@ -117,19 +133,29 @@
       <div class="card p-6 mb-6">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-6">
           <div><span class="text-gray-500">Delivery Date</span><p class="font-medium">{{ formatDate(o.delivery_date) }}</p></div>
+          <div><span class="text-gray-500">Delivery Type</span><p>{{ deliveryTypeLabel(o.delivery_method) }}</p></div>
+          <div><span class="text-gray-500">Payment Mode</span><p>{{ paymentModeLabel(o.payment_term, o.payment_term_display) }}</p></div>
+          @if (isPartialPayment(o)) {
+            <div><span class="text-gray-500">Advance / Paid</span><p class="font-medium">{{ advancePaidLabel(o) }}</p></div>
+          } @else if (o.deposit_percent) {
+            <div><span class="text-gray-500">Advance / Deposit</span><p>{{ o.deposit_percent }}%</p></div>
+          }
+          @if ((o.payment_term === 'PREPAID' || o.payment_term === 'POSTPAID') && isOutstandingOrder(o)) {
+            <div><span class="text-gray-500">Outstanding Pricing</span><p>{{ o.outstanding_pricing_mode_display || o.outstanding_pricing_mode || 'LOCKED' }}</p></div>
+          }
           <div><span class="text-gray-500">Status</span><p><app-status-badge [status]="o.status" /></p></div>
           <div><span class="text-gray-500">Inventory</span><p><app-status-badge [status]="o.inventory_status ?? 'NONE'" /></p></div>
           <div><span class="text-gray-500">Delivery Status</span><p><app-status-badge [status]="o.delivery_status" /></p></div>
-          <div><span class="text-gray-500">Payment Status</span><p><app-status-badge [status]="o.payment_status" /></p></div>
-          @if (o.delivery_cost) {
-            <div><span class="text-gray-500">Delivery Cost</span><p class="font-medium">{{ formatCurrency(o.delivery_cost, o.currency_code) }}</p></div>
-          }
+          <div><span class="text-gray-500">Payment Status</span><p><app-status-badge [status]="o.payment_status" [label]="paymentStatusLabel(o)" /></p></div>
           @if (o.warehouse_name) {
             <div><span class="text-gray-500">Warehouse</span><p>{{ o.warehouse_name }}</p></div>
           }
           <div><span class="text-gray-500">LPO Number</span><p>{{ o.lpo_number || '—' }}</p></div>
           <div><span class="text-gray-500">LPO Date</span><p>{{ formatDate(o.lpo_date) }}</p></div>
           <div><span class="text-gray-500">Currency</span><p>{{ o.currency_code }}</p></div>
+          @if (isForeignCurrency(o.currency_code)) {
+            <div><span class="text-gray-500">Exchange Rate</span><p>{{ formatExchangeRateLabel(o.exchange_rate, o.currency_code) }}</p></div>
+          }
           <div><span class="text-gray-500">Created By</span><p>{{ o.created_by_name }}</p></div>
           @if (o.approved_by_name) {
             <div><span class="text-gray-500">Approved By</span><p>{{ o.approved_by_name }}</p></div>
@@ -140,42 +166,129 @@
           <p class="text-sm mb-4"><span class="text-gray-500">Delivery Address:</span> {{ o.delivery_address }}</p>
         }
 
-        <table class="w-full text-sm mb-4">
-          <thead>
-            <tr>
-              <th class="table-th">Item</th>
-              <th class="table-th">Qty Ordered</th>
-              <th class="table-th">Qty Delivered</th>
-              <th class="table-th">Stock Avail.</th>
-              <th class="table-th">Unit Price</th>
-              <th class="table-th">Disc%</th>
-              <th class="table-th">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of o.items; track item.id) {
-              <tr class="table-row">
-                <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
-                <td class="table-td">{{ item.quantity_ordered }}</td>
-                <td class="table-td">{{ item.quantity_delivered ?? 0 }}</td>
-                <td class="table-td">{{ item.stock_available ?? '—' }}</td>
-                <td class="table-td">{{ formatCurrency(item.unit_price, o.currency_code) }}</td>
-                <td class="table-td">{{ item.discount_percent }}%</td>
-                <td class="table-td font-semibold">{{ formatCurrency(item.total_price, o.currency_code) }}</td>
-              </tr>
+        @if (hasAwaitingReservation(o)) {
+          <div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+            <p class="font-semibold mb-1">Awaiting inventory reservation</p>
+            <p class="mb-2">{{ awaitingReservationHint(o) }}</p>
+          </div>
+        }
+
+        @if (hasReservedReadyToInvoice(o)) {
+          <div class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+            <p class="font-semibold mb-1">
+              @if (isOutstandingOrder(o)) {
+                Next wave — stock reserved
+              } @else {
+                Stock reserved — ready to invoice
+              }
+            </p>
+            <p class="mb-2">{{ o.reserved_ready_to_invoice_hint }}</p>
+            <p class="text-xs text-blue-800">
+              Sales: send to Finance · Finance: confirm prices and issue invoice ·
+              Logistics: dispatch after payment
+            </p>
+          </div>
+        }
+
+        @if (o.has_outstanding_fulfillment) {
+          <div class="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+            @if (isOutstandingOrder(o)) {
+              <p class="font-semibold mb-1">Outstanding fulfillment — order cannot be closed yet</p>
+              <p class="mb-2">{{ o.outstanding_fulfillment_hint }}</p>
+              <p class="text-xs text-amber-800">
+                @if (o.payment_term === 'POSTPAID' || o.payment_term === 'COD') {
+                  Next wave: Inventory reserve → Logistics delivery → Finance invoice → then use
+                  <strong>Close Order</strong> when fully complete.
+                } @else {
+                  Next wave: Inventory reserve → Finance invoice → Logistics delivery → then use
+                  <strong>Close Order</strong> when fully complete.
+                }
+              </p>
+            } @else {
+              <p class="font-semibold mb-1">Order in progress — not ready to close yet</p>
+              <p class="mb-2">{{ o.outstanding_fulfillment_hint }}</p>
+              <p class="text-xs text-amber-800">
+                Complete invoicing and delivery, then use <strong>Close Order</strong> once the order is fully fulfilled.
+              </p>
             }
-          </tbody>
-        </table>
+          </div>
+        }
+
+        <div class="table-container table-container--wide -mx-6 mb-4">
+          <div class="table-scroll-viewport">
+            <table class="enterprise-table w-full text-sm so-order-items-table">
+              <thead>
+                <tr>
+                  <th class="table-th table-col-lg">Item</th>
+                  <th class="table-th table-col-sm text-right">Qty Ordered</th>
+                  <th class="table-th table-col-sm text-right">Qty Reserved</th>
+                  <th class="table-th table-col-sm text-right">Qty Invoiced</th>
+                  <th class="table-th table-col-sm text-right">To Invoice</th>
+                  <th class="table-th table-col-sm text-right">Qty Delivered</th>
+                  <th class="table-th table-col-sm text-right">Stock Shortfall</th>
+                  <th class="table-th table-col-num text-right">Unit Price</th>
+                  <th class="table-th table-col-sm text-right">Disc%</th>
+                  <th class="table-th table-col-sm text-right">VAT%</th>
+                  <th class="table-th table-col-num text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of o.items; track item.id) {
+                  <tr class="table-row">
+                    <td class="table-td table-col-lg">
+                      {{ item.item_code }} — {{ item.item_name }}
+                      <span class="block text-xs text-gray-500">Unit: {{ item.unit_of_measure || 'unit' }}</span>
+                    </td>
+                    <td class="table-td table-col-sm text-right">{{ item.quantity_ordered }} {{ item.unit_of_measure }}</td>
+                    <td class="table-td table-col-sm text-right">{{ item.quantity_reserved ?? 0 }} {{ item.unit_of_measure }}</td>
+                    <td class="table-td table-col-sm text-right">{{ item.invoiced_qty ?? 0 }} {{ item.unit_of_measure }}</td>
+                    <td class="table-td table-col-sm text-right">
+                      @if (hasStartedInvoicing(item)) {
+                        <span [class.text-amber-700]="toInvoiceQty(item) > 0" [class.font-semibold]="toInvoiceQty(item) > 0">
+                          {{ toInvoiceQty(item) }} {{ item.unit_of_measure }}
+                        </span>
+                      } @else {
+                        <span class="text-gray-400" title="Remaining to invoice appears after the first invoice">—</span>
+                      }
+                    </td>
+                    <td class="table-td table-col-sm text-right">{{ item.quantity_delivered ?? 0 }} {{ item.unit_of_measure }}</td>
+                    <td class="table-td table-col-sm text-right">
+                      @if (stockShortfallDisplay(o, item); as stockDisp) {
+                        @if (stockDisp.kind === 'pending_shortfall') {
+                          <span class="text-amber-700 font-semibold" title="Estimated from warehouse available stock before Inventory verifies">
+                            {{ stockDisp.qty }}
+                            <span class="block text-xs font-normal text-amber-600">est. shortfall</span>
+                          </span>
+                        } @else if (stockDisp.kind === 'pending_ok') {
+                          <span class="text-emerald-700 text-xs" title="Warehouse has enough stock for this line">In stock</span>
+                        } @else if (stockDisp.kind === 'verified_shortfall') {
+                          <span class="text-amber-700 font-semibold">{{ stockDisp.qty }}</span>
+                        } @else {
+                          —
+                        }
+                      }
+                    </td>
+                    <td class="table-td table-col-num text-right">{{ formatCurrency(item.unit_price, o.currency_code) }}</td>
+                    <td class="table-td table-col-sm text-right">{{ item.discount_percent }}%</td>
+                    <td class="table-td table-col-sm text-right">{{ item.tax_rate ?? 0 }}%</td>
+                    <td class="table-td table-col-num text-right font-semibold">{{ formatCurrency(item.total_price, o.currency_code) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-500 mb-4 -mt-2">
+          <strong>To Invoice</strong> = remaining after invoicing starts (not stock shortage).
+          <strong>Stock Shortfall</strong> = units warehouse cannot cover yet
+          (estimate before Inventory verifies; confirmed after).
+        </p>
 
         <div class="text-right text-sm space-y-1">
           <p>Subtotal: {{ formatCurrency(o.subtotal, o.currency_code) }}</p>
           <p>Tax: {{ formatCurrency(o.tax_amount, o.currency_code) }}</p>
-          @if (o.delivery_cost) {
-            <p>Delivery Cost: {{ formatCurrency(o.delivery_cost, o.currency_code) }}</p>
-            <p class="text-lg font-bold">Grand Total: {{ formatCurrency(orderGrandTotal(o), o.currency_code) }}</p>
-          } @else {
-            <p class="text-lg font-bold">Total: {{ formatCurrency(o.total_amount, o.currency_code) }}</p>
-          }
+          <p class="text-lg font-bold">Total: {{ formatCurrency(o.total_amount, o.currency_code) }}</p>
         </div>
 
         @if (o.notes) {
@@ -186,7 +299,7 @@
       </div>
 
       <div class="flex gap-2 flex-wrap">
-        @if ((o.status === 'NEW_ORDER' || o.status === 'DRAFT') && canManage()) {
+        @if (salesOrderIsEditable(o.status) && canManage()) {
           <a [routerLink]="['/sales/orders', o.id, 'edit']" class="btn-secondary">Edit</a>
         }
         @if (!o.status.startsWith('COMPLETED') && o.status !== 'CANCELLED') {

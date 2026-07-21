@@ -51,18 +51,17 @@
     <app-table-skeleton [cols]="8" />
   } @else if (error()) {
     <app-error-state (retry)="load()" />
+  } @else if (workspaceEmpty()) {
+    <div class="card">
+      <app-empty-state moduleName="BOMs" [actionLabel]="canAdd() ? 'New BOM' : ''" (actionClick)="goToNewBom()" (companySwitched)="load()" />
+    </div>
   } @else if (!boms().length) {
     <div class="card">
-      <app-empty-state
-        title="No BOMs"
-        message="Create bill of materials to define raw material recipes."
-        [actionLabel]="canAdd() ? 'New BOM' : ''"
-        (actionClick)="goToNewBom()"
-      />
+      <app-empty-state moduleName="BOMs" [actionLabel]="canAdd() ? 'New BOM' : ''" (actionClick)="goToNewBom()" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
-      <div class="overflow-x-auto">
+      <div class="table-scroll-viewport">
         <table class="w-full">
           <thead>
             <tr>
@@ -161,7 +160,7 @@
           <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-xl">{{ bom.notes }}</p>
         }
         <div class="table-container !shadow-none !border">
-          <div class="overflow-x-auto">
+          <div class="table-scroll-viewport">
             <table class="w-full">
               <thead>
                 <tr>

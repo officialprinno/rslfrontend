@@ -40,12 +40,7 @@
     <app-table-skeleton [cols]="9" />
   } @else if (!invoices().length) {
     <div class="card">
-      <app-empty-state
-        title="No invoices"
-        message="Create invoices from confirmed sales orders."
-        actionLabel="New Invoice"
-        (actionClick)="null"
-      />
+      <app-empty-state moduleName="Invoices" actionLabel="New Invoice" (actionClick)="null" (companySwitched)="load()" />
     </div>
   } @else {
     <div class="table-container">
@@ -78,11 +73,22 @@
               </td>
               <td class="table-td font-semibold">{{ formatCurrency(inv.total_amount, inv.currency_code) }}</td>
               <td class="table-td">{{ formatCurrency(inv.balance, inv.currency_code) }}</td>
-              <td class="table-td"><app-status-badge [status]="inv.status" /></td>
+              <td class="table-td">
+                <app-status-badge [status]="inv.status" />
+              </td>
               <td class="table-td">
                 <a [routerLink]="['/sales/invoices', inv.id, 'view']" class="btn-ghost !px-2 !py-1 !text-xs">View</a>
                 @if (inv.status === 'DRAFT') {
                   <a [routerLink]="['/sales/invoices', inv.id, 'edit']" class="btn-ghost !px-2 !py-1 !text-xs">Edit</a>
+                }
+                @if (inv.status === 'DRAFT') {
+                  <button
+                    type="button"
+                    class="btn-ghost !px-2 !py-1 !text-xs !text-green-700"
+                    (click)="issueInvoice(inv)"
+                  >
+                    Issue
+                  </button>
                 }
               </td>
             </tr>

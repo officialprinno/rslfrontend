@@ -18,6 +18,11 @@ import {
   SelectOption,
 } from '../../../../shared/components/searchable-select/searchable-select.component';
 import { SalesNavComponent } from '../../components/sales-nav/sales-nav.component';
+import {
+  formatExchangeRateLabel,
+  isForeignCurrency,
+  resolveExchangeRateForCurrency,
+} from '../../utils/sales-currency.util';
 
 @Component({
   selector: 'app-invoice-form',
@@ -45,7 +50,9 @@ export class InvoiceFormComponent implements OnInit {
   readonly currencies = signal<Currency[]>([]);
   readonly saving = signal(false);
   readonly editId = signal<number | null>(null);
+  readonly selectedCurrencyCode = signal('TZS');
   readonly formatCurrency = formatCurrency;
+  readonly formatExchangeRateLabel = formatExchangeRateLabel;
 
   readonly form = this.fb.group({
     customer: [{ value: null as number | null, disabled: true }, Validators.required],
@@ -67,7 +74,7 @@ export class InvoiceFormComponent implements OnInit {
         status: 'CONFIRMED,PROCESSING,PARTIAL,DELIVERED',
         page_size: 100,
       }),
-      items: this.inventory.getItems({ page_size: 200, is_active: true }),
+      items: this.inventory.getItems({ page_size: 200, is_active: true, for_sales: true }),
       currencies: this.currencyService.getCurrencies(),
     }).subscribe(({ orders, items, currencies }) => {
       this.salesOrders.set(orders.results);
@@ -84,11 +91,36 @@ export class InvoiceFormComponent implements OnInit {
           this.onSalesOrderSelect(+soId);
         }
       }
+      this.form.controls.currency.valueChanges.subscribe((id) =>
+        this.applyMasterExchangeRate(typeof id === 'number' ? id : null),
+      );
     });
+  }
+
+  showExchangeRate(): boolean {
+    return isForeignCurrency(this.selectedCurrencyCode());
+  }
+
+  private updateSelectedCurrencyCode(currencyId: number | null): void {
+    const currency = this.currencies().find((c) => c.id === currencyId);
+    this.selectedCurrencyCode.set(currency?.code ?? 'TZS');
+  }
+
+  private applyMasterExchangeRate(currencyId: number | null): void {
+    this.updateSelectedCurrencyCode(currencyId);
+    this.form.patchValue(
+      { exchange_rate: resolveExchangeRateForCurrency(currencyId, this.currencies()) },
+      { emitEvent: false },
+    );
   }
 
   lineItems(): FormArray {
     return this.form.get('lineItems') as FormArray;
+  }
+
+  lineUnit(i: number): string {
+    const itemId = Number(this.lineItems().at(i).value.item ?? 0);
+    return this.items().find((item) => item.id === itemId)?.unit_of_measure || 'unit';
   }
 
   salesOrderOptions(): SelectOption[] {
@@ -110,6 +142,7 @@ export class InvoiceFormComponent implements OnInit {
           due_date: inv.due_date,
           tra_receipt_number: inv.tra_receipt_number ?? '',
         });
+        this.updateSelectedCurrencyCode(inv.currency_id);
         this.lineItems().clear();
         inv.items.forEach((l) =>
           this.lineItems().push(
@@ -139,6 +172,7 @@ export class InvoiceFormComponent implements OnInit {
           currency: so.currency_id,
           exchange_rate: so.exchange_rate,
         });
+        this.updateSelectedCurrencyCode(so.currency_id);
         this.lineItems().clear();
         so.items.forEach((l) =>
           this.lineItems().push(

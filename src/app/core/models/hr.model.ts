@@ -1,7 +1,13 @@
 export type Gender = 'MALE' | 'FEMALE';
-export type EmploymentType = 'PERMANENT' | 'CONTRACT' | 'CASUAL';
+export type EmploymentType =
+  | 'PERMANENT'
+  | 'CONTRACT'
+  | 'CASUAL'
+  | 'LOCAL_LABOR'
+  | 'SECURITY_GUARD';
 export type EmployeeStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
 export type PaymentFrequency = 'MONTHLY' | 'WEEKLY';
+export type WorkingCompanyScope = 'STEIN' | 'SUPPLY' | 'BOTH';
 export type AppraisalRating = 'EXCELLENT' | 'GOOD' | 'SATISFACTORY' | 'NEEDS_IMPROVEMENT';
 export type DocumentType = 'CONTRACT' | 'NIN' | 'CERTIFICATE' | 'OTHER';
 
@@ -49,6 +55,10 @@ export interface EmployeeListItem {
   phone: string;
   national_id: string;
   reports_to_name: string | null;
+  working_company_scope?: WorkingCompanyScope;
+  primary_working_company?: number | null;
+  primary_working_company_name?: string | null;
+  has_system_account?: boolean;
 }
 
 export interface Employee {
@@ -65,6 +75,8 @@ export interface Employee {
   nssf_number: string;
   nhif_number: string;
   paye_applicable: boolean;
+  nssf_applicable: boolean;
+  nhif_applicable: boolean;
   phone: string;
   personal_email: string;
   work_email: string;
@@ -73,6 +85,11 @@ export interface Employee {
   profile_photo: string;
   department: number;
   department_name: string;
+  working_company_scope: WorkingCompanyScope;
+  primary_working_company: number;
+  primary_working_company_name?: string;
+  has_system_account?: boolean;
+  suggested_user_companies?: { company_id: number; default_company: boolean }[];
   job_title: string;
   employment_type: EmploymentType;
   contract_start: string | null;
@@ -94,7 +111,6 @@ export interface Employee {
   emergency_contact_address: string;
   status: EmployeeStatus;
   is_active: boolean;
-  create_user_account: boolean;
   allowances: EmployeeAllowance[];
   documents: EmployeeDocument[];
   leave_balances: LeaveBalance[];
@@ -112,6 +128,8 @@ export interface EmployeeFormData {
   nssf_number?: string;
   nhif_number?: string;
   paye_applicable?: boolean;
+  nssf_applicable?: boolean;
+  nhif_applicable?: boolean;
   phone?: string;
   personal_email?: string;
   work_email?: string;
@@ -119,6 +137,8 @@ export interface EmployeeFormData {
   city?: string;
   profile_photo?: string;
   department: number;
+  working_company_scope: WorkingCompanyScope;
+  primary_working_company: number;
   job_title: string;
   employment_type: EmploymentType;
   contract_start?: string | null;
@@ -137,8 +157,71 @@ export interface EmployeeFormData {
   emergency_contact_phone?: string;
   emergency_contact_address?: string;
   status?: EmployeeStatus;
-  create_user_account?: boolean;
   allowances?: { name: string; amount: string; is_taxable: boolean }[];
+  link_user_id?: number;
+}
+
+export type DeductionType = 'BANK_LOAN' | 'OFFICE_LOAN' | 'SALARY_ADVANCE' | 'OTHER';
+export type DeductionStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+
+export interface EmployeeDeduction {
+  id: number;
+  employee: number;
+  employee_name: string;
+  deduction_type: DeductionType;
+  deduction_type_display: string;
+  name: string;
+  principal_amount: string;
+  monthly_installment: string;
+  amount_recovered: string;
+  balance: string;
+  start_date: string;
+  status: DeductionStatus;
+  notes: string;
+  created_at: string;
+}
+
+export interface EmployeeDeductionFormData {
+  employee: number;
+  deduction_type: DeductionType;
+  name: string;
+  principal_amount: string | number;
+  monthly_installment: string | number;
+  start_date?: string;
+  notes?: string;
+}
+
+export interface DeductionBreakdown {
+  deduction_id: number | null;
+  type: string;
+  name: string;
+  amount: string;
+}
+
+export interface UnlinkedSystemUser {
+  id: number;
+  email: string;
+  full_name: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  department: number | null;
+  department_name: string | null;
+  role_name: string | null;
+}
+
+export interface EmployeeWithoutAccount extends EmployeeListItem {
+  has_system_account: false;
+}
+
+export interface PendingEmployeeAccountsSummary {
+  count: number;
+  results: EmployeeListItem[];
+}
+
+export interface UserProvisioningPreview {
+  employee: Employee;
+  suggested_companies: { company_id: number; default_company: boolean }[];
 }
 
 export interface LeaveType {
@@ -307,6 +390,7 @@ export interface HrDashboard {
   new_joiners_month: number;
   resignations_month: number;
   pending_leave_requests: number;
+  pending_gm_leave_requests?: number;
   employees_by_department: { department: string; count: number }[];
   employment_type_breakdown: { type: string; count: number }[];
   attendance_summary: {
@@ -377,6 +461,8 @@ export interface MonthlyAttendanceSummary {
 
 export type LeaveRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+export type LeaveApprovalRoute = 'HR' | 'GM';
+
 export interface LeaveRequest {
   id: number;
   employee: number;
@@ -390,9 +476,12 @@ export interface LeaveRequest {
   reason: string;
   medical_certificate: string;
   status: LeaveRequestStatus;
+  status_label?: string;
+  approval_route?: LeaveApprovalRoute;
   approved_by_name: string | null;
   approved_at: string | null;
   rejection_reason: string;
+  approver_comment?: string;
   created_at: string;
 }
 
@@ -446,6 +535,7 @@ export interface PayrollItem {
   paye: string;
   nhif: string;
   other_deductions: string;
+  deductions?: DeductionBreakdown[];
   total_deductions: string;
   net_salary: string;
 }
@@ -513,6 +603,7 @@ export interface Payslip {
   paye: string;
   nhif: string;
   other_deductions: string;
+  deductions?: DeductionBreakdown[];
   total_deductions: string;
   net_salary: string;
   nssf_employer: string;

@@ -21,6 +21,7 @@ export class WebsocketService implements OnDestroy {
   private reconnectAttempts = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private shouldReconnect = false;
   private readonly queue: string[] = [];
 
   private readonly messageSubject = new Subject<Message>();
@@ -35,9 +36,14 @@ export class WebsocketService implements OnDestroy {
 
   connect(): void {
     const token = this.storage.getToken();
-    if (!token || this.socket?.readyState === WebSocket.OPEN) {
+    if (
+      !token ||
+      this.socket?.readyState === WebSocket.OPEN ||
+      this.socket?.readyState === WebSocket.CONNECTING
+    ) {
       return;
     }
+    this.shouldReconnect = true;
     const url = `${environment.wsUrl}/messaging/?token=${encodeURIComponent(token)}`;
     this.socket = new WebSocket(url);
 
@@ -58,7 +64,8 @@ export class WebsocketService implements OnDestroy {
 
     this.socket.onclose = () => {
       this.stopHeartbeat();
-      this.scheduleReconnect();
+      this.socket = null;
+      if (this.shouldReconnect) this.scheduleReconnect();
     };
 
     this.socket.onerror = () => {
@@ -67,6 +74,7 @@ export class WebsocketService implements OnDestroy {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false;
     this.stopHeartbeat();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);

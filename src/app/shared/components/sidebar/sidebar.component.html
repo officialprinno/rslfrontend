@@ -9,14 +9,12 @@
   <!-- Brand -->
   <div
     class="sidebar-brand shrink-0 flex items-center border-b border-white/10"
-    [class.px-5]="!collapsed()"
+    [class.px-4]="!collapsed()"
     [class.justify-center]="collapsed()"
     [class.px-0]="collapsed()"
   >
     <div class="sidebar-brand-mark">
-      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2m-16 0H3m2 0v-4m10 4v-4M9 7h6m-6 4h6m-6 4h6" />
-      </svg>
+      <img src="logo.png" alt="Rock Solutions" class="h-7 w-auto max-w-full object-contain" />
     </div>
     @if (!collapsed()) {
       <div class="ml-3 overflow-hidden min-w-0">
@@ -27,6 +25,36 @@
       </div>
     }
   </div>
+
+  <!-- Active workspace -->
+  @if (companyContext.activeCompany(); as workspace) {
+    <div
+      class="mx-3 mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"
+      [class.mx-2]="collapsed()"
+      [class.px-2]="collapsed()"
+    >
+      @if (!collapsed()) {
+        <p class="text-[10px] uppercase tracking-[0.14em] text-[#93B4D4]/80 font-semibold">Workspace</p>
+        <div class="mt-1 flex items-center gap-2 min-w-0">
+          <span
+            class="w-6 h-6 rounded text-[10px] font-bold text-white flex items-center justify-center shrink-0"
+            [style.background-color]="workspace.brandColor"
+          >
+            {{ workspace.code }}
+          </span>
+          <p class="text-sm font-semibold text-white truncate">{{ workspace.name }}</p>
+        </div>
+      } @else {
+        <span
+          class="mx-auto w-8 h-8 rounded text-[10px] font-bold text-white flex items-center justify-center"
+          [style.background-color]="workspace.brandColor"
+          [title]="workspace.name"
+        >
+          {{ workspace.code }}
+        </span>
+      }
+    </div>
+  }
 
   <!-- Navigation -->
   <nav class="flex-1 overflow-y-auto overflow-x-hidden py-3 sidebar-scroll">

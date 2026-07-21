@@ -1,0 +1,53 @@
+<div class="space-y-4">
+  <div class="text-center">
+    <h3 class="text-lg font-bold text-gray-900">Choose Workspace</h3>
+    <p class="text-sm text-gray-500 mt-1">Select the company you want to work in</p>
+  </div>
+
+  <div class="grid gap-3">
+    @for (company of companies(); track company.company_id) {
+      <button
+        type="button"
+        (click)="choose(company.company_id)"
+        class="flex items-center gap-3 w-full rounded-xl border border-gray-200 px-4 py-3.5 text-left hover:border-[#1B3A6B]/30 hover:bg-[#EEF4FB] transition-colors"
+      >
+        <span
+          class="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0"
+          [style.background-color]="company.brand_color || '#1B3A6B'"
+        >
+          {{ company.company_code }}
+        </span>
+        <span>
+          <span class="block font-semibold text-gray-900">{{ company.company_name }}</span>
+          <span class="block text-xs text-gray-500">{{ company.company_type }}</span>
+        </span>
+      </button>
+    }
+
+    @if (companyContext.canUseConsolidated()) {
+      <button
+        type="button"
+        (click)="choose('consolidated')"
+        class="flex items-center gap-3 w-full rounded-xl border border-dashed border-gray-300 px-4 py-3.5 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span class="w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold bg-gray-800 text-white shrink-0">
+          ALL
+        </span>
+        <span>
+          <span class="block font-semibold text-gray-900">Consolidated View</span>
+          <span class="block text-xs text-gray-500">All companies combined</span>
+        </span>
+      </button>
+    }
+  </div>
+
+  <label class="flex items-center gap-2.5 cursor-pointer select-none justify-center">
+    <input
+      type="checkbox"
+      [checked]="rememberSelection()"
+      (change)="toggleRemember()"
+      class="login-checkbox"
+    />
+    <span class="text-sm text-gray-600">Remember my selection</span>
+  </label>
+</div>

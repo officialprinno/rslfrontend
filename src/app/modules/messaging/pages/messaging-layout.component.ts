@@ -19,14 +19,16 @@ import { Conversation, Message, MessagePriority } from '../../../core/models/mes
 import { AuthService } from '../../../core/services/auth.service';
 import { MessagingService } from '../../../core/services/messaging.service';
 import { NotificationCountsService } from '../../../core/services/notification-counts.service';
+import { NotificationService } from '../../../core/services/notification.service';
 import { WebsocketService } from '../../../core/services/websocket.service';
 import { formatDateSeparator, formatMessageTime } from '../../../core/utils/time.util';
 import { ErrorStateComponent } from '../../../shared/components/error-state/error-state.component';
+import { OpenFileComponent } from '../../../shared/components/open-file/open-file.component';
 import { canSendBroadcast } from '../utils/messaging-permissions.util';
 
 @Component({
   selector: 'app-messaging-layout',
-  imports: [FormsModule, RouterLink, SlicePipe, ErrorStateComponent],
+  imports: [FormsModule, RouterLink, SlicePipe, ErrorStateComponent, OpenFileComponent],
   templateUrl: './messaging-layout.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -35,11 +37,13 @@ export class MessagingLayoutComponent implements OnInit, OnDestroy {
   private readonly ws = inject(WebsocketService);
   private readonly auth = inject(AuthService);
   private readonly counts = inject(NotificationCountsService);
+  private readonly notification = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
   private subs = new Subscription();
   private typingTimer: ReturnType<typeof setTimeout> | null = null;
+  private visibilityTimer: ReturnType<typeof setInterval> | null = null;
   private readonly typingSubject = new Subject<number>();
 
   readonly messagesEl = viewChild<ElementRef<HTMLDivElement>>('messagesEl');
@@ -73,6 +77,7 @@ export class MessagingLayoutComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.ws.connect();
     this.loadConversations();
+    this.visibilityTimer = setInterval(() => this.loadConversations(), 60_000);
     this.subs.add(
       this.ws.onMessage$.subscribe((msg) => {
         const sel = this.selectedId();
@@ -110,6 +115,7 @@ export class MessagingLayoutComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.subs.unsubscribe();
     if (this.typingTimer) clearTimeout(this.typingTimer);
+    if (this.visibilityTimer) clearInterval(this.visibilityTimer);
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -127,7 +133,22 @@ export class MessagingLayoutComponent implements OnInit, OnDestroy {
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (list) => {
+          const selectedId = this.selectedId();
+          const selected = this.conversations().find((conversation) => conversation.id === selectedId);
           this.conversations.set(list);
+          if (
+            selected?.type === 'BROADCAST' &&
+            !list.some((conversation) => conversation.id === selectedId)
+          ) {
+            this.selectedId.set(null);
+            this.messages.set([]);
+            void this.router.navigate([], {
+              relativeTo: this.route,
+              queryParams: { c: null },
+              queryParamsHandling: 'merge',
+              replaceUrl: true,
+            });
+          }
           this.error.set(false);
         },
         error: () => this.error.set(true),
@@ -221,7 +242,8 @@ export class MessagingLayoutComponent implements OnInit, OnDestroy {
     const file = input.files?.[0];
     if (!id || !file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('Max file size is 10MB');
+      this.notification.warning('The selected file exceeds the 10 MB size limit.');
+      input.value = '';
       return;
     }
     this.messaging.uploadAttachment(id, file).subscribe({

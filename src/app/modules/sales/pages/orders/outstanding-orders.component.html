@@ -1,0 +1,229 @@
+<div class="page-container">
+  @if (navShell() === 'inventory') {
+    <app-inventory-nav />
+  } @else {
+    <app-sales-nav />
+  }
+  <app-page-header
+    [title]="isInventoryView() ? 'Stock Outstanding Orders' : 'Outstanding Orders'"
+    [subtitle]="
+      isInventoryView()
+        ? 'Customer sales orders with stock not yet fully reserved — reserve, send to procurement, or both'
+        : 'Genuine multi-wave orders only: stock shortfall after Inventory verification, or remaining qty after a partial invoice (Prepaid, Postpaid, Partial Payment & COD)'
+    "
+  />
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (error()) {
+    <app-error-state title="Unable to load outstanding orders" (retry)="load()" />
+  } @else if (isInventoryView() ? !stockRows().length : !rows().length) {
+    <div class="card p-8 text-center text-gray-500">No outstanding orders at this time.</div>
+  } @else if (isInventoryView()) {
+    <div class="space-y-4">
+      @for (row of stockRows(); track row.id) {
+        <div class="card p-6">
+          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+            <div>
+              <a
+                [routerLink]="['/sales/orders', row.id, 'view']"
+                class="text-lg font-semibold text-[#1B3A6B] hover:underline"
+              >
+                {{ row.so_number }}
+              </a>
+              <p class="text-sm text-gray-600 mt-1">{{ row.customer_name }}</p>
+              <p class="text-xs text-gray-500 mt-1">
+                Order date: {{ row.created_at | date: 'mediumDate' }}
+                @if (row.warehouse_name) {
+                  · Warehouse: {{ row.warehouse_name }}
+                }
+                · Status: {{ row.status }}
+                @if (row.inventory_status) {
+                  · Inventory: {{ row.inventory_status }}
+                }
+              </p>
+            </div>
+            <div class="text-right flex flex-col items-end gap-2">
+              @if (row.linked_pr_number) {
+                <a
+                  [routerLink]="['/procurement/requisitions', row.linked_pr, 'edit']"
+                  class="text-xs text-[#1B3A6B] hover:underline"
+                >
+                  PR: {{ row.linked_pr_number }}
+                </a>
+              }
+              <div class="flex flex-wrap gap-2 justify-end">
+                @if (row.can_reserve_available) {
+                  <button
+                    type="button"
+                    class="btn-primary"
+                    [disabled]="reservingId() === row.id"
+                    (click)="reserveAvailable(row)"
+                  >
+                    {{ reservingId() === row.id ? 'Reserving…' : 'Reserve Available Stock' }}
+                  </button>
+                }
+                @if (row.can_request_procurement !== false) {
+                  <button
+                    type="button"
+                    class="btn-secondary"
+                    [disabled]="procuringId() === row.id"
+                    (click)="sendToProcurement(row)"
+                  >
+                    {{ procuringId() === row.id ? 'Sending…' : 'Send to Procurement' }}
+                  </button>
+                }
+              </div>
+              @if (!row.can_reserve_available) {
+                <p class="text-xs text-amber-800 max-w-xs text-right">
+                  No ready-for-sale stock available across warehouses. Use procurement for the outstanding quantity.
+                </p>
+              }
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="table-th">Item</th>
+                  <th class="table-th">Ordered</th>
+                  <th class="table-th">Reserved</th>
+                  <th class="table-th">Available (all warehouses)</th>
+                  <th class="table-th">Stock Outstanding</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of row.lines; track line.id) {
+                  @if (+line.stock_outstanding_qty > 0) {
+                    <tr class="table-row">
+                      <td class="table-td">{{ line.item_code }} — {{ line.item_name }}</td>
+                      <td class="table-td">{{ formatNumber(line.quantity_ordered) }}</td>
+                      <td class="table-td">{{ formatNumber(line.quantity_reserved) }}</td>
+                      <td class="table-td" [class.text-emerald-700]="+(line.reservable_qty ?? 0) > 0" [class.font-semibold]="+(line.reservable_qty ?? 0) > 0">
+                        {{ formatNumber(line.stock_available ?? 0) }}
+                        @if (line.is_ready_for_sale === false) {
+                          <span class="block text-xs font-normal text-amber-700">Not ready for sale</span>
+                        } @else if (line.warehouse_breakdown?.length) {
+                          <div class="mt-1 space-y-0.5 text-xs font-normal text-gray-600">
+                            @for (wh of line.warehouse_breakdown; track wh.warehouse_id) {
+                              @if (+wh.stock_available > 0 || wh.is_fulfillment_warehouse) {
+                                <div [class.text-[#1B3A6B]]="wh.is_fulfillment_warehouse">
+                                  {{ wh.warehouse_name }}: {{ formatNumber(wh.stock_available) }}
+                                  @if (wh.is_fulfillment_warehouse) {
+                                    <span class="text-gray-500">(order warehouse)</span>
+                                  }
+                                </div>
+                              }
+                            }
+                          </div>
+                        }
+                      </td>
+                      <td class="table-td font-semibold text-amber-800">
+                        {{ formatNumber(line.stock_outstanding_qty) }}
+                      </td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+    <app-pagination
+      [page]="page()"
+      [pageSize]="pageSize()"
+      [total]="total()"
+      (pageChange)="onPageChange($event)"
+    />
+  } @else {
+    <div class="space-y-4">
+      @for (row of rows(); track row.id) {
+        <div class="card p-6">
+          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4">
+            <div>
+              <a [routerLink]="['/sales/orders', row.id, 'view']" class="text-lg font-semibold text-[#1B3A6B] hover:underline">
+                {{ row.so_number }}
+              </a>
+              <p class="text-sm text-gray-600 mt-1">{{ row.customer_name }}</p>
+              <p class="text-xs text-gray-500 mt-1">
+                Order date: {{ row.created_at | date:'mediumDate' }}
+                · {{ row.days_outstanding }} days outstanding
+                · {{ row.invoice_count }} invoice(s)
+                @if (row.payment_term) {
+                  · {{ row.payment_term === 'PARTIAL_PAYMENT' ? 'Partial Payment' : row.payment_term }}
+                }
+                · Pricing: {{ row.outstanding_pricing_mode_display }}
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="text-xs text-gray-500">Total outstanding value</p>
+              <p class="text-xl font-bold text-amber-800">
+                {{ formatCurrency(row.total_outstanding_value, row.currency_code) }}
+              </p>
+              @if (canGenerate() && row.can_generate_fulfillment_invoice) {
+                <a
+                  [routerLink]="['/finance/sales-orders', row.id, 'view']"
+                  class="btn-primary mt-2 inline-block"
+                >
+                  Open Finance Order — Generate Invoice
+                </a>
+              } @else if (row.payment_term === 'PARTIAL_PAYMENT') {
+                <a
+                  [routerLink]="['/sales/orders', row.id, 'view']"
+                  class="btn-secondary mt-2 inline-block"
+                >
+                  Open Order — Reserve & Invoice Wave
+                </a>
+              }
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="table-th">Item</th>
+                  <th class="table-th">Ordered</th>
+                  <th class="table-th">Invoiced</th>
+                  <th class="table-th">To Invoice</th>
+                  <th class="table-th">Stock Shortfall</th>
+                  <th class="table-th">Outstanding Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of row.lines; track line.id) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ line.item_code }} — {{ line.item_name }}</td>
+                    <td class="table-td">{{ formatNumber(line.quantity_ordered) }}</td>
+                    <td class="table-td">{{ formatNumber(line.invoiced_qty) }}</td>
+                    <td class="table-td">
+                      @if (+line.invoiced_qty > 0 && +line.outstanding_qty > 0) {
+                        <span class="font-semibold text-amber-800">{{ formatNumber(line.outstanding_qty) }}</span>
+                      } @else {
+                        <span class="text-gray-400">—</span>
+                      }
+                    </td>
+                    <td class="table-td">
+                      @if (+(line.stock_outstanding_qty ?? 0) > 0) {
+                        <span class="font-semibold text-amber-800">{{ formatNumber(line.stock_outstanding_qty) }}</span>
+                      } @else {
+                        —
+                      }
+                    </td>
+                    <td class="table-td">{{ formatCurrency(line.outstanding_value, row.currency_code) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+    <app-pagination
+      [page]="page()"
+      [pageSize]="pageSize()"
+      [total]="total()"
+      (pageChange)="onPageChange($event)"
+    />
+  }
+</div>

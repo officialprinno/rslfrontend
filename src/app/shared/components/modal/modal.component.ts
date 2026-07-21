@@ -23,7 +23,9 @@ import {
             </button>
           </div>
           <div class="modal-body">
-            <ng-content />
+            <div class="modal-body-inner">
+              <ng-content />
+            </div>
           </div>
           @if (showFooter()) {
             <div class="modal-footer">
@@ -39,7 +41,7 @@ import {
 export class ModalComponent {
   readonly open = input(false);
   readonly title = input('');
-  readonly size = input<'md' | 'lg' | 'xl'>('lg');
+  readonly size = input<'md' | 'lg' | 'xl' | 'wide' | 'preview'>('lg');
   readonly showFooter = input(true);
   readonly closeOnBackdrop = input(true);
 
@@ -53,7 +55,13 @@ export class ModalComponent {
   }
 
   sizeClass(): string {
-    const sizes = { md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' };
+    const sizes: Record<'md' | 'lg' | 'xl' | 'wide' | 'preview', string> = {
+      md: 'modal-size-md',
+      lg: 'modal-size-lg',
+      xl: 'modal-size-xl',
+      wide: 'modal-size-wide',
+      preview: 'modal-size-preview',
+    };
     return sizes[this.size()];
   }
 

@@ -1,0 +1,264 @@
+<app-modal
+  [open]="open()"
+  [title]="detail()?.invoice?.invoice_number ?? 'Invoice details'"
+  size="xl"
+  (close)="close.emit()"
+>
+  @if (loading()) {
+    <p class="text-sm text-gray-500 py-8 text-center">Loading invoice details…</p>
+  } @else if (detail(); as d) {
+    @if (d.doc_type === 'invoice_received') {
+      @let inv = asSupplier(d.invoice);
+      <div class="space-y-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <p class="text-gray-500">Supplier</p>
+            <p class="font-medium">{{ inv.supplier_name }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">PO / GRN</p>
+            <p class="font-medium">{{ inv.po_number }}</p>
+            <p class="text-xs text-gray-500">{{ inv.grn_number ?? (inv.is_proforma ? 'Proforma' : '—') }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Invoice date</p>
+            <p class="font-medium">{{ formatDate(inv.invoice_date) }}</p>
+            <p class="text-xs text-gray-500">Due {{ formatDate(inv.due_date) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Finance approval</p>
+            <app-status-badge
+              [status]="inv.approval_status ?? 'NOT_SUBMITTED'"
+              [label]="approvalLabel(inv.approval_status)"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg text-sm">
+          <div>
+            <p class="text-gray-500">Subtotal</p>
+            <p class="font-semibold">{{ formatCurrency(inv.subtotal, inv.currency_code) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Tax</p>
+            <p class="font-semibold">{{ formatCurrency(inv.tax_amount, inv.currency_code) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Total</p>
+            <p class="font-semibold">{{ formatCurrency(inv.total_amount, inv.currency_code) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Balance</p>
+            <p class="font-semibold">{{ formatCurrency(inv.balance, inv.currency_code) }}</p>
+          </div>
+        </div>
+
+        @if (inv.has_invoice_document && inv.invoice_document_url) {
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border border-blue-200 bg-blue-50">
+            <div>
+              <p class="font-semibold text-[#1B3A6B]">Supplier invoice document</p>
+              <p class="text-sm text-gray-600 mt-0.5">
+                {{ inv.invoice_document_name || 'Attached by Procurement' }}
+              </p>
+              <p class="text-xs text-gray-500 mt-1">Review the scanned invoice before approving.</p>
+            </div>
+            <a
+              [href]="inv.invoice_document_url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-primary !text-sm whitespace-nowrap shrink-0"
+            >
+              View invoice document
+            </a>
+          </div>
+        }
+
+        <div class="text-sm">
+          <p class="font-medium mb-2">3-way match</p>
+          <p [class]="inv.three_way_matched ? 'text-green-700' : 'text-amber-700'">
+            {{ inv.three_way_matched ? 'Matched' : 'Not matched' }}
+          </p>
+          @if (inv.match_details?.checks?.length) {
+            <ul class="mt-2 space-y-1">
+              @for (check of inv.match_details!.checks; track check.label) {
+                <li [class]="check.passed ? 'text-green-700' : 'text-red-600'">
+                  {{ check.passed ? '✓' : '✗' }} {{ check.label }}
+                </li>
+              }
+            </ul>
+          }
+          @if (inv.match_details?.issues?.length) {
+            <div class="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
+              @for (issue of inv.match_details!.issues; track issue) {
+                <p>{{ issue }}</p>
+              }
+            </div>
+          }
+        </div>
+
+        @if (inv.gm_review_status) {
+          <div class="text-sm">
+            <p class="font-medium mb-1">GM review</p>
+            <app-status-badge [status]="inv.gm_review_status" />
+            @if (inv.gm_review_notes) {
+              <p class="text-gray-600 mt-1">{{ inv.gm_review_notes }}</p>
+            }
+          </div>
+        }
+
+        @if (inv.notes) {
+          <div class="text-sm">
+            <p class="font-medium mb-1">Notes</p>
+            <p class="text-gray-700 whitespace-pre-wrap">{{ inv.notes }}</p>
+          </div>
+        }
+
+        @if (d.payments?.length) {
+          <div>
+            <p class="font-medium text-sm mb-2">Payments recorded</p>
+            <table class="w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="table-th">Date</th>
+                  <th class="table-th">Amount</th>
+                  <th class="table-th">Method</th>
+                  <th class="table-th">Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of d.payments; track p.id) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ formatDate(p.payment_date) }}</td>
+                    <td class="table-td">{{ formatCurrency(p.amount, inv.currency_code) }}</td>
+                    <td class="table-td">{{ p.payment_method }}</td>
+                    <td class="table-td">{{ p.reference || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    } @else {
+      @let inv = asSales(d.invoice);
+      <div class="space-y-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <p class="text-gray-500">Customer</p>
+            <p class="font-medium">{{ inv.customer_name }}</p>
+            <p class="text-xs text-gray-500">TIN {{ inv.customer_tin || '—' }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Sales order</p>
+            <p class="font-medium">{{ inv.so_number ?? '—' }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Invoice date</p>
+            <p class="font-medium">{{ formatDate(inv.invoice_date) }}</p>
+            <p class="text-xs text-gray-500">Due {{ formatDate(inv.due_date) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Finance approval</p>
+            <app-status-badge
+              [status]="inv.approval_status ?? 'NOT_SUBMITTED'"
+              [label]="approvalLabel(inv.approval_status)"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg text-sm">
+          <div>
+            <p class="text-gray-500">Subtotal</p>
+            <p class="font-semibold">{{ formatCurrency(inv.subtotal, inv.currency_code) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Tax</p>
+            <p class="font-semibold">{{ formatCurrency(inv.tax_amount, inv.currency_code) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Grand total</p>
+            <p class="font-semibold">{{ formatCurrency(inv.grand_total ?? inv.total_amount, inv.currency_code) }}</p>
+          </div>
+          <div>
+            <p class="text-gray-500">Balance</p>
+            <p class="font-semibold">{{ formatCurrency(inv.balance, inv.currency_code) }}</p>
+          </div>
+        </div>
+
+        @if (inv.items.length) {
+          <div>
+            <p class="font-medium text-sm mb-2">Line items</p>
+            <table class="w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="table-th">Item</th>
+                  <th class="table-th">Qty</th>
+                  <th class="table-th">Unit price</th>
+                  <th class="table-th">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of inv.items; track line.id) {
+                  <tr class="table-row">
+                    <td class="table-td">{{ line.item_name ?? line.item_code }}</td>
+                    <td class="table-td">{{ line.quantity }}</td>
+                    <td class="table-td">{{ formatCurrency(line.unit_price, inv.currency_code) }}</td>
+                    <td class="table-td">{{ formatCurrency(line.total_price ?? 0, inv.currency_code) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        @if (inv.notes) {
+          <div class="text-sm">
+            <p class="font-medium mb-1">Notes</p>
+            <p class="text-gray-700 whitespace-pre-wrap">{{ inv.notes }}</p>
+          </div>
+        }
+      </div>
+    }
+
+    <div class="mt-6">
+      <p class="font-medium text-sm mb-2">Attachments</p>
+      @if (d.attachments.length) {
+        <ul class="space-y-2">
+          @for (file of d.attachments; track file.id) {
+            <li class="flex items-center justify-between gap-3 p-3 rounded-lg border border-gray-200 text-sm">
+              <div>
+                <p class="font-medium">{{ file.label }}</p>
+                <p class="text-xs text-gray-500">{{ file.file_name }}</p>
+              </div>
+              <a
+                [href]="file.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn-ghost !text-xs whitespace-nowrap"
+              >
+                View / Download
+              </a>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="text-sm text-gray-500">No files attached to this invoice.</p>
+      }
+    </div>
+
+    @if (d.invoice.rejection_reason) {
+      <div class="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-900">
+        <p class="font-medium">Rejection reason</p>
+        <p>{{ d.invoice.rejection_reason }}</p>
+      </div>
+    }
+  }
+
+  <div modalFooter>
+    @if (canApproveActions() && detail()?.invoice?.approval_status === 'PENDING_FINANCE_APPROVAL') {
+      <button type="button" class="btn-primary" (click)="approve.emit()">Approve</button>
+      <button type="button" class="btn-ghost !text-red-700" (click)="reject.emit()">Reject</button>
+    }
+    <button type="button" class="btn-secondary" (click)="close.emit()">Close</button>
+  </div>
+</app-modal>

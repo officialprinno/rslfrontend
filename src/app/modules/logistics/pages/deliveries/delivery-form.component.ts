@@ -68,8 +68,8 @@ export class DeliveryFormComponent implements OnInit {
       confirmed: this.sales.getSalesOrders({ status: 'CONFIRMED', page_size: 100 }),
       processing: this.sales.getSalesOrders({ status: 'PROCESSING', page_size: 100 }),
       warehouses: this.inventory.getWarehouses({ is_active: true }),
-      vehicles: this.logistics.getVehicles({ status: 'AVAILABLE', page_size: 100 }),
-      drivers: this.logistics.getDrivers({ is_available: true, page_size: 100 }),
+      vehicles: this.logistics.getVehicles({ assignable: true, page_size: 100 }),
+      drivers: this.logistics.getDrivers({ assignable: true, page_size: 100 }),
     }).subscribe({
       next: ({ confirmed, processing, warehouses, vehicles, drivers }) => {
         const merged = [...confirmed.results, ...processing.results];
@@ -137,6 +137,7 @@ export class DeliveryFormComponent implements OnInit {
               item: [item.item ?? item.item_id, Validators.required],
               item_code: [item.item_code ?? ''],
               item_name: [item.item_name ?? ''],
+              unit_of_measure: [item.unit_of_measure ?? 'unit'],
               quantity_ordered: [item.quantity_ordered ?? 0],
               quantity_delivered: [item.quantity_delivered ?? 0],
               quantity: [item.quantity, Validators.required],
@@ -179,6 +180,7 @@ export class DeliveryFormComponent implements OnInit {
               item: [line.item ?? line.item_id, Validators.required],
               item_code: [line.item_code ?? ''],
               item_name: [line.item_name ?? ''],
+              unit_of_measure: [line.unit_of_measure ?? 'unit'],
               quantity_ordered: [ordered],
               quantity_delivered: [delivered],
               quantity: [remaining, Validators.required],

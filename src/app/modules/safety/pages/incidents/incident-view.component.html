@@ -66,7 +66,7 @@
             <dl class="grid grid-cols-1 gap-3 text-sm">
               <div><dt class="text-gray-500">Injured Person</dt><dd class="font-medium">{{ inc.injured_person_name || '—' }}</dd></div>
               <div><dt class="text-gray-500">Injury Description</dt><dd class="font-medium">{{ inc.injury_description || '—' }}</dd></div>
-              @if (inc.body_parts?.length) {
+              @if (inc.body_parts.length) {
                 <div><dt class="text-gray-500">Body Parts</dt><dd class="font-medium">{{ inc.body_parts.join(', ') }}</dd></div>
               }
               <div><dt class="text-gray-500">Medical Treatment</dt><dd class="font-medium">{{ inc.medical_treatment_required ? 'Yes' : 'No' }}</dd></div>
@@ -78,7 +78,7 @@
             </dl>
           </div>
         }
-        @if (inc.witnesses?.length) {
+        @if (inc.witnesses.length) {
           <div class="card p-6">
             <h4 class="text-sm font-semibold text-gray-900 mb-4">Witnesses</h4>
             <div class="space-y-3">
@@ -92,7 +92,7 @@
             </div>
           </div>
         }
-        @if (inc.cctv_reference || inc.immediate_cause || inc.contributing_factors?.length) {
+        @if (inc.cctv_reference || inc.immediate_cause || inc.contributing_factors.length) {
           <div class="card p-6">
             <h4 class="text-sm font-semibold text-gray-900 mb-4">Evidence &amp; Initial Assessment</h4>
             <dl class="grid grid-cols-1 gap-3 text-sm">
@@ -102,7 +102,7 @@
               @if (inc.immediate_cause) {
                 <div><dt class="text-gray-500">Immediate Cause</dt><dd class="font-medium">{{ inc.immediate_cause }}</dd></div>
               }
-              @if (inc.contributing_factors?.length) {
+              @if (inc.contributing_factors.length) {
                 <div><dt class="text-gray-500">Contributing Factors</dt><dd class="font-medium">{{ inc.contributing_factors.join(', ') }}</dd></div>
               }
             </dl>
@@ -128,7 +128,7 @@
             @if (inc.root_cause) {
               <div class="md:col-span-2"><dt class="text-gray-500">Root Cause</dt><dd class="font-medium">{{ inc.root_cause }}</dd></div>
             }
-            @if (inc.root_cause_categories?.length) {
+            @if (inc.root_cause_categories.length) {
               <div class="md:col-span-2"><dt class="text-gray-500">Root Cause Categories</dt><dd class="font-medium">{{ inc.root_cause_categories.join(', ') }}</dd></div>
             }
             @if (inc.investigation_findings) {
@@ -141,7 +141,7 @@
 
     @if (activeTab() === 'corrective') {
       <div class="space-y-6">
-        @if (inc.corrective_actions?.length) {
+        @if (inc.corrective_actions.length) {
           <div class="table-container">
             <table class="w-full">
               <thead>

@@ -7,6 +7,11 @@
     <app-error-state title="Unable to load delivery order" (retry)="load()" />
   } @else if (delivery(); as d) {
     <app-page-header [title]="d.do_number" [subtitle]="d.customer_name">
+      @if (d.delivery_note_id) {
+        <button type="button" class="btn-primary" [disabled]="downloadingDn()" (click)="downloadDeliveryNote()">
+          {{ downloadingDn() ? 'Generating…' : 'Delivery Note PDF' }}
+        </button>
+      }
       <a routerLink="/logistics/deliveries" class="btn-secondary">Back</a>
     </app-page-header>
 
@@ -49,6 +54,58 @@
             <p class="text-sm mt-2"><span class="text-gray-500">Notes:</span> {{ d.notes }}</p>
           }
         </div>
+
+        @if (d.confirmation) {
+          <div class="card p-6">
+            <h4 class="font-semibold mb-4">Receiver Details (Driver Submission)</h4>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              <div><span class="text-gray-500 block text-xs">Received By</span><p class="font-medium">{{ d.confirmation.receiver_name }}</p></div>
+              @if (d.confirmation.receiver_position) {
+                <div><span class="text-gray-500 block text-xs">Position</span><p>{{ d.confirmation.receiver_position }}</p></div>
+              }
+              @if (d.confirmation.receiver_phone) {
+                <div><span class="text-gray-500 block text-xs">Phone</span><p>{{ d.confirmation.receiver_phone }}</p></div>
+              }
+              @if (d.confirmation.receiver_company) {
+                <div><span class="text-gray-500 block text-xs">Company</span><p>{{ d.confirmation.receiver_company }}</p></div>
+              }
+              <div><span class="text-gray-500 block text-xs">Qty Delivered</span><p>{{ d.confirmation.quantity_delivered }}</p></div>
+              <div><span class="text-gray-500 block text-xs">Confirmed At</span><p>{{ formatDateTime(d.confirmation.confirmed_at) }}</p></div>
+            </div>
+            @if (d.confirmation.delivery_notes) {
+              <p class="text-sm mt-4 pt-4 border-t"><span class="text-gray-500">Notes:</span> {{ d.confirmation.delivery_notes }}</p>
+            }
+            @if (d.confirmation.proof_document_url) {
+              <div class="mt-4 pt-4 border-t">
+                <span class="text-gray-500 block text-xs mb-2">Signed Delivery Document (Driver)</span>
+                @if (isImageProof(d.confirmation.proof_document_url)) {
+                  <a
+                    [href]="d.confirmation.proof_document_url"
+                    target="_blank"
+                    rel="noopener"
+                    class="block mb-3"
+                  >
+                    <img
+                      [src]="d.confirmation.proof_document_url"
+                      alt="Proof of delivery"
+                      class="max-h-72 rounded-lg border object-contain bg-gray-50"
+                    />
+                  </a>
+                }
+                <a
+                  [href]="d.confirmation.proof_document_url"
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex items-center gap-2 text-sm font-medium text-[#1B3A6B] hover:underline"
+                >
+                  View / download {{ proofDocumentName(d.confirmation.proof_document_url) }}
+                </a>
+              </div>
+            } @else if (d.confirmation.proof_photo_url) {
+              <p class="text-sm mt-2"><a [href]="d.confirmation.proof_photo_url" target="_blank" rel="noopener" class="text-blue-600 hover:underline">View proof photo</a></p>
+            }
+          </div>
+        }
 
         <div class="card p-6">
           <h4 class="font-semibold mb-4">Items</h4>
@@ -101,6 +158,44 @@
             }
           </div>
         </div>
+
+        @if (canManage()) {
+          <div class="card p-6">
+            <h4 class="font-semibold mb-1">Internal Delivery Cost</h4>
+            <p class="text-xs text-gray-500 mb-4">For logistics use only — not billed to the customer.</p>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div class="col-span-2">
+                <label class="input-label">Distance (km)</label>
+                <input type="number" class="input-field" [(ngModel)]="internalCostForm.delivery_distance_km" />
+              </div>
+              <div class="col-span-2">
+                <label class="input-label">Transport</label>
+                <select class="input-field" [(ngModel)]="internalCostForm.transport_method">
+                  @for (m of transportMethods; track m.value) {
+                    <option [value]="m.value">{{ m.label }}</option>
+                  }
+                </select>
+              </div>
+              <div><label class="input-label">Fuel</label><input type="number" class="input-field" [(ngModel)]="internalCostForm.fuel_cost" /></div>
+              <div><label class="input-label">Loading</label><input type="number" class="input-field" [(ngModel)]="internalCostForm.loading_cost" /></div>
+              <div><label class="input-label">Offloading</label><input type="number" class="input-field" [(ngModel)]="internalCostForm.offloading_cost" /></div>
+              <div><label class="input-label">Additional</label><input type="number" class="input-field" [(ngModel)]="internalCostForm.additional_charges" /></div>
+              <div class="col-span-2">
+                <label class="input-label">Notes</label>
+                <textarea rows="2" class="input-field resize-none" [(ngModel)]="internalCostForm.notes"></textarea>
+              </div>
+            </div>
+            <p class="text-sm font-semibold mt-4 text-right">
+              Total: {{ internalCostTotal() | number:'1.2-2' }} TZS
+              @if (d.internal_delivery_cost) {
+                <span class="text-xs font-normal text-gray-500 block">Saved: {{ d.internal_delivery_cost | number:'1.2-2' }} TZS</span>
+              }
+            </p>
+            <button type="button" class="btn-primary w-full mt-3" [disabled]="savingInternalCost()" (click)="saveInternalCost()">
+              Save Internal Cost
+            </button>
+          </div>
+        }
 
         <div class="card p-6 text-sm text-gray-600">
           <p class="text-xs text-gray-500 mb-1">Last updated</p>

@@ -1,0 +1,118 @@
+<div class="page-container">
+  <app-finance-nav />
+
+  <app-page-header title="Recurring Bills" subtitle="Automate routine vendor payments on a predictable schedule">
+    <a routerLink="/finance/recurring-bills/new" class="btn-primary">+ New Recurring Bill</a>
+  </app-page-header>
+
+  @if (!loading() && !profiles().length && !search() && !statusFilter()) {
+    <div class="card overflow-hidden mb-8">
+      <div class="grid md:grid-cols-2 gap-0">
+        <div class="p-10 md:p-14 flex flex-col justify-center">
+          <p class="text-xs font-semibold uppercase tracking-widest text-[#1B3A6B]/70 mb-3">Accounts Payable</p>
+          <h2 class="text-3xl font-bold text-[#1B3A6B] mb-3 leading-tight">Create. Set. Repeat.</h2>
+          <p class="text-gray-600 mb-8 leading-relaxed">
+            Pay recurring vendors on time without manual data entry. Define the bill template once —
+            Rock FMS generates draft or open bills on your schedule.
+          </p>
+          <div class="flex flex-wrap gap-3">
+            <a routerLink="/finance/recurring-bills/new" class="btn-primary">Create Recurring Bill</a>
+            <a routerLink="/finance/bills" class="btn-secondary">View All Bills</a>
+          </div>
+        </div>
+        <div class="bg-gradient-to-br from-slate-50 to-blue-50 p-10 md:p-14 border-t md:border-t-0 md:border-l border-gray-100">
+          <h3 class="text-sm font-semibold text-gray-800 mb-6">Life cycle of a Recurring Bill</h3>
+          <div class="space-y-4">
+            @for (step of lifecycleSteps; track step.title) {
+              <div class="flex items-start gap-4">
+                <div class="shrink-0 w-10 h-10 rounded-xl bg-white shadow-sm border border-gray-100 flex items-center justify-center text-lg">
+                  {{ step.icon }}
+                </div>
+                <div>
+                  <p class="font-semibold text-gray-900 text-sm">{{ step.title }}</p>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ step.desc }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="card p-4 mb-4 flex flex-wrap items-center gap-3">
+    <div class="flex-1 min-w-[200px] relative">
+      <input
+        type="text"
+        class="input-field w-full pl-9"
+        placeholder="Search by profile name or vendor…"
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event); page.set(1); load()"
+      />
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">⌕</span>
+    </div>
+    <select
+      class="input-field w-44"
+      [ngModel]="statusFilter()"
+      (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+    >
+      <option value="">All statuses</option>
+      <option value="ACTIVE">Active</option>
+      <option value="PAUSED">Paused</option>
+      <option value="COMPLETED">Completed</option>
+    </select>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="6" />
+  } @else if (!profiles().length) {
+    <app-empty-state moduleName="Recurring Bills" (companySwitched)="load()" />
+  } @else {
+    <div class="table-container">
+      <table class="w-full">
+        <thead>
+          <tr>
+            <th class="table-th">Profile</th>
+            <th class="table-th">Vendor</th>
+            <th class="table-th">Frequency</th>
+            <th class="table-th">Next Generation</th>
+            <th class="table-th text-center">Bills Created</th>
+            <th class="table-th">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (profile of profiles(); track profile.id) {
+            <tr
+              class="table-row cursor-pointer hover:!bg-blue-50/80 transition-colors"
+              [routerLink]="['/finance/recurring-bills', profile.id, 'view']"
+            >
+              <td class="table-td">
+                <span class="font-semibold text-[#1B3A6B] block">{{ profile.name }}</span>
+                @if (profile.subject) {
+                  <span class="text-xs text-gray-500">{{ profile.subject }}</span>
+                }
+              </td>
+              <td class="table-td">{{ profile.vendor_name }}</td>
+              <td class="table-td">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs font-medium text-slate-700">
+                  {{ frequencyLabel(profile.frequency) }}
+                </span>
+              </td>
+              <td class="table-td">
+                <span class="font-medium">{{ formatDate(profile.next_run_date) }}</span>
+              </td>
+              <td class="table-td text-center tabular-nums">{{ profile.bills_generated_count }}</td>
+              <td class="table-td"><app-status-badge [status]="profile.status" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <app-pagination
+        [page]="page()"
+        [pageSize]="15"
+        [total]="total()"
+        (pageChange)="page.set($event); load()"
+      />
+    </div>
+  }
+</div>

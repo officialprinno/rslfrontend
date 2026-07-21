@@ -3,24 +3,79 @@
   @if (rfq(); as r) {
     <app-page-header [title]="r.rfq_number" subtitle="Linked PR: {{ r.pr_number }}">
       <a routerLink="/procurement/rfq" class="btn-secondary">Back</a>
+      @if (canManage() && r.status === 'DRAFT') {
+        <button type="button" class="btn-secondary" (click)="goEditDraft()">Edit Draft</button>
+        <button
+          type="button"
+          class="btn-primary"
+          [disabled]="sendingEmails()"
+          (click)="sendToSuppliers()"
+        >
+          {{ sendingEmails() ? 'Sending…' : 'Send to Suppliers' }}
+        </button>
+      }
+      @if (canManage() && r.status === 'OPEN') {
+        <button
+          type="button"
+          class="btn-secondary"
+          [disabled]="sendingEmails()"
+          (click)="resendRfqEmails()"
+        >
+          {{ sendingEmails() ? 'Sending…' : 'Resend RFQ emails' }}
+        </button>
+      }
     </app-page-header>
-    <app-workflow-stepper [steps]="rfqSteps" [activeIndex]="workflowIndex(r.status)" />
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    @if (r.status === 'DRAFT') {
+      <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        This RFQ is a <strong>draft</strong>. Edit suppliers and details as needed, then click
+        <strong>Send to Suppliers</strong> when you are ready. Emails are not sent until then.
+      </div>
+    } @else {
+      <div class="mb-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        Suppliers are emailed from the supply procurement mailbox when you send the RFQ.
+        When a supplier replies by email, phone, or WhatsApp, record their quotation manually on the
+        <strong>Supplier Responses</strong> tab.
+      </div>
+    }
+
+    <app-workflow-stepper [steps]="rfqSteps" [activeIndex]="workflowIndex(r)" />
+
+    <div class="flex flex-wrap gap-2 mb-6 border-b border-gray-200">
+      @for (tab of tabs; track tab.id) {
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+          [class]="activeTab() === tab.id ? 'border-[#1B3A6B] text-[#1B3A6B]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          (click)="setTab(tab.id)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    @if (activeTab() === 'details') {
       <div class="card p-6">
         <h4 class="font-semibold mb-4">RFQ Details</h4>
-        <div class="text-sm space-y-2 mb-4">
+        <div class="text-sm space-y-2 mb-6">
           <p><span class="text-gray-500">Deadline:</span> {{ formatDate(r.deadline) }}</p>
           <p><span class="text-gray-500">Status:</span> <app-status-badge [status]="r.status" /></p>
+          <p><span class="text-gray-500">Created by:</span> {{ r.created_by_name }}</p>
           <p><span class="text-gray-500">Notes:</span> {{ r.notes || '—' }}</p>
         </div>
         <h5 class="font-medium mb-2">Items from PR</h5>
         <table class="w-full text-sm">
-          <thead><tr><th class="table-th">Item</th><th class="table-th">Qty</th><th class="table-th">Est.</th></tr></thead>
+          <thead>
+            <tr>
+              <th class="table-th">Item</th>
+              <th class="table-th">Qty</th>
+              <th class="table-th">Est.</th>
+            </tr>
+          </thead>
           <tbody>
             @for (item of r.items; track item.id) {
               <tr class="table-row">
-                <td class="table-td">{{ item.item_code }}</td>
+                <td class="table-td">{{ item.item_code }} — {{ item.item_name }}</td>
                 <td class="table-td">{{ item.quantity_requested }}</td>
                 <td class="table-td">{{ formatCurrency(item.total_estimate) }}</td>
               </tr>
@@ -28,58 +83,1165 @@
           </tbody>
         </table>
       </div>
+    }
 
+    @if (activeTab() === 'invited') {
       <div class="card p-6">
-        <h4 class="font-semibold mb-4">Supplier Responses</h4>
+        <h4 class="font-semibold mb-4">Invited Suppliers</h4>
         <table class="w-full text-sm">
           <thead>
             <tr>
               <th class="table-th">Supplier</th>
-              <th class="table-th">Status</th>
-              <th class="table-th">Amount</th>
-              <th class="table-th">Delivery</th>
-              <th class="table-th">Actions</th>
+              <th class="table-th">Country</th>
+              <th class="table-th">Invitation</th>
+              <th class="table-th">Response Status</th>
+              <th class="table-th">Invited By</th>
+              <th class="table-th">Invited At</th>
             </tr>
           </thead>
           <tbody>
-            @for (q of quotations(); track q.id) {
+            @for (inv of r.invited_suppliers; track inv.id) {
               <tr class="table-row">
-                <td class="table-td">{{ q.supplier_name }}</td>
-                <td class="table-td"><app-status-badge [status]="q.status" /></td>
-                <td class="table-td font-semibold">{{ formatCurrency(q.total_amount, q.currency_code) }}</td>
-                <td class="table-td">{{ q.delivery_days }} days</td>
-                <td class="table-td">
-                  @if (q.status === 'PENDING') {
-                    <button type="button" class="btn-ghost !px-2 !py-1 !text-xs !text-green-700" (click)="selectWinner(q)">Select Winner</button>
-                  }
-                </td>
+                <td class="table-td font-medium">{{ inv.supplier_name }}</td>
+                <td class="table-td">{{ countryFlag(inv.supplier_country || '') }} {{ inv.supplier_country || '—' }}</td>
+                <td class="table-td"><app-status-badge [status]="inv.invitation_status" /></td>
+                <td class="table-td"><app-status-badge [status]="inv.response_status" /></td>
+                <td class="table-td">{{ inv.invited_by_name || '—' }}</td>
+                <td class="table-td">{{ inv.invited_at ? formatDate(inv.invited_at) : '—' }}</td>
               </tr>
             }
           </tbody>
         </table>
+      </div>
+    }
 
-        @if (respondedQuotations().length >= 2) {
-          <div class="mt-6">
-            <h5 class="font-medium mb-2">Price Comparison</h5>
-            <table class="w-full text-sm">
-              <thead><tr><th class="table-th">Supplier</th><th class="table-th">Total</th></tr></thead>
-              <tbody>
-                @for (q of respondedQuotations(); track q.id) {
-                  <tr class="table-row" [class.bg-green-50]="isLowestPrice(q)">
-                    <td class="table-td">{{ q.supplier_name }}</td>
-                    <td class="table-td font-semibold">
-                      {{ formatCurrency(q.total_amount, q.currency_code) }}
-                      @if (isLowestPrice(q)) {
-                        <span class="badge bg-green-100 text-green-800 ml-2">Recommended</span>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+    @if (activeTab() === 'responses') {
+      <div class="card p-6 min-w-0">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+          <div>
+            <h4 class="font-semibold">Supplier Responses</h4>
+            <p class="text-sm text-gray-500 mt-1">
+              When suppliers reply to the RFQ email (or quote by phone/WhatsApp), enter their quotation here for comparison.
+            </p>
+            @if (canAddResponse() && rfq()?.status === 'DRAFT') {
+              <p class="text-xs text-amber-700 mt-2">Send this RFQ to suppliers before recording quotations.</p>
+            } @else if (canAddResponse() && rfq()?.status !== 'OPEN') {
+              <p class="text-xs text-amber-700 mt-2">RFQ is closed — reopen or create a new RFQ to add more quotations.</p>
+            }
+          </div>
+        </div>
+
+        @if (isMultiItemRfq() && hasRespondedQuotations() && canAwardItems()) {
+          <div class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+            This RFQ has multiple items. Assign each line to a supplier below, then create a purchase order per awarded supplier.
           </div>
         }
+
+        @if (isMultiItemRfq() && hasRespondedQuotations() && canRecommend() && r.status === 'OPEN') {
+          <div class="mb-6 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h5 class="font-semibold text-indigo-950">GM Recommendations</h5>
+                <p class="text-xs text-indigo-800/80 mt-1">
+                  Recommend which supplier should supply each item. Procurement will see these picks when awarding.
+                </p>
+                @if (hasSavedGmRecommendations() && !recommendationsDirty()) {
+                  <p class="mt-2 inline-flex items-center rounded-md bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                    Recommendations saved
+                    @if (itemRecommendations()[0]; as first) {
+                      · by {{ first.recommended_by_name }}
+                    }
+                  </p>
+                } @else if (recommendationsDirty()) {
+                  <p class="mt-2 text-xs font-medium text-amber-700">Unsaved changes — save to update recommendations.</p>
+                }
+              </div>
+              <button
+                type="button"
+                class="btn-primary !text-sm"
+                [class.!bg-indigo-700]="canSaveRecommendations()"
+                [class.hover:!bg-indigo-800]="canSaveRecommendations()"
+                [class.!bg-emerald-700]="hasSavedGmRecommendations() && !recommendationsDirty()"
+                [disabled]="!canSaveRecommendations()"
+                (click)="saveGmRecommendations()"
+              >
+                @if (savingRecommendations()) { <span class="spinner spinner-sm"></span> }
+                {{ recommendationsSaveLabel() }}
+              </button>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-indigo-100 bg-white">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="bg-indigo-50/60">
+                    <th class="table-th">Item</th>
+                    <th class="table-th">Qty</th>
+                    <th class="table-th">Est.</th>
+                    @for (resp of respondedRows(); track resp.response.id) {
+                      <th class="table-th text-right">{{ resp.response.supplier_name }}</th>
+                    }
+                    <th class="table-th">Recommend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of r.items; track item.id) {
+                    @if (item.id) {
+                      <tr class="table-row">
+                        <td class="table-td">
+                          <span class="font-medium">{{ item.item_code }}</span>
+                          <span class="block text-xs text-gray-500">{{ item.item_name }}</span>
+                        </td>
+                        <td class="table-td whitespace-nowrap">
+                          {{ item.quantity_requested }}
+                          <span class="text-[#1B3A6B]">{{ item.unit_of_measure || 'unit' }}</span>
+                        </td>
+                        <td class="table-td">{{ formatCurrency(item.total_estimate) }}</td>
+                        @for (resp of respondedRows(); track resp.response.id) {
+                          <td class="table-td text-right">
+                            @if (supplierQuoteForItem(resp.response, item.id); as quote) {
+                              <span class="block text-xs text-gray-500">Unit {{ formatCurrency(quote.unit_price, quote.currency) }}</span>
+                              <span class="font-semibold text-[#1B3A6B]">{{ formatCurrency(quote.line_total, quote.currency) }}</span>
+                            } @else {
+                              <span class="text-gray-400 text-xs">—</span>
+                            }
+                          </td>
+                        }
+                        <td class="table-td min-w-[14rem]">
+                          <select
+                            class="input-field !py-1.5 !text-sm"
+                            [value]="itemRecommendationSelection(item.id) ?? ''"
+                            (change)="setItemRecommendation(item.id, $any($event.target).value)"
+                          >
+                            <option value="">Select supplier…</option>
+                            @for (resp of respondedRows(); track resp.response.id) {
+                              <option [value]="resp.response.id">
+                                {{ awardOptionLabel(resp.response, item.id) }}
+                              </option>
+                            }
+                          </select>
+                        </td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (isMultiItemRfq() && hasRespondedQuotations() && canAwardItems()) {
+          <div class="mb-6 rounded-xl border border-gray-200 bg-white p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h5 class="font-semibold text-gray-900">Assign Items to Suppliers</h5>
+                <p class="text-xs text-gray-500 mt-1">
+                  Award one or more items now — you can create a PO for that supplier, then award remaining items later.
+                  Compare unit and total prices in the Award To list.
+                </p>
+                @if (hasSavedGmRecommendations()) {
+                  <p class="text-xs text-indigo-700 mt-2">
+                    GM has recommended suppliers for {{ itemRecommendations().length }} item(s)
+                    @if (itemRecommendations()[0]; as first) {
+                      (by {{ first.recommended_by_name }}).
+                    }
+                  </p>
+                }
+              </div>
+              <div class="flex flex-wrap gap-2">
+                @if (hasSavedGmRecommendations()) {
+                  <button
+                    type="button"
+                    class="btn-secondary !text-sm"
+                    (click)="applyGmRecommendations()"
+                  >
+                    Apply GM Recommendations
+                  </button>
+                }
+                <button
+                  type="button"
+                  class="btn-primary !text-sm"
+                  [disabled]="savingAwards() || !hasAnyItemAwards()"
+                  (click)="saveItemAwards()"
+                >
+                  @if (savingAwards()) { <span class="spinner spinner-sm"></span> }
+                  Save Item Awards
+                </button>
+              </div>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr>
+                    <th class="table-th">Item</th>
+                    <th class="table-th">Qty</th>
+                    <th class="table-th">Est.</th>
+                    @for (resp of respondedRows(); track resp.response.id) {
+                      <th class="table-th text-right">{{ resp.response.supplier_name }}</th>
+                    }
+                    <th class="table-th">Award To</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of r.items; track item.id) {
+                    @if (item.id) {
+                      <tr class="table-row">
+                        <td class="table-td">
+                          <span class="font-medium">{{ item.item_code }}</span>
+                          <span class="block text-xs text-gray-500">{{ item.item_name }}</span>
+                          @if (gmRecommendationForItem(item.id); as gmRec) {
+                            <span class="mt-1 inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-800">
+                              GM: {{ gmRec.supplier_name }}
+                            </span>
+                          }
+                        </td>
+                        <td class="table-td">{{ item.quantity_requested }}</td>
+                        <td class="table-td">{{ formatCurrency(item.total_estimate) }}</td>
+                        @for (resp of respondedRows(); track resp.response.id) {
+                          <td class="table-td text-right">
+                            @if (supplierQuoteForItem(resp.response, item.id); as quote) {
+                              <span class="block text-xs text-gray-500">Unit {{ formatCurrency(quote.unit_price, quote.currency) }}</span>
+                              <span class="font-semibold text-[#1B3A6B]">{{ formatCurrency(quote.line_total, quote.currency) }}</span>
+                            } @else {
+                              <span class="text-gray-400 text-xs">—</span>
+                            }
+                          </td>
+                        }
+                        <td class="table-td min-w-[14rem]">
+                          @if (isItemPoLocked(item.id)) {
+                            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-900">
+                              <span class="font-semibold">PO created</span>
+                              @if (itemAwardSelection(item.id); as awardedId) {
+                                @for (resp of respondedRows(); track resp.response.id) {
+                                  @if (resp.response.id === awardedId) {
+                                    <span class="block">{{ resp.response.supplier_name }}</span>
+                                  }
+                                }
+                              }
+                              <span class="block text-[10px] text-emerald-700 mt-0.5">Cannot create another PO for this item</span>
+                            </div>
+                          } @else {
+                            <select
+                              class="input-field !py-1.5 !text-sm"
+                              [value]="itemAwardSelection(item.id) ?? ''"
+                              (change)="setItemAward(item.id, $any($event.target).value)"
+                            >
+                              <option value="">Select supplier…</option>
+                              @for (resp of respondedRows(); track resp.response.id) {
+                                <option [value]="resp.response.id">
+                                  {{ awardOptionLabel(resp.response, item.id) }}
+                                </option>
+                              }
+                            </select>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (selectedWinner(); as winner) {
+          <div class="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="text-sm">
+              <span class="font-semibold text-green-800">Selected winner:</span>
+              {{ winner.supplier_name }} — {{ formatCurrency(winner.amount_in_tzs) }}
+            </div>
+            @if (canActOnResponse(winner, 'po')) {
+              <button type="button" class="btn-primary !text-sm" (click)="generatePo(winner)">
+                Create Purchase Order
+              </button>
+            }
+            @if (responseHasPo(winner)) {
+              <button type="button" class="btn-secondary !text-sm" (click)="viewPoForResponse(winner)">
+                View Purchase Order
+              </button>
+            }
+          </div>
+        } @else if (isMultiItemRfq() && selectedWinners().length) {
+          <div class="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 space-y-3">
+            <p class="text-sm font-semibold text-green-800">Awarded suppliers</p>
+            @for (winner of selectedWinners(); track winner.id) {
+              <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <div>
+                  <span class="font-medium text-green-900">{{ winner.supplier_name }}</span>
+                  <span class="text-green-800">
+                    — {{ awardedItemsForResponse(winner.id).length }} item(s)
+                  </span>
+                  @if (awardedItemsForResponse(winner.id).length) {
+                    <span class="text-xs text-green-700 block mt-0.5">
+                      @for (award of awardedItemsForResponse(winner.id); track award.id; let last = $last) {
+                        {{ award.item_name }}@if (!last) {, }
+                      }
+                    </span>
+                  }
+                  @if (poForResponse(winner.id); as po) {
+                    <span class="block text-xs text-green-800 mt-1 font-medium">PO: {{ po.po_number }}</span>
+                  }
+                </div>
+                @if (canActOnResponse(winner, 'po')) {
+                  <button type="button" class="btn-primary !text-sm" (click)="generatePo(winner)">
+                    Create PO
+                  </button>
+                }
+                @if (responseHasPo(winner)) {
+                  <button type="button" class="btn-secondary !text-sm" (click)="viewPoForResponse(winner)">
+                    View PO
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        } @else if (hasRespondedQuotations() && canSelect()) {
+          <div class="mb-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+            @if (isMultiItemRfq()) {
+              Review quotations and per-item prices below. Award one or more items, save, then create a PO for that supplier — remaining items can be awarded later.
+            } @else {
+              Review quotations below, then use <strong>Select Winner</strong> on the preferred supplier before creating a PO.
+            }
+          </div>
+        }
+
+        <div class="mb-5 flex flex-wrap gap-3">
+          <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">
+            <span class="text-emerald-800 font-semibold">{{ respondedCount() }}</span>
+            <span class="text-emerald-900"> of {{ totalInvited() }} suppliers quoted</span>
+          </div>
+          @if (pendingCount() > 0) {
+            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <span class="font-semibold">{{ pendingCount() }}</span> awaiting quote
+            </div>
+          }
+        </div>
+
+        @if (responseRows().length) {
+        <div class="table-container table-container--wide -mx-6 mb-0">
+          <div class="table-scroll-viewport">
+          <table class="w-full text-sm rfq-supplier-responses-table">
+            <thead>
+              <tr>
+                <th class="table-th table-col-md">Supplier</th>
+                <th class="table-th table-col-status">Invitation</th>
+                <th class="table-th table-col-status">Response</th>
+                <th class="table-th table-col-num">Quoted</th>
+                <th class="table-th table-col-sm">Delivery</th>
+                <th class="table-th table-col-md">File</th>
+                <th class="table-th table-col-md">Submitted</th>
+                <th class="table-th table-col-actions text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of responseRows(); track row.invite.id) {
+                @let resp = row.response;
+                @let inv = row.invite;
+                <tr
+                  class="table-row"
+                  [class.bg-green-50]="resp?.response_status === 'SELECTED'"
+                  [class.bg-blue-50/40]="resp?.response_status === 'PO_GENERATED'"
+                  [class.bg-amber-50/50]="!resp && isStaleInvite(inv)"
+                  [class.bg-gray-50/80]="!resp && !isStaleInvite(inv)"
+                >
+                  <td class="table-td">
+                    @if (resp) {
+                      <div class="font-medium">
+                        {{ countryFlag(resp.supplier_country) }} {{ resp.supplier_name }}
+                      </div>
+                      <span class="text-xs text-gray-500">{{ resp.supplier_country }}</span>
+                      @if (resp.response_status === 'SELECTED') {
+                        <span class="badge bg-green-100 text-green-800 mt-1 inline-block">
+                          {{ isMultiItemRfq() ? 'Awarded' : 'Winner' }}
+                        </span>
+                      }
+                      @if (isMultiItemRfq() && awardedItemsForResponse(resp.id).length) {
+                        <span class="text-xs text-green-700 block mt-1">
+                          {{ awardedItemsForResponse(resp.id).length }} item(s) awarded
+                        </span>
+                      }
+                    } @else {
+                      <div class="font-medium text-gray-700">
+                        {{ countryFlag(inv.supplier_country || '') }} {{ inv.supplier_name }}
+                      </div>
+                      @if (inv.supplier_country) {
+                        <span class="text-xs text-gray-500">{{ inv.supplier_country }}</span>
+                      }
+                    }
+                  </td>
+                  <td class="table-td">
+                    <app-status-badge [status]="resp ? resp.invitation_status : inv.invitation_status" />
+                  </td>
+                  <td class="table-td">
+                    <app-status-badge [status]="resp ? resp.response_status : inv.response_status" />
+                  </td>
+                  <td class="table-td">
+                    @if (resp) {
+                      <span class="font-semibold">{{ formatCurrency(resp.quoted_amount, resp.currency) }}</span>
+                      @if (resp.currency !== 'TZS') {
+                        <span class="text-xs text-gray-500 block">≈ {{ formatCurrency(resp.amount_in_tzs) }}</span>
+                      }
+                      @if (isMultiItemRfq() && resp.line_items?.length) {
+                        <div class="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                          @for (line of resp.line_items!; track line.pr_item_id) {
+                            <div class="text-xs text-gray-700 flex flex-wrap justify-between gap-x-3 gap-y-0.5">
+                              <span class="text-gray-600">{{ line.item_code }}</span>
+                              <span>
+                                {{ formatCurrency(line.unit_price, resp.currency) }}/unit
+                                ·
+                                <span class="font-medium text-gray-900">{{ formatCurrency(line.line_total ?? 0, resp.currency) }}</span>
+                              </span>
+                            </div>
+                          }
+                        </div>
+                      }
+                    } @else if (isStaleInvite(inv)) {
+                      <span class="text-amber-800 text-xs">Quotation status out of sync</span>
+                    } @else {
+                      <span class="text-gray-500 text-xs">No quotation recorded</span>
+                    }
+                  </td>
+                  <td class="table-td">
+                    @if (resp) {
+                      <span>{{ resp.delivery_days }} days</span>
+                      <span class="mt-1 block text-xs text-[#1B3A6B]">
+                        {{ paymentSummary(resp.payment_terms, resp.payment_mode, resp.advance_percent) }}
+                      </span>
+                    } @else {
+                      <span class="text-gray-400">—</span>
+                    }
+                  </td>
+                  <td class="table-td">
+                    @if (resp && (resp.quotation_file_url || resp.quotation_file_view_url)) {
+                      <div class="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          class="text-[#1B3A6B] hover:underline text-xs"
+                          [disabled]="openingFile()"
+                          (click)="openQuotationFile(resp, 'inline')"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          class="text-[#1B3A6B] hover:underline text-xs"
+                          [disabled]="openingFile()"
+                          (click)="openQuotationFile(resp, 'attachment')"
+                        >
+                          Download
+                        </button>
+                      </div>
+                      @if (resp.quotation_file_name) {
+                        <span class="text-xs text-gray-500 block mt-1">{{ resp.quotation_file_name }}</span>
+                      }
+                    } @else {
+                      <span class="text-gray-400">—</span>
+                    }
+                  </td>
+                  <td class="table-td">
+                    @if (resp) {
+                      <span class="block text-xs">{{ resp.submitted_by_name }}</span>
+                      <span class="text-xs text-gray-500">{{ formatDate(resp.submitted_at) }}</span>
+                    } @else {
+                      <span class="text-gray-400">—</span>
+                    }
+                  </td>
+                  <td class="table-td table-col-actions">
+                    <div class="flex flex-nowrap justify-end gap-1.5">
+                      @if (resp) {
+                        @if (canActOnResponse(resp, 'edit')) {
+                          <button type="button" class="btn-secondary !px-2.5 !py-1 !text-xs" (click)="openEditResponse(resp)">Edit</button>
+                        }
+                        @if (canActOnResponse(resp, 'review')) {
+                          <button type="button" class="btn-secondary !px-2.5 !py-1 !text-xs" (click)="markUnderReview(resp)">Review</button>
+                        }
+                        @if (canActOnResponse(resp, 'select')) {
+                          <button type="button" class="btn-primary !px-2.5 !py-1 !text-xs" (click)="selectWinner(resp)">
+                            Select Winner
+                          </button>
+                        }
+                        @if (canActOnResponse(resp, 'po')) {
+                          <button type="button" class="btn-primary !px-2.5 !py-1 !text-xs !bg-emerald-700 hover:!bg-emerald-800" (click)="generatePo(resp)">
+                            Create PO
+                          </button>
+                        }
+                        @if (responseHasPo(resp)) {
+                          <button type="button" class="btn-secondary !px-2.5 !py-1 !text-xs" (click)="viewPoForResponse(resp)">
+                            View PO
+                          </button>
+                        }
+                        @if (canActOnResponse(resp, 'reject')) {
+                          <button type="button" class="btn-ghost !px-2.5 !py-1 !text-xs !text-red-700" (click)="rejectResponse(resp)">Reject</button>
+                        }
+                        @if (canActOnResponse(resp, 'override')) {
+                          <button type="button" class="btn-ghost !px-2.5 !py-1 !text-xs !text-amber-700" (click)="gmOverride(resp)">GM Override</button>
+                        }
+                      } @else {
+                        @if (isStaleInvite(inv)) {
+                          <button type="button" class="btn-ghost !px-2.5 !py-1 !text-xs" (click)="loadResponses(); loadRfq()">Refresh</button>
+                        }
+                        @if (canAddResponseForInvite(inv)) {
+                          <button type="button" class="btn-primary !px-2.5 !py-1 !text-xs" (click)="openAddResponse(inv)">
+                            Add Response
+                          </button>
+                        }
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          </div>
+        </div>
+        } @else {
+          <p class="text-sm text-gray-500 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+            No suppliers invited to this RFQ yet.
+          </p>
+        }
+
+        @if (!canSelect() && hasRespondedQuotations()) {
+          <p class="text-xs text-gray-500 mt-4">
+            Only HOD Procurement can select a winning supplier and create a purchase order.
+          </p>
+        }
       </div>
+    }
+
+    @if (activeTab() === 'comparison') {
+      <div class="card p-6">
+        <h4 class="font-semibold mb-4">Quotation Comparison</h4>
+        @if (!comparison().length) {
+          <p class="text-sm text-gray-500">No supplier responses to compare yet.</p>
+        } @else {
+          <table class="w-full text-sm">
+            <thead>
+              <tr>
+                <th class="table-th">Rank</th>
+                <th class="table-th">Supplier</th>
+                <th class="table-th">Quoted (TZS eq.)</th>
+                <th class="table-th">Delivery</th>
+                <th class="table-th">Warranty</th>
+                <th class="table-th">Payment</th>
+                <th class="table-th">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of comparison(); track row.response_id) {
+                <tr class="table-row" [class.bg-green-50]="row.recommended">
+                  <td class="table-td font-semibold">#{{ row.rank }}</td>
+                  <td class="table-td">
+                    {{ row.supplier_name }}
+                    @if (row.recommended) {
+                      <span class="badge bg-green-100 text-green-800 ml-2">Recommended</span>
+                    }
+                  </td>
+                  <td class="table-td">
+                    {{ formatCurrency(row.quoted_amount, row.currency) }}
+                    <span class="text-xs text-gray-500 block">≈ {{ formatCurrency(row.amount_in_tzs) }}</span>
+                  </td>
+                  <td class="table-td">{{ row.delivery_days }} days</td>
+                  <td class="table-td">{{ row.warranty || '—' }}</td>
+                  <td class="table-td">
+                    {{ paymentSummary(row.payment_terms, row.payment_mode, row.advance_percent) }}
+                  </td>
+                  <td class="table-td font-semibold">{{ row.composite_score | number:'1.0-1' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p class="text-xs text-gray-500 mt-4">
+            Score weights: price 50%, delivery 30%, supplier rating 20%. Recommendation is advisory only.
+          </p>
+        }
+      </div>
+    }
+
+    @if (activeTab() === 'purchase-order') {
+      <div class="card p-6">
+        <h4 class="font-semibold mb-4">Purchase Order</h4>
+        @if (linkedPos().length) {
+          <div class="space-y-4">
+            @for (po of linkedPos(); track po.id) {
+              <div class="text-sm space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <p><span class="text-gray-500">PO Number:</span> <a [routerLink]="['/procurement/purchase-orders', po.id, 'view']" class="text-[#1B3A6B] hover:underline">{{ po.po_number }}</a></p>
+                <p><span class="text-gray-500">Supplier:</span> {{ po.supplier_name }}</p>
+                <p><span class="text-gray-500">Total:</span> {{ formatCurrency(po.total_amount, po.currency_code) }}</p>
+                <p><span class="text-gray-500">Status:</span> <app-status-badge [status]="po.status" /></p>
+                <button type="button" class="btn-secondary !text-sm mt-2" (click)="viewPo(po)">Open PO</button>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-500">
+            @if (isMultiItemRfq()) {
+              No purchase orders generated yet. Assign items to suppliers and create a PO for each awarded supplier.
+            } @else {
+              No purchase order generated yet. Select a winning supplier and use Generate PO on the Supplier Responses tab.
+            }
+          </p>
+        }
+      </div>
+    }
+  }
+
+  @if (showResponseModal()) {
+    <app-modal
+      [open]="showResponseModal()"
+      [title]="editingResponse() ? 'Edit Supplier Response' : 'Record Supplier Response'"
+      size="preview"
+      (close)="closeResponseModal()"
+    >
+      @if (selectedInvite(); as invite) {
+        <div class="mb-6 rounded-xl border border-[#1B3A6B]/15 bg-gradient-to-r from-[#1B3A6B]/5 to-slate-50 p-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-[#1B3A6B]/70">Invited Supplier</p>
+              <h3 class="text-lg font-semibold text-gray-900 mt-1">{{ invite.supplier_name }}</h3>
+              <p class="text-sm text-gray-600 mt-0.5">
+                {{ countryFlag(invite.supplier_country || '') }}
+                {{ invite.supplier_country || 'Unknown country' }}
+              </p>
+              @if (invite.supplier_email) {
+                <p class="text-sm text-[#1B3A6B] mt-1">{{ invite.supplier_email }}</p>
+              }
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              @if (invite.is_international) {
+                <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                  International
+                </span>
+              } @else {
+                <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                  Local
+                </span>
+              }
+              <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200">
+                Rating: {{ invite.supplier_rating }}/5
+              </span>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mt-3">
+            Enter the quotation received from the supplier (email reply, phone, WhatsApp, etc.).
+            Compare against the PR estimated price. Mark VAT per line when the quote includes VAT.
+          </p>
+        </div>
+      }
+
+      <form [formGroup]="responseForm" class="space-y-6" (ngSubmit)="saveResponse()">
+        <section>
+          <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1B3A6B] text-xs text-white">1</span>
+            Quotation Pricing
+          </h4>
+
+          @if (isMultiItemRfq()) {
+            <p class="text-xs text-gray-500 mb-3">
+              Est. prices come from the approved PR. Enter the supplier's unit price for each item and mark VAT if applicable.
+            </p>
+            <div class="mb-4">
+              <label class="input-label">Currency *</label>
+              <select
+                formControlName="currency"
+                class="input-field max-w-xs"
+                [class.input-field--error]="fieldInvalid('currency')"
+              >
+                @for (c of currencies; track c) {
+                  <option [value]="c">{{ c }}</option>
+                }
+              </select>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-gray-200">
+              <table class="w-full text-sm min-w-[72rem]">
+                <thead>
+                  <tr class="bg-slate-50">
+                    <th class="table-th min-w-[18rem]">Item</th>
+                    <th class="table-th whitespace-nowrap">Qty / Unit</th>
+                    <th class="table-th whitespace-nowrap">Est. Unit</th>
+                    <th class="table-th whitespace-nowrap">Est. Total</th>
+                    <th class="table-th whitespace-nowrap">VAT</th>
+                    <th class="table-th whitespace-nowrap">Unit Price *</th>
+                    <th class="table-th whitespace-nowrap">Line Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of rfq()?.items ?? []; track item.id) {
+                    @if (item.id) {
+                      <tr class="table-row">
+                        <td class="table-td min-w-[18rem]">
+                          <p class="font-medium text-gray-900 whitespace-nowrap">
+                            {{ item.item_code }} — {{ item.item_name }}
+                          </p>
+                        </td>
+                        <td class="table-td whitespace-nowrap">
+                          {{ item.quantity_requested }}
+                          <span class="text-[#1B3A6B]">{{ item.unit_of_measure || 'unit' }}</span>
+                        </td>
+                        <td class="table-td whitespace-nowrap text-gray-600">
+                          {{ formatCurrency(lineEstUnit(item)) }}
+                        </td>
+                        <td class="table-td whitespace-nowrap text-gray-600">
+                          {{ formatCurrency(lineEstTotal(item)) }}
+                          @if ((item.tax_rate ?? 0) > 0) {
+                            <span class="block text-[10px] text-amber-700">incl. PR VAT</span>
+                          }
+                        </td>
+                        <td class="table-td">
+                          <label
+                            class="inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 cursor-pointer select-none"
+                            [class.border-amber-300]="responseLineVatEnabled(item.id)"
+                            [class.bg-amber-50]="responseLineVatEnabled(item.id)"
+                            [class.border-gray-200]="!responseLineVatEnabled(item.id)"
+                          >
+                            <input
+                              type="checkbox"
+                              class="h-3.5 w-3.5"
+                              [checked]="responseLineVatEnabled(item.id)"
+                              (change)="setResponseLineVat(item.id, $any($event.target).checked)"
+                            />
+                            <span
+                              class="text-xs font-semibold"
+                              [class.text-amber-800]="responseLineVatEnabled(item.id)"
+                              [class.text-gray-600]="!responseLineVatEnabled(item.id)"
+                            >
+                              {{ responseLineVatEnabled(item.id) ? 'VAT 18%' : 'No VAT' }}
+                            </span>
+                          </label>
+                        </td>
+                        <td class="table-td">
+                          <div class="relative min-w-[8.5rem]">
+                            <input
+                              type="number"
+                              class="input-field pr-14 !py-1.5 !text-sm"
+                              [value]="responseLineUnitPrice(item.id) ?? ''"
+                              (input)="setResponseLineUnitPrice(item.id, $any($event.target).value)"
+                              step="0.0001"
+                              min="0"
+                              placeholder="0.00"
+                            />
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                              {{ responseForm.controls.currency.value }}
+                            </span>
+                          </div>
+                        </td>
+                        <td class="table-td font-medium whitespace-nowrap">
+                          @if (responseLineTotal(item.id); as lineTotal) {
+                            {{ formatCurrency(lineTotal, responseForm.controls.currency.value ?? 'TZS') }}
+                            @if (responseLineVatEnabled(item.id)) {
+                              <span class="block text-[10px] font-normal text-amber-700">
+                                +VAT {{ formatCurrency(responseLineVatAmount(item.id) ?? 0, responseForm.controls.currency.value ?? 'TZS') }}
+                              </span>
+                            }
+                          } @else {
+                            <span class="text-gray-400">—</span>
+                          }
+                        </td>
+                      </tr>
+                    }
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center justify-end gap-x-6 gap-y-2 rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 text-sm">
+              <div class="text-gray-500">
+                Net
+                <span class="ml-2 font-semibold text-gray-800">
+                  {{ formatCurrency(lineItemsQuotedNet(), responseForm.controls.currency.value ?? 'TZS') }}
+                </span>
+              </div>
+              <div class="text-gray-500">
+                VAT
+                <span class="ml-2 font-semibold text-amber-700">
+                  {{ formatCurrency(lineItemsQuotedVat(), responseForm.controls.currency.value ?? 'TZS') }}
+                </span>
+              </div>
+              <div class="text-gray-500">
+                Total quoted
+                <span class="ml-2 text-base font-bold text-[#1B3A6B]">
+                  {{ formatCurrency(lineItemsQuotedTotal(), responseForm.controls.currency.value ?? 'TZS') }}
+                </span>
+              </div>
+            </div>
+          } @else {
+          <div class="mb-4 rounded-xl border border-gray-200 bg-slate-50 p-4">
+            @if (rfq()?.items?.[0]; as onlyItem) {
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">PR estimate (reference)</p>
+              <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                <div>
+                  <span class="text-gray-500">Item</span>
+                  <p class="font-medium">{{ onlyItem.item_code }} — {{ onlyItem.item_name }}</p>
+                </div>
+                <div>
+                  <span class="text-gray-500">Qty</span>
+                  <p class="font-medium">{{ onlyItem.quantity_requested }} {{ onlyItem.unit_of_measure || 'unit' }}</p>
+                </div>
+                <div>
+                  <span class="text-gray-500">Est. Unit</span>
+                  <p class="font-medium">{{ formatCurrency(lineEstUnit(onlyItem)) }}</p>
+                </div>
+                <div>
+                  <span class="text-gray-500">Est. Total</span>
+                  <p class="font-medium text-[#1B3A6B]">{{ formatCurrency(lineEstTotal(onlyItem)) }}</p>
+                </div>
+                <div>
+                  <span class="text-gray-500">PR VAT</span>
+                  <p class="font-medium">{{ (onlyItem.tax_rate ?? 0) > 0 ? 'VAT 18%' : 'No VAT' }}</p>
+                </div>
+              </div>
+            }
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="input-label">Quoted Amount *</label>
+              <div class="relative">
+                <input
+                  type="number"
+                  formControlName="quoted_amount"
+                  class="input-field pr-16"
+                  [class.input-field--error]="fieldInvalid('quoted_amount')"
+                  step="0.0001"
+                  min="0"
+                  placeholder="0.00"
+                />
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                  {{ responseForm.controls.currency.value }}
+                </span>
+              </div>
+              @if (fieldInvalid('quoted_amount')) {
+                <p class="input-error">{{ fieldError('quoted_amount') }}</p>
+              }
+            </div>
+            <div>
+              <label class="input-label">Currency *</label>
+              <select
+                formControlName="currency"
+                class="input-field"
+                [class.input-field--error]="fieldInvalid('currency')"
+              >
+                @for (c of currencies; track c) {
+                  <option [value]="c">{{ c }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          }
+
+          @if (showExchangeRate()) {
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="input-label">Exchange Rate to TZS *</label>
+                <input
+                  type="number"
+                  formControlName="exchange_rate_to_tzs"
+                  class="input-field bg-gray-50"
+                  [class.input-field--error]="fieldInvalid('exchange_rate_to_tzs')"
+                  step="0.0001"
+                  min="0"
+                  placeholder="e.g. 2650.0000"
+                  readonly
+                />
+                @if (fieldInvalid('exchange_rate_to_tzs')) {
+                  <p class="input-error">{{ fieldError('exchange_rate_to_tzs') }}</p>
+                }
+                <p class="text-xs text-gray-500 mt-1">
+                  1 {{ responseForm.controls.currency.value }} = X TZS — managed by Finance
+                </p>
+              </div>
+              <div class="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 flex flex-col justify-center">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">TZS Equivalent</p>
+                @if (estimatedTzs(); as tzs) {
+                  <p class="text-xl font-semibold text-[#1B3A6B] mt-1">{{ formatCurrency(tzs) }}</p>
+                  <p class="text-xs text-gray-500 mt-1">Used for quotation comparison</p>
+                } @else {
+                  <p class="text-sm text-gray-400 mt-1">Enter amount and exchange rate</p>
+                }
+              </div>
+            </div>
+          } @else if (estimatedTzs(); as tzs) {
+            <div class="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              Comparison value: <span class="font-semibold text-gray-900">{{ formatCurrency(tzs) }}</span>
+            </div>
+          }
+        </section>
+
+        <section>
+          <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1B3A6B] text-xs text-white">2</span>
+            Delivery &amp; Logistics
+          </h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="input-label">Delivery Days *</label>
+              <input
+                type="number"
+                formControlName="delivery_days"
+                class="input-field"
+                [class.input-field--error]="fieldInvalid('delivery_days')"
+                min="1"
+                placeholder="e.g. 14"
+              />
+              @if (fieldInvalid('delivery_days')) {
+                <p class="input-error">{{ fieldError('delivery_days') }}</p>
+              }
+              @if (isInternationalInvite()) {
+                <p class="text-xs text-amber-700 mt-1">Include production + shipping/transit time.</p>
+              }
+            </div>
+            <div>
+              <label class="input-label">Quotation Date *</label>
+              <input
+                type="date"
+                formControlName="quotation_date"
+                class="input-field"
+                [class.input-field--error]="fieldInvalid('quotation_date')"
+              />
+              @if (fieldInvalid('quotation_date')) {
+                <p class="input-error">{{ fieldError('quotation_date') }}</p>
+              }
+            </div>
+          </div>
+
+          @if (isInternationalInvite()) {
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-amber-100 bg-amber-50/50 p-4">
+              <div>
+                <label class="input-label">Incoterm *</label>
+                <select
+                  formControlName="incoterm"
+                  class="input-field"
+                  [class.input-field--error]="fieldInvalid('incoterm')"
+                >
+                  <option value="">Select incoterm…</option>
+                  @for (term of incoterms; track term) {
+                    <option [value]="term">{{ term }} — {{ incotermLabels[term] }}</option>
+                  }
+                </select>
+                @if (fieldInvalid('incoterm')) {
+                  <p class="input-error">{{ fieldError('incoterm') }}</p>
+                }
+              </div>
+              <div>
+                <label class="input-label">Port of Origin</label>
+                <input
+                  type="text"
+                  formControlName="port_of_origin"
+                  class="input-field"
+                  placeholder="e.g. Shanghai, Shenzhen"
+                />
+              </div>
+            </div>
+          }
+        </section>
+
+        <section>
+          <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1B3A6B] text-xs text-white">3</span>
+            Commercial Terms
+          </h4>
+          <div class="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+            <p class="text-sm font-medium text-[#1B3A6B]">Record the supplier's offered terms</p>
+            <p class="mt-1 text-xs text-gray-600">
+              These terms will be carried into the purchase order if this supplier is selected.
+            </p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="input-label">Payment Terms *</label>
+              <select
+                formControlName="payment_terms"
+                class="input-field"
+                [class.input-field--error]="fieldInvalid('payment_terms')"
+              >
+                @for (term of paymentTerms; track term.value) {
+                  <option [value]="term.value">{{ term.label }}</option>
+                }
+                <option value="CUSTOM">Custom Net Days…</option>
+              </select>
+              <p class="mt-1 text-xs text-gray-500">When the supplier expects the balance to be settled.</p>
+            </div>
+            @if (showCustomResponsePaymentTerms()) {
+              <div>
+                <label class="input-label">Custom Net Days *</label>
+                <div class="flex items-stretch overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-[#1B3A6B] focus-within:ring-1 focus-within:ring-[#1B3A6B]">
+                  <span class="flex items-center border-r border-gray-200 bg-blue-50 px-3 text-sm font-semibold text-[#1B3A6B]">Net</span>
+                  <input
+                    type="number"
+                    formControlName="custom_payment_term_days"
+                    class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 outline-none"
+                    min="1"
+                    max="365"
+                    step="1"
+                    placeholder="e.g. 90"
+                  />
+                  <span class="flex items-center border-l border-gray-200 bg-slate-50 px-3 text-xs text-gray-500">days</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Enter any agreed term from 1 to 365 days.</p>
+              </div>
+            }
+            <div>
+              <label class="input-label">Payment Mode *</label>
+              <select
+                formControlName="payment_mode"
+                class="input-field"
+                [class.input-field--error]="fieldInvalid('payment_mode')"
+              >
+                @for (mode of paymentModes; track mode.value) {
+                  <option [value]="mode.value">{{ mode.label }} — {{ mode.description }}</option>
+                }
+              </select>
+              <p class="mt-1 text-xs text-gray-500">How the supplier requires payment to be released.</p>
+            </div>
+            @if (showResponseAdvancePercent()) {
+              <div>
+                <label class="input-label">Advance Percentage <span class="font-normal text-gray-400">(Optional)</span></label>
+                <div class="flex items-stretch overflow-hidden rounded-lg border border-gray-300 bg-white focus-within:border-[#1B3A6B] focus-within:ring-1 focus-within:ring-[#1B3A6B]">
+                  <input
+                    type="number"
+                    formControlName="advance_percent"
+                    class="min-w-0 flex-1 border-0 bg-transparent px-3 py-2 outline-none"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="e.g. 30"
+                  />
+                  <span class="flex items-center border-l border-gray-200 bg-blue-50 px-3 text-sm font-semibold text-[#1B3A6B]">%</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Leave blank if the supplier did not state a percentage.</p>
+              </div>
+            }
+            <div>
+              <label class="input-label">Warranty</label>
+              <input
+                type="text"
+                formControlName="warranty"
+                class="input-field"
+                placeholder="e.g. 12 months"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#1B3A6B] text-xs text-white">4</span>
+            Attachments &amp; Notes
+          </h4>
+          <div class="space-y-4">
+            <div>
+              <label class="input-label">Quotation Document</label>
+              <div
+                class="rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/80 p-4 transition-colors hover:border-[#1B3A6B]/30"
+              >
+                <input
+                  #fileInput
+                  type="file"
+                  class="hidden"
+                  accept=".pdf,.jpg,.jpeg,.png,.docx"
+                  (change)="onFileSelected($event)"
+                />
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-medium text-gray-800">Upload supplier quotation</p>
+                    <p class="text-xs text-gray-500 mt-0.5">PDF, JPG, PNG, or DOCX — maximum 5 MB</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    @if (selectedFileName()) {
+                      <button
+                        type="button"
+                        class="btn-ghost !text-xs"
+                        (click)="previewSelectedFile()"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-ghost !text-xs !text-red-600"
+                        (click)="clearSelectedFile(fileInput)"
+                      >
+                        Remove
+                      </button>
+                    }
+                    @if (hasExistingFile() && !selectedFileName()) {
+                      <button
+                        type="button"
+                        class="btn-ghost !text-xs"
+                        [disabled]="openingFile()"
+                        (click)="previewExistingFile()"
+                      >
+                        View current
+                      </button>
+                    }
+                    <button type="button" class="btn-secondary !text-sm" (click)="triggerFileInput(fileInput)">
+                      {{ selectedFileName() || existingFileName() ? 'Replace File' : 'Choose File' }}
+                    </button>
+                  </div>
+                </div>
+                @if (selectedFileName()) {
+                  <p class="mt-3 text-sm text-[#1B3A6B] font-medium">{{ selectedFileName() }}</p>
+                } @else if (existingFileName()) {
+                  <p class="mt-3 text-sm text-gray-600">
+                    Current file: <span class="font-medium text-[#1B3A6B]">{{ existingFileName() }}</span>
+                  </p>
+                }
+                @if (fileError()) {
+                  <p class="input-error mt-2">{{ fileError() }}</p>
+                }
+              </div>
+            </div>
+            <div>
+              <label class="input-label">Internal Notes</label>
+              <textarea
+                formControlName="notes"
+                rows="3"
+                class="input-field resize-none"
+                placeholder="Channel received (WhatsApp, Alibaba), contact person, special conditions…"
+              ></textarea>
+            </div>
+          </div>
+        </section>
+      </form>
+
+      <div modalFooter>
+        <button type="button" class="btn-secondary" (click)="closeResponseModal()">Cancel</button>
+        <button type="button" class="btn-primary" [disabled]="saving()" (click)="saveResponse()">
+          @if (saving()) {
+            <span class="spinner spinner-sm"></span>
+          }
+          {{ saving() ? 'Saving…' : (editingResponse() ? 'Update Response' : 'Save Response') }}
+        </button>
+      </div>
+    </app-modal>
+  }
+
+<app-modal
+  [open]="showFilePreviewModal()"
+  [title]="previewModalTitle() || 'Quotation preview'"
+  size="preview"
+  (close)="closeInAppPreview()"
+>
+  @if (previewModalKind() === 'pdf' && safePreviewUrl(); as src) {
+    <iframe
+      [src]="src"
+      title="Quotation document preview"
+      class="w-full h-[min(70vh,720px)] rounded-lg border border-gray-200 bg-gray-50"
+    ></iframe>
+  } @else if (previewModalKind() === 'image' && safePreviewUrl(); as src) {
+    <div class="flex justify-center bg-gray-50 rounded-lg border border-gray-200 p-4">
+      <img
+        [src]="src"
+        [alt]="previewModalTitle()"
+        class="max-h-[min(70vh,720px)] max-w-full object-contain rounded"
+      />
+    </div>
+  } @else {
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-900">
+      <p class="font-medium">In-app preview is not available for this file type.</p>
+      <p class="mt-2 text-amber-800">Use Download to save the quotation document to your device.</p>
     </div>
   }
+
+  <div modalFooter>
+    <button type="button" class="btn-secondary" (click)="closeInAppPreview()">Close</button>
+    @if (previewDownload()) {
+      <button type="button" class="btn-primary" (click)="downloadPreviewFile()">Download</button>
+    }
+  </div>
+</app-modal>
 </div>

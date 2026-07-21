@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
@@ -23,7 +23,7 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { HrNavComponent } from '../../components/hr-nav/hr-nav.component';
 import { LEAVE_TYPE_COLORS } from '../../constants/hr.constants';
-import { canApplyLeave, canApproveLeave } from '../../utils/hr-permissions.util';
+import { canApplyLeave, canApproveLeave, canApproveLeaveRequest, isGmUser, isHodLeaveRecord } from '../../utils/hr-permissions.util';
 
 @Component({
   selector: 'app-leave',
@@ -71,6 +71,21 @@ export class LeaveComponent implements OnInit {
   readonly leaveTypeColors = LEAVE_TYPE_COLORS;
   readonly canApply = () => canApplyLeave(this.auth);
   readonly canApprove = () => canApproveLeave(this.auth);
+  readonly isGm = () => isGmUser(this.auth);
+  readonly canApproveRequest = (req: LeaveRequest) => canApproveLeaveRequest(this.auth, req);
+  readonly isHodLeave = (req: LeaveRequest) => isHodLeaveRecord(req);
+
+  readonly employeeLeaveRequests = computed(() =>
+    this.requests().filter((r) => r.approval_route !== 'GM'),
+  );
+  readonly hodLeaveRequests = computed(() =>
+    this.requests().filter((r) => r.approval_route === 'GM'),
+  );
+  readonly gmPendingRequests = computed(() =>
+    this.requests().filter((r) => r.approval_route === 'GM' && r.status === 'PENDING'),
+  );
+
+  approveComment = '';
 
   readonly applyForm = this.fb.group({
     employee: [null as number | null, Validators.required],
@@ -188,6 +203,7 @@ export class LeaveComponent implements OnInit {
 
   openApprove(req: LeaveRequest): void {
     this.selectedRequest.set(req);
+    this.approveComment = '';
     this.showApprove.set(true);
   }
 
@@ -196,7 +212,7 @@ export class LeaveComponent implements OnInit {
     if (!req) return;
     this.saving.set(true);
     this.hr
-      .approveLeaveRequest(req.id)
+      .approveLeaveRequest(req.id, this.approveComment.trim())
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: () => {
@@ -236,5 +252,9 @@ export class LeaveComponent implements OnInit {
 
   leaveTypeColor(code: string): string {
     return this.leaveTypeColors[code] ?? 'gray';
+  }
+
+  leaveStatusLabel(req: LeaveRequest): string {
+    return req.status_label ?? req.status;
   }
 }

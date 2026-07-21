@@ -1,10 +1,27 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
-import { catchError, map, Observable, of } from 'rxjs';
+import { catchError, map, Observable, of, timeout } from 'rxjs';
 
 import { AuthService } from '../services/auth.service';
 import { StorageService } from '../services/storage.service';
 import { isTokenExpired } from '../utils/jwt.util';
+
+const AUTH_TIMEOUT_MS = 12_000;
+
+function redirectToLogin(router: Router, auth: AuthService): UrlTree {
+  auth.logout();
+  return router.createUrlTree(['/login']);
+}
+
+function guardWithTimeout(
+  source: Observable<boolean | UrlTree>,
+  fallback: UrlTree,
+): Observable<boolean | UrlTree> {
+  return source.pipe(
+    timeout(AUTH_TIMEOUT_MS),
+    catchError(() => of(fallback)),
+  );
+}
 
 export const authGuard: CanActivateFn = (): boolean | UrlTree | Observable<boolean | UrlTree> => {
   const auth = inject(AuthService);
@@ -17,30 +34,21 @@ export const authGuard: CanActivateFn = (): boolean | UrlTree | Observable<boole
     return router.createUrlTree(['/login']);
   }
 
-  const redirectToLogin = (): Observable<UrlTree> =>
-    of(router.createUrlTree(['/login']));
-
-  const handleAuthError = catchError<boolean | UrlTree, Observable<UrlTree>>(() => {
-    auth.logout();
-    return redirectToLogin();
-  });
-
   if (isTokenExpired(token)) {
     const refresh = storage.getRefreshToken();
     if (!refresh) {
-      auth.logout();
-      return router.createUrlTree(['/login']);
+      return redirectToLogin(router, auth);
     }
-    return auth.refreshToken().pipe(
-      map((): boolean => true),
-      handleAuthError,
+    return guardWithTimeout(
+      auth.refreshToken().pipe(map((): boolean => true)),
+      redirectToLogin(router, auth),
     );
   }
 
   if (!auth.getCurrentUser()) {
-    return auth.fetchCurrentUser().pipe(
-      map((): boolean => true),
-      handleAuthError,
+    return guardWithTimeout(
+      auth.fetchCurrentUser().pipe(map((): boolean => true)),
+      redirectToLogin(router, auth),
     );
   }
 

@@ -22,6 +22,14 @@ export const DRIVER_PORTAL_ROUTES: Routes = [
       import('./pages/trips/driver-trips-list.component').then((m) => m.DriverTripsListComponent),
   },
   {
+    path: 'internal-routes',
+    ...guard,
+    loadComponent: () =>
+      import('./pages/internal-routes/driver-internal-routes.component').then(
+        (m) => m.DriverInternalRoutesComponent,
+      ),
+  },
+  {
     path: 'trips/:id',
     ...guard,
     loadComponent: () =>

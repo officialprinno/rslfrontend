@@ -1,3 +1,5 @@
+import type { PaginatedData } from './paginated.model';
+
 export type ItemType =
   | 'TRADED'
   | 'RAW_MATERIAL'
@@ -58,6 +60,19 @@ export type DeptRequestStatus =
 export type GinIssueType = 'SALES' | 'INTERNAL' | 'PRODUCTION' | 'TRANSFER';
 export type GinStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED';
 export type StockTakeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export type StockTakeSessionStatus =
+  | 'DRAFT'
+  | 'COUNTING'
+  | 'UPLOADED'
+  | 'REVIEWED'
+  | 'PENDING_GM_APPROVAL'
+  | 'APPROVED'
+  | 'ADJUSTED'
+  | 'COMPLETED'
+  | 'REJECTED';
+
+export type StockTakeLineAdjustmentStatus = 'PENDING' | 'ADJUSTED' | 'IGNORED';
 export type ReorderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type ValuationMethod = 'FIFO' | 'WEIGHTED_AVERAGE' | 'STANDARD_COST';
 
@@ -115,6 +130,24 @@ export interface Item {
   currency_code: string;
   unit_cost: number;
   selling_price: number;
+  approved_selling_price?: number | null;
+  finance_price_approved?: boolean;
+  finance_pricing_pending?: boolean;
+  pending_finance_workflow_id?: number | null;
+  pending_finance_workflow_status?: string | null;
+  pending_finance_workflow_grn_number?: string | null;
+  length?: number | null;
+  width?: number | null;
+  height?: number | null;
+  thickness?: number | null;
+  diameter?: number | null;
+  dimension_unit?: string;
+  weight_per_unit?: number | null;
+  weight_unit?: string;
+  quantity_on_hand?: number;
+  quantity_available?: number;
+  incoming_qty?: number | string | null;
+  sales_line_ready?: boolean;
   is_active: boolean;
   tracks_stock?: boolean;
   created_at: string;
@@ -153,6 +186,34 @@ export interface Warehouse {
   updated_at: string;
 }
 
+export type StockLifecycleStatus = 'AVAILABLE' | 'FROZEN' | 'WIP' | 'ALLOCATED' | 'EMPTY';
+
+export interface StockReservationLine {
+  sales_order_id: number;
+  so_number: string;
+  customer_id: number;
+  customer_name: string;
+  item_code: string;
+  item_name: string;
+  quantity_ordered: number | string;
+  quantity_reserved: number | string;
+  order_status: string;
+  inventory_status: string;
+  delivery_date: string | null;
+}
+
+export interface StockReservationBreakdown {
+  stock_id: number;
+  item_code: string;
+  item_name: string;
+  warehouse_id: number;
+  warehouse_name: string;
+  quantity_reserved_stock: number | string;
+  total_reserved: number | string;
+  unallocated_reserved: number | string;
+  reservations: StockReservationLine[];
+}
+
 export interface Stock {
   id: number;
   item: number;
@@ -162,13 +223,20 @@ export interface Stock {
   warehouse_name: string;
   quantity_on_hand: number;
   quantity_reserved: number;
+  quantity_wip?: number;
+  quantity_frozen?: number;
+  quantity_total?: number;
   quantity_available: number;
+  incoming_qty?: number;
   unit_of_measure: string;
   reorder_level: number;
   last_updated: string;
   unit_cost: number;
   total_value: number;
   status: StockStatus;
+  lifecycle_status?: StockLifecycleStatus;
+  location_path?: string;
+  category_name?: string;
 }
 
 export interface StockMovement {
@@ -208,6 +276,172 @@ export interface StockAdjustment {
   updated_at: string;
 }
 
+export type DamageType =
+  | 'DAMAGED'
+  | 'EXPIRED'
+  | 'LOST'
+  | 'QUALITY_REJECT'
+  | 'OTHER';
+
+export type DamageReportStatus =
+  | 'PENDING_GM'
+  | 'PENDING'
+  | 'FROZEN'
+  | 'REVIEWED'
+  | 'WRITTEN_OFF'
+  | 'RECOVERED'
+  | 'REJECTED';
+
+export interface DamageAttachment {
+  id: number;
+  file: string;
+  file_url: string | null;
+  caption: string;
+  created_at: string;
+}
+
+export interface DamageReport {
+  id: number;
+  report_number: string;
+  stock: number;
+  item_code: string;
+  item_name: string;
+  warehouse_name: string;
+  unit_of_measure: string;
+  damage_type: DamageType;
+  damage_type_display: string;
+  quantity_affected: number;
+  description: string;
+  serial_numbers: string[];
+  batch_numbers: string[];
+  status: DamageReportStatus;
+  status_display: string;
+  report_date: string;
+  reported_by_name: string;
+  resolved_by_name: string | null;
+  resolved_at: string | null;
+  resolution_notes: string;
+  gm_approved_by_name: string | null;
+  gm_approved_at: string | null;
+  gm_rejected_by_name: string | null;
+  gm_rejected_at: string | null;
+  gm_rejection_reason: string;
+  can_gm_approve: boolean;
+  journal_entry_number: string | null;
+  estimated_value: number;
+  stock_frozen_qty?: number;
+  stock_impact?: string;
+  attachments: DamageAttachment[];
+  created_at: string;
+}
+
+export interface DamageReportFormData {
+  item: number;
+  warehouse: number;
+  quantity_affected: number;
+  damage_type: DamageType;
+  description: string;
+  serial_numbers?: string[];
+  batch_numbers?: string[];
+  attachments?: File[];
+}
+
+export type SupplierTrackingStatus =
+  | 'AWAITING'
+  | 'ACKNOWLEDGED'
+  | 'MANUFACTURING'
+  | 'PRODUCTION'
+  | 'DISPATCHED'
+  | 'IN_TRANSIT'
+  | 'DELIVERED'
+  | 'DELAYED'
+  | 'CUSTOM';
+
+export interface SupplierOrderTracking {
+  id: number;
+  po_id: number;
+  po_number: string;
+  po_status: string;
+  supplier_name: string;
+  expected_delivery: string | null;
+  status: SupplierTrackingStatus;
+  manual_status_label?: string;
+  display_status?: string;
+  dispatch_date: string | null;
+  eta_date: string | null;
+  quantity_dispatched: number | null;
+  carrier: string;
+  tracking_number: string;
+  supplier_notes: string;
+  response_source: string;
+  responded_at: string | null;
+  token_expires_at: string;
+  has_active_token: boolean;
+  supplier_email?: string;
+  can_receive_goods?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupplierOrderTrackingUpdate {
+  status?: SupplierTrackingStatus;
+  manual_status_label?: string;
+  dispatch_date?: string | null;
+  eta_date?: string | null;
+  quantity_dispatched?: number | null;
+  carrier?: string;
+  tracking_number?: string;
+  supplier_notes?: string;
+}
+
+export interface SupplierPortalLineItem {
+  po_item_id: number;
+  code: string;
+  name: string;
+  quantity_ordered: string;
+  quantity_received: string;
+  quantity_dispatched: string | null;
+  uom: string;
+}
+
+export interface SupplierPortalItemRespondData {
+  po_item_id?: number;
+  code?: string;
+  quantity_dispatched?: number | null;
+}
+
+export interface SupplierPortalTracking {
+  po_number: string;
+  company_name: string;
+  supplier_name: string;
+  order_date: string | null;
+  expected_delivery: string | null;
+  currency_code: string;
+  po_status: string;
+  tracking_status: SupplierTrackingStatus;
+  dispatch_date: string | null;
+  eta_date: string | null;
+  quantity_dispatched: string | null;
+  carrier: string;
+  tracking_number: string;
+  supplier_notes: string;
+  responded_at: string | null;
+  token_expires_at: string;
+  token_expired: boolean;
+  items: SupplierPortalLineItem[];
+}
+
+export interface SupplierPortalRespondData {
+  status?: SupplierTrackingStatus;
+  dispatch_date?: string | null;
+  eta_date?: string | null;
+  quantity_dispatched?: number | null;
+  items?: SupplierPortalItemRespondData[];
+  carrier?: string;
+  tracking_number?: string;
+  supplier_notes?: string;
+}
+
 export interface StockAlert {
   id: number;
   item: number;
@@ -228,6 +462,21 @@ export interface StockSummary {
   low_stock_count: number;
   out_of_stock_count: number;
   total_stock_value: number;
+}
+
+export interface StockOverviewSummary extends StockSummary {
+  frozen_items_count: number;
+  total_on_hand: number;
+  total_reserved: number;
+  total_wip: number;
+  total_frozen: number;
+  total_available: number;
+  total_incoming: number;
+  total_quantity: number;
+}
+
+export interface StockOverviewPage extends PaginatedData<Stock> {
+  summary: StockOverviewSummary;
 }
 
 export interface StockBatch {
@@ -254,6 +503,7 @@ export interface StockTransferLine {
   item: number;
   item_code: string;
   item_name: string;
+  unit_of_measure?: string;
   quantity: number;
 }
 
@@ -281,6 +531,7 @@ export interface DepartmentRequestLine {
   item: number;
   item_code: string;
   item_name: string;
+  unit_of_measure?: string;
   item_usage?: ItemUsage;
   quantity: number;
   requested_qty?: number;
@@ -372,6 +623,176 @@ export interface StockTake {
   updated_at: string;
 }
 
+export interface StockTakeSessionLastCompleted {
+  id: number;
+  session_number: string;
+  period_month: number;
+  period_year: number;
+  completed_at: string | null;
+  line_count: number;
+  variance_count: number;
+  net_variance_value: string;
+}
+
+export interface StockTakeWarehouseOption {
+  id: number;
+  name: string;
+  location: string;
+  is_outbound_frozen: boolean;
+  company_id: number | null;
+  last_completed_session: StockTakeSessionLastCompleted | null;
+  existing_session_id: number | null;
+  existing_session_status: StockTakeSessionStatus | null;
+  existing_session_number: string | null;
+  within_window: boolean;
+  allow_outside_window?: boolean;
+  window_start: string;
+  window_end: string;
+  can_start_new: boolean;
+  can_resume: boolean;
+}
+
+export interface StockTakeSettings {
+  id: number;
+  company: number | null;
+  allow_outside_window: boolean;
+  updated_by: number | null;
+  updated_by_name: string | null;
+  updated_at: string;
+}
+
+export interface StockTakeWarehousePickerPayload {
+  warehouses: StockTakeWarehouseOption[];
+  allow_outside_window: boolean;
+  within_window: boolean;
+  window_start: string;
+  window_end: string;
+  can_manage_settings: boolean;
+}
+
+export interface StockTakeSessionPreviewItem {
+  item_id: number;
+  item_code: string;
+  item_name: string;
+  unit_of_measure: string;
+  system_quantity: string;
+  unit_cost: string;
+}
+
+export interface StockTakeSessionPreview {
+  warehouse_id: number;
+  warehouse_name: string;
+  period_month: number;
+  period_year: number;
+  window_start: string;
+  window_end: string;
+  within_window: boolean;
+  allow_outside_window?: boolean;
+  existing_session_id: number | null;
+  existing_session_status: StockTakeSessionStatus | null;
+  existing_session_number: string | null;
+  can_start_new: boolean;
+  item_count: number;
+  items: StockTakeSessionPreviewItem[];
+  last_completed_session: StockTakeSessionLastCompleted | null;
+}
+
+export interface StockTakeSessionLine {
+  id: number;
+  item: number;
+  item_code: string;
+  item_name: string;
+  unit_of_measure: string;
+  system_quantity: number | string;
+  unit_cost: number | string;
+  physical_quantity: number | string | null;
+  variance_qty: number | string;
+  variance_value: number | string;
+  counted_by_name: string;
+  notes: string;
+  adjustment_status: StockTakeLineAdjustmentStatus;
+  stock_adjustment: number | null;
+}
+
+export interface StockTakeSession {
+  id: number;
+  session_number: string;
+  warehouse: number;
+  warehouse_name: string;
+  company: number | null;
+  period_month: number;
+  period_year: number;
+  window_start: string;
+  window_end: string;
+  status: StockTakeSessionStatus;
+  notes: string;
+  rejection_notes: string;
+  created_by: number;
+  created_by_name: string;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  approved_by: number | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  adjusted_at: string | null;
+  completed_at: string | null;
+  journal_entry: number | null;
+  journal_entry_number: string | null;
+  version: number;
+  line_count?: number;
+  counted_line_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StockTakeVarianceReview {
+  session_id: number;
+  session_number: string;
+  status: StockTakeSessionStatus;
+  warehouse_id: number;
+  warehouse_name: string;
+  period_month: number;
+  period_year: number;
+  totals: {
+    total_lines: number;
+    counted_lines: number;
+    variance_count: number;
+    positive_variance_value: string;
+    negative_variance_value: string;
+    net_variance_value: string;
+  };
+  variance_lines: Array<{
+    id: number;
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    unit_of_measure: string;
+    system_quantity: string;
+    physical_quantity: string | null;
+    unit_cost: string;
+    variance_qty: string;
+    variance_value: string;
+    direction: 'SURPLUS' | 'SHORTAGE' | 'NONE';
+    counted_by_name: string;
+    notes: string;
+    adjustment_status: StockTakeLineAdjustmentStatus;
+  }>;
+}
+
+export interface StockTakeCsvUploadResult {
+  upload: {
+    session_id: number;
+    session_number: string;
+    status: StockTakeSessionStatus;
+    updated_count: number;
+    affected_item_codes: string[];
+    counted_lines: number;
+    total_lines: number;
+    all_counted: boolean;
+  };
+  session: StockTakeSession;
+}
+
 export interface ItemSerialNumber {
   id: number;
   item: number;
@@ -450,7 +871,11 @@ export interface InventoryDashboard {
   top_selling_products: { item_code: string; item_name: string; quantity: number }[];
   top_consumed_materials: { item_code: string; item_name: string; quantity: number }[];
   recent_activities: {
+    id: number;
     type: string;
+    reference_type: string;
+    reference_id: string | null;
+    entity_id: number | null;
     item_code: string;
     item_name: string;
     warehouse_name: string;
@@ -462,6 +887,23 @@ export interface InventoryDashboard {
   unread_alerts?: number;
   inventory_health_score?: number;
   ownership_hierarchy?: string[];
+  company_code?: string | null;
+  company_id?: number | null;
+  warehouse_manager_role?: string;
+  business_unit_profiles?: Record<
+    string,
+    {
+      label: string;
+      warehouse_manager_role: string;
+      sections: {
+        key: string;
+        label: string;
+        sku_count?: number;
+        total_value?: number;
+        quantity?: number;
+      }[];
+    }
+  >;
 }
 
 export interface InventoryAuditLog {
@@ -483,6 +925,10 @@ export interface Currency {
   exchange_rate: number;
   is_default: boolean;
   is_active: boolean;
+  rate_effective_at?: string | null;
+  rate_expires_at?: string | null;
+  rate_is_current?: boolean;
+  rate_updated_by_name?: string | null;
 }
 
 export interface UserOption {
@@ -511,7 +957,14 @@ export interface ItemFormData {
   preferred_supplier?: number | null;
   currency: number | null;
   unit_cost: number;
-  selling_price: number;
+  length?: number | null;
+  width?: number | null;
+  height?: number | null;
+  thickness?: number | null;
+  diameter?: number | null;
+  dimension_unit?: string;
+  weight_per_unit?: number | null;
+  weight_unit?: string;
   is_active: boolean;
 }
 
@@ -653,4 +1106,37 @@ export interface SerialNumberFormData {
   purchase_date: string | null;
   warranty_date: string | null;
   status: string;
+}
+
+export type InventorySalesStockQueue = 'pending' | 'out_of_stock' | 'handover' | 'pickup' | 'all';
+
+export interface InventorySalesOrder {
+  id: number;
+  so_number: string;
+  status: string;
+  inventory_status?: string;
+  delivery_method?: string;
+  handover_pending?: boolean;
+  pickup_ready?: boolean;
+  pickup_ready_at?: string | null;
+  pickup_ready_by_name?: string | null;
+  scheduled_pickup_date?: string | null;
+  customer_name: string;
+  warehouse_name?: string | null;
+  currency_code: string;
+  delivery_date?: string;
+  subtotal?: number;
+  tax_amount?: number;
+  total_amount?: number;
+  created_by_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventorySalesOrderDetail extends InventorySalesOrder {
+  items: import('./sales.model').SOItem[];
+  delivery_address?: string;
+  requested_delivery_location?: string;
+  notes?: string;
+  dispatch_assignment?: import('./sales.model').SODispatchAssignment | null;
 }

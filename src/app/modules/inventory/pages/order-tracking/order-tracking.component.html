@@ -1,0 +1,356 @@
+<div class="page-container">
+  <app-inventory-nav />
+  <app-page-header
+    title="Supplier Order Tracking"
+    subtitle="Monitor supplier dispatch updates for sent purchase orders"
+  />
+
+  <div class="order-tracking-hint">
+    <svg class="order-tracking-hint__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <div>
+      <p>
+        <strong>Supplier portal:</strong> Acknowledged → Manufacturing → Production → Dispatched → In transit → Delayed.
+        Suppliers cannot set <strong>Delivered</strong>.
+      </p>
+      <p>
+        Use <strong>Update</strong> for manual status (including custom text). Set <strong>Delivered</strong> at site to unlock GRN.
+      </p>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <app-table-skeleton [cols]="11" />
+  } @else if (error()) {
+    <app-error-state (retry)="load()" />
+  } @else if (!rows().length) {
+    <div class="card enterprise-data-table-card">
+      <div class="enterprise-card-accent" aria-hidden="true"></div>
+      <div class="card-scroll-head enterprise-card-head">
+        <div class="enterprise-card-head__main">
+          <h3 class="card-scroll-title">Tracking records</h3>
+          <p class="enterprise-card-subtitle">Supplier dispatch and delivery progress</p>
+        </div>
+      </div>
+      <div class="enterprise-card-toolbar">
+        <div class="flex-1 min-w-48">
+          <label class="input-label">Search</label>
+          <input
+            type="search"
+            class="input-field"
+            placeholder="PO number, supplier, tracking #..."
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event); page.set(1); load()"
+          />
+        </div>
+        <div class="w-44">
+          <label class="input-label">Status</label>
+          <select
+            class="input-field"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+          >
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <app-empty-state
+        moduleName="Order Tracking"
+        message="Tracking records are created when purchase orders are emailed to suppliers."
+        (companySwitched)="load()"
+      />
+    </div>
+  } @else {
+    <app-enterprise-data-table
+      [wide]="true"
+      cardTitle="Tracking records"
+      cardSubtitle="Supplier dispatch and delivery progress"
+      [recordCount]="total()"
+    >
+      <div cardToolbar class="enterprise-card-toolbar">
+        <div class="flex-1 min-w-48">
+          <label class="input-label">Search</label>
+          <input
+            type="search"
+            class="input-field"
+            placeholder="PO number, supplier, tracking #..."
+            [ngModel]="search()"
+            (ngModelChange)="search.set($event); page.set(1); load()"
+          />
+        </div>
+        <div class="w-44">
+          <label class="input-label">Status</label>
+          <select
+            class="input-field"
+            [ngModel]="statusFilter()"
+            (ngModelChange)="statusFilter.set($event); page.set(1); load()"
+          >
+            @for (opt of statusOptions; track opt.value) {
+              <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <thead>
+        <tr>
+          <th class="table-th table-col-md">PO #</th>
+          <th class="table-th table-col-lg">Supplier</th>
+          <th class="table-th table-col-status">PO Status</th>
+          <th class="table-th table-col-status">Tracking</th>
+          <th class="table-th table-col-sm">Dispatch</th>
+          <th class="table-th table-col-sm">ETA</th>
+          <th class="table-th table-col-md">Carrier</th>
+          <th class="table-th table-col-md">Tracking #</th>
+          <th class="table-th table-col-sm">Token</th>
+          <th class="table-th table-col-sm">GRN</th>
+          <th class="table-th table-col-actions text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.id) {
+          <tr class="table-row">
+            <td class="table-td table-col-md">
+              <span class="table-cell-text table-cell-text--medium font-mono text-xs" [title]="row.po_number">
+                {{ row.po_number }}
+              </span>
+            </td>
+            <td class="table-td table-col-lg">
+              <span class="table-cell-text" [title]="row.supplier_name">{{ row.supplier_name }}</span>
+            </td>
+            <td class="table-td table-col-status">
+              <app-status-badge [status]="row.po_status" />
+            </td>
+            <td class="table-td table-col-status">
+              @if (row.status === 'CUSTOM' && row.manual_status_label) {
+                <app-status-badge status="CUSTOM" [label]="row.manual_status_label" />
+              } @else {
+                <app-status-badge [status]="row.status" />
+              }
+            </td>
+            <td class="table-td table-col-sm whitespace-nowrap text-[var(--text-secondary)]">
+              {{ row.dispatch_date ? formatDate(row.dispatch_date) : '—' }}
+            </td>
+            <td class="table-td table-col-sm whitespace-nowrap text-[var(--text-secondary)]">
+              {{ row.eta_date ? formatDate(row.eta_date) : '—' }}
+            </td>
+            <td class="table-td table-col-md">
+              <span class="table-cell-text" [title]="row.carrier || ''">{{ row.carrier || '—' }}</span>
+            </td>
+            <td class="table-td table-col-md">
+              <span class="table-cell-text font-mono text-xs text-[var(--text-secondary)]" [title]="row.tracking_number || ''">
+                {{ row.tracking_number || '—' }}
+              </span>
+            </td>
+            <td class="table-td table-col-sm">
+              @if (row.has_active_token) {
+                <span class="table-indicator table-indicator--success">Active</span>
+              } @else {
+                <span class="table-indicator table-indicator--warning">Expired</span>
+              }
+            </td>
+            <td class="table-td table-col-sm">
+              @if (row.can_receive_goods) {
+                <span class="table-indicator table-indicator--success">Ready</span>
+              } @else {
+                <span class="table-indicator table-indicator--muted">Blocked</span>
+              }
+            </td>
+            <td class="table-td table-col-actions">
+              <div class="table-row-actions">
+                <button type="button" class="table-row-btn" (click)="openEdit(row)">
+                  <svg class="table-row-btn__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Update
+                </button>
+                <button
+                  type="button"
+                  class="table-row-btn table-row-btn--ghost"
+                  [disabled]="saving() || !row.supplier_email"
+                  (click)="emailSupplier(row)"
+                >
+                  <svg class="table-row-btn__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Email
+                </button>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+      <app-pagination
+        tableFooter
+        [page]="page()"
+        [pageSize]="pageSize()"
+        [total]="total()"
+        (pageChange)="onPageChange($event)"
+        (pageSizeChange)="onPageSizeChange($event)"
+      />
+    </app-enterprise-data-table>
+  }
+</div>
+
+<app-modal
+  [open]="showModal()"
+  title="Update tracking (manual)"
+  [showFooter]="false"
+  size="lg"
+  (close)="closeModal()"
+>
+  <form class="space-y-4" [formGroup]="form" (ngSubmit)="save()">
+    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm space-y-2">
+      <p>
+        PO <strong class="text-[#1B3A6B]">{{ selected()?.po_number }}</strong> —
+        {{ selected()?.supplier_name }}
+      </p>
+      <p class="text-gray-600">
+        Current tracking:
+        @if (selected(); as row) {
+          @if (row.status === 'CUSTOM' && row.manual_status_label) {
+            <app-status-badge status="CUSTOM" [label]="row.manual_status_label" />
+          } @else {
+            <app-status-badge [status]="row.status" />
+          }
+        }
+        @if (selected()?.can_receive_goods) {
+          <span class="ml-2 text-green-700 font-medium">· GRN ready</span>
+        } @else {
+          <span class="ml-2 text-amber-700 font-medium">· GRN blocked until Delivered</span>
+        }
+      </p>
+    </div>
+
+    <div class="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-950 space-y-1">
+      <p class="font-semibold">Staff manual update</p>
+      <p>
+        You can set <strong>any</strong> status here — including ones suppliers cannot choose on their portal
+        (e.g. <strong>Delivered</strong>, <strong>Awaiting</strong>).
+        Use this after email replies, phone calls, or when goods arrive at site.
+      </p>
+      <p>
+        <strong>Delivered</strong> is the only status that allows GRN creation. Suppliers never set this;
+        only your team confirms physical receipt.
+      </p>
+    </div>
+
+    <div class="space-y-3">
+      <label class="label-field">How do you want to set status?</label>
+      <div class="flex flex-wrap gap-4 text-sm">
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="radio" formControlName="statusInputMode" value="preset" />
+          <span>Pick from standard list</span>
+        </label>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input type="radio" formControlName="statusInputMode" value="custom" />
+          <span>Type my own status</span>
+        </label>
+      </div>
+
+      @if (form.controls.statusInputMode.value === 'preset') {
+        <div>
+          <label class="label-field">Standard tracking status</label>
+          <select class="input-field" formControlName="status">
+            <optgroup label="Supplier portal — supplier can report these">
+              @for (opt of supplierStatusOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </optgroup>
+            <optgroup label="Inventory team only — manual at your site">
+              @for (opt of staffOnlyStatusOptions; track opt.value) {
+                <option [value]="opt.value">{{ opt.label }}</option>
+              }
+            </optgroup>
+          </select>
+
+          @if (statusMeta(form.controls.status.value); as meta) {
+            <p class="mt-2 text-xs text-gray-600">{{ meta.description }}</p>
+            @if (meta.grnRequired) {
+              <p class="mt-1 text-xs font-medium text-green-800">
+                Saving as Delivered will mark this PO ready for GRN receipt.
+              </p>
+            }
+            @if (!meta.supplierCanSet) {
+              <p class="mt-1 text-xs text-amber-800">
+                Not available on the supplier portal — inventory staff only.
+              </p>
+            }
+          }
+        </div>
+      } @else {
+        <div>
+          <label class="label-field">Type status (your own words)</label>
+          <input
+            type="text"
+            class="input-field"
+            formControlName="manual_status_label"
+            maxlength="120"
+            placeholder="e.g. Waiting for raw materials, Partially ready, On hold at port…"
+          />
+          <p class="mt-2 text-xs text-gray-600">
+            Write the exact status as you received it from the supplier or from site.
+            This is for tracking only — <strong>GRN still requires standard status Delivered</strong>
+            when goods are physically at site.
+          </p>
+        </div>
+      }
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="label-field">Dispatch date</label>
+        <input type="date" class="input-field" formControlName="dispatch_date" />
+      </div>
+      <div>
+        <label class="label-field">ETA</label>
+        <input type="date" class="input-field" formControlName="eta_date" />
+      </div>
+    </div>
+
+    <div>
+      <label class="label-field">Quantity dispatched</label>
+      <input type="number" class="input-field" formControlName="quantity_dispatched" step="any" />
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="label-field">Carrier</label>
+        <input type="text" class="input-field" formControlName="carrier" />
+      </div>
+      <div>
+        <label class="label-field">Tracking number</label>
+        <input type="text" class="input-field" formControlName="tracking_number" />
+      </div>
+    </div>
+
+    <div>
+      <label class="label-field">Supplier notes</label>
+      <textarea class="input-field" rows="3" formControlName="supplier_notes"></textarea>
+    </div>
+
+    @if (portalUrl()) {
+      <div class="rounded-lg bg-gray-50 p-3 text-sm break-all">
+        <p class="font-medium text-gray-700 mb-1">New portal link (share with supplier)</p>
+        <a [href]="portalUrl()" target="_blank" rel="noopener" class="text-[#1B3A6B] underline">
+          {{ portalUrl() }}
+        </a>
+      </div>
+    }
+
+    <div class="flex flex-wrap gap-2 justify-end pt-2">
+      <button type="button" class="btn-secondary" (click)="emailSelectedSupplier()" [disabled]="saving() || !selected()?.supplier_email">
+        Email supplier
+      </button>
+      <button type="button" class="btn-secondary" (click)="regenerateLink()" [disabled]="saving()">
+        Regenerate link
+      </button>
+      <button type="submit" class="btn-primary" [disabled]="saving() || form.invalid">
+        {{ saving() ? 'Saving…' : 'Save' }}
+      </button>
+    </div>
+  </form>
+</app-modal>

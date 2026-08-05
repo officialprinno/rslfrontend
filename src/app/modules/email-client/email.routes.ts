@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { roleGuard } from '../../core/guards/role.guard';
+import { superAdminGuard } from '../../core/guards/super-admin.guard';
 
 export const EMAIL_ROUTES: Routes = [
   {
@@ -11,11 +12,13 @@ export const EMAIL_ROUTES: Routes = [
       import('./pages/email-layout.component').then((m) => m.EmailLayoutComponent),
   },
   {
-    path: 'settings/account',
-    canActivate: [roleGuard],
-    data: { module: 'email', action: 'update', title: 'Email Account' },
+    path: 'admin/mailboxes',
+    canActivate: [superAdminGuard],
+    data: { title: 'Email Mailboxes' },
     loadComponent: () =>
-      import('./pages/email-account-settings.component').then((m) => m.EmailAccountSettingsComponent),
+      import('./pages/email-mailboxes-admin.component').then(
+        (m) => m.EmailMailboxesAdminComponent,
+      ),
   },
   {
     path: 'settings/labels',

@@ -10,8 +10,10 @@ import {
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
+import { DeptApprovalsData } from '../../../../core/models/dept-approvals.models';
 import { FinanceDashboard } from '../../../../core/models/finance.model';
 import { GovernanceDashboardData } from '../../../../core/models/procurement.model';
+import { DashboardService } from '../../../../core/services/dashboard.service';
 import { FinanceService } from '../../../../core/services/finance.service';
 import { ProcurementService } from '../../../../core/services/procurement.service';
 import { formatDate } from '../../../../core/utils/format.util';
@@ -25,6 +27,7 @@ import {
   DashboardLayoutComponent,
   DashboardSectionComponent,
   DateRangeValue,
+  DeptActionCenterComponent,
   InsightBannerComponent,
   KpiCardComponent,
   setupDashboardCompanyReload,
@@ -53,6 +56,7 @@ const PIE_COLORS = ['#1B3A6B', '#2E6DB4', '#4A90D9', '#7EB3E8', '#A8D0F0', '#C5E
     ApprovalQueueComponent,
     ActivityFeedComponent,
     StatusBadgeComponent,
+    DeptActionCenterComponent,
   ],
   templateUrl: './finance-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,6 +64,7 @@ const PIE_COLORS = ['#1B3A6B', '#2E6DB4', '#4A90D9', '#7EB3E8', '#A8D0F0', '#C5E
 export class FinanceDashboardComponent implements OnInit {
   private readonly finance = inject(FinanceService);
   private readonly procurement = inject(ProcurementService);
+  private readonly dashboardApi = inject(DashboardService);
 
   constructor() {
     setupDashboardCompanyReload(() => {
@@ -67,6 +72,7 @@ export class FinanceDashboardComponent implements OnInit {
       this.governance.set(null);
       this.load(false, true);
       this.loadGovernance();
+      this.loadActionCenter(true);
     });
   }
 
@@ -77,6 +83,9 @@ export class FinanceDashboardComponent implements OnInit {
   readonly error = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly dateRange = signal<DateRangeValue | null>(null);
+  readonly actionCenter = signal<DeptApprovalsData | null>(null);
+  readonly actionCenterLoading = signal(false);
+  readonly actionCenterRefreshing = signal(false);
 
   readonly formatAccountingAmount = formatAccountingAmount;
   readonly formatDate = formatDate;
@@ -370,9 +379,28 @@ export class FinanceDashboardComponent implements OnInit {
       });
   }
 
+  loadActionCenter(bypassCache = false): void {
+    const hasData = !!this.actionCenter();
+    this.actionCenterLoading.set(!hasData);
+    this.actionCenterRefreshing.set(hasData);
+    this.dashboardApi.getDeptApprovals('finance', bypassCache).subscribe({
+      next: (data) => {
+        this.actionCenter.set(data?.allowed ? data : null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+      error: () => {
+        this.actionCenter.set(null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+    });
+  }
+
   onRefresh(): void {
     this.load(true, true);
     this.loadGovernance();
+    this.loadActionCenter(true);
   }
 
   onDateRangeChange(range: DateRangeValue): void {

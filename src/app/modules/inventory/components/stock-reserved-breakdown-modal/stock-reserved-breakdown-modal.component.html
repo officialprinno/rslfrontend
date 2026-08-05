@@ -28,12 +28,17 @@
         </div>
       </div>
 
+      <p class="text-xs text-gray-500">
+        Unreserve is allowed only before delivery is scheduled or completed. Once a delivery order is
+        assigned/scheduled or delivery is done, Unreserve is blocked.
+      </p>
+
       @if (+data.unallocated_reserved > 0) {
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 space-y-3">
           <p class="text-xs text-amber-900">
             {{ formatNumber(data.unallocated_reserved) }} units are reserved on this stock row but not linked to an active sales order line.
           </p>
-          @if (canReturnUnallocated()) {
+          @if (canManageReservations()) {
             <button
               type="button"
               class="btn-primary text-sm!"
@@ -62,10 +67,13 @@
                 <th class="table-th">Qty Reserved</th>
                 <th class="table-th">Delivery Date</th>
                 <th class="table-th">Status</th>
+                @if (canManageReservations()) {
+                  <th class="table-th text-right">Actions</th>
+                }
               </tr>
             </thead>
             <tbody>
-              @for (row of data.reservations; track row.sales_order_id + '-' + row.item_code) {
+              @for (row of data.reservations; track row.sales_order_item_id) {
                 <tr class="table-row">
                   <td class="table-td font-medium">{{ row.customer_name }}</td>
                   <td class="table-td">
@@ -81,6 +89,31 @@
                   <td class="table-td font-semibold text-[#1B3A6B]">{{ formatNumber(row.quantity_reserved) }}</td>
                   <td class="table-td">{{ row.delivery_date || '—' }}</td>
                   <td class="table-td"><app-status-badge [status]="row.order_status" /></td>
+                  @if (canManageReservations()) {
+                    <td class="table-td text-right">
+                      @if (row.can_unreserve) {
+                        <button
+                          type="button"
+                          class="btn-ghost !text-xs"
+                          [disabled]="unreservingItemId() === row.sales_order_item_id"
+                          (click)="unreserveLine(row)"
+                        >
+                          {{
+                            unreservingItemId() === row.sales_order_item_id
+                              ? 'Unreserving…'
+                              : 'Unreserve'
+                          }}
+                        </button>
+                      } @else {
+                        <span
+                          class="text-xs text-gray-500"
+                          [title]="row.unreserve_blocked_reason || 'Unreserve not allowed'"
+                        >
+                          Locked
+                        </span>
+                      }
+                    </td>
+                  }
                 </tr>
               }
             </tbody>
@@ -88,7 +121,7 @@
               <tr class="bg-gray-50 font-semibold">
                 <td class="table-td" colspan="4">Total reserved for customers</td>
                 <td class="table-td text-[#1B3A6B]">{{ formatNumber(data.total_reserved) }}</td>
-                <td class="table-td" colspan="2"></td>
+                <td class="table-td" [attr.colspan]="canManageReservations() ? 3 : 2"></td>
               </tr>
             </tfoot>
           </table>

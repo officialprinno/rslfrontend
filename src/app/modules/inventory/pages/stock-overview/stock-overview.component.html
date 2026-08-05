@@ -133,6 +133,7 @@
     [loading]="reservedLoading()"
     [breakdown]="reservedBreakdown()"
     (close)="closeReservedBreakdown()"
+    (breakdownChanged)="onBreakdownChanged($event)"
     (stockUpdated)="onReservedStockReturned()"
   />
 </div>

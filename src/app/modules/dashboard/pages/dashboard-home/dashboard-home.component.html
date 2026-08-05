@@ -24,6 +24,17 @@
     <a routerLink="/inventory/dashboard" class="btn-accent">View Inventory</a>
   </div>
 
+  @if (showGmActionCenter()) {
+    <div class="mb-6">
+      <app-gm-action-center
+        [data]="gmApprovals()"
+        [loading]="gmApprovalsLoading()"
+        [refreshing]="gmApprovalsRefreshing()"
+        (refresh)="loadGmApprovals(true)"
+      />
+    </div>
+  }
+
   @if (showMultiDept()) {
     @if (multiDeptData(); as md) {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

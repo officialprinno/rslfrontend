@@ -271,6 +271,43 @@ export class InventoryService {
       .pipe(unwrapApi());
   }
 
+  /** Unreserve qty held by a sales order line (blocked once delivery scheduled/completed). */
+  unreserveSalesOrderLine(
+    stockId: number,
+    salesOrderItemId: number,
+    quantity?: number,
+    notes = '',
+  ): Observable<{
+    stock: Stock;
+    breakdown: StockReservationBreakdown;
+    released_qty: string | number;
+    sales_order_id: number;
+    so_number: string;
+    sales_order_item_id: number;
+    quantity_reserved_remaining: string | number;
+  }> {
+    const body: Record<string, string | number> = {
+      sales_order_item_id: salesOrderItemId,
+      notes,
+    };
+    if (quantity != null) {
+      body['quantity'] = quantity;
+    }
+    return this.http
+      .post<
+        ApiResponse<{
+          stock: Stock;
+          breakdown: StockReservationBreakdown;
+          released_qty: string | number;
+          sales_order_id: number;
+          so_number: string;
+          sales_order_item_id: number;
+          quantity_reserved_remaining: string | number;
+        }>
+      >(`${this.baseUrl}/stock/${stockId}/unreserve-line/`, body)
+      .pipe(unwrapApi());
+  }
+
   getStockReservationBreakdown(stockId: number): Observable<StockReservationBreakdown> {
     return this.http
       .get<ApiResponse<StockReservationBreakdown>>(

@@ -1,13 +1,28 @@
 <header class="navbar-glass">
-  <div class="flex items-center gap-4 min-w-0 flex-1">
-    <button type="button" (click)="toggleSidebar()" class="btn-icon" [attr.aria-label]="'common.toggle_sidebar' | translate">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-      </svg>
+  <!-- Left: menu toggle always reserved & tappable -->
+  <div class="navbar-left">
+    <button
+      type="button"
+      (click)="toggleSidebar()"
+      class="navbar-menu-btn"
+      [class.navbar-menu-btn--active]="layout.mobileSidebarOpen() || (!layout.isMobile() && !layout.sidebarCollapsed())"
+      [attr.aria-label]="'common.toggle_sidebar' | translate"
+      [attr.aria-expanded]="layout.isMobile() ? layout.mobileSidebarOpen() : !layout.sidebarCollapsed()"
+      [attr.aria-controls]="'app-sidebar'"
+    >
+      @if (layout.isMobile() ? layout.mobileSidebarOpen() : !layout.sidebarCollapsed()) {
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      } @else {
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      }
     </button>
 
-    <div class="hidden lg:flex items-center min-w-0 flex-1 max-w-md">
-      <div class="relative w-72">
+    <div class="navbar-search hidden lg:flex">
+      <div class="relative w-full max-w-xs">
         <svg
           class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]"
           fill="none"
@@ -30,11 +45,11 @@
       </div>
     </div>
 
-    <nav class="hidden sm:flex items-center gap-1 text-xs min-w-0 lg:hidden" [attr.aria-label]="'common.search' | translate">
+    <nav class="navbar-crumbs hidden md:flex lg:hidden" [attr.aria-label]="'common.search' | translate">
       @for (crumb of breadcrumbs(); track crumb.url; let last = $last) {
         @if (!last && crumb.url) {
           <a [routerLink]="crumb.url" class="text-[var(--text-muted)] hover:text-[#1B3A6B] truncate transition-colors">{{ crumb.labelKey | translate }}</a>
-          <span class="text-[var(--border-color)] mx-1">/</span>
+          <span class="text-[var(--border-color)] mx-1 shrink-0">/</span>
         } @else {
           <span class="font-medium text-[var(--text-secondary)] truncate">{{ crumb.labelKey | translate }}</span>
         }
@@ -42,66 +57,36 @@
     </nav>
   </div>
 
-  <div class="flex items-center gap-1 sm:gap-2">
+  <!-- Right: compact actions; never covers the menu button -->
+  <div class="navbar-right">
     @if (companyContext.activeCompany(); as activeCompany) {
-      <div class="relative">
+      <div class="navbar-company shrink-0">
         <button
           type="button"
           (click)="toggleCompanyMenu()"
-          class="flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
+          class="navbar-company-btn"
           [style.border-color]="activeCompany.brandColor + '33'"
           [style.background-color]="activeCompany.brandColor + '14'"
           [style.color]="activeCompany.brandColor"
           [attr.aria-expanded]="companyMenuOpen()"
+          [attr.title]="activeCompany.name"
         >
           <span
-            class="w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center"
+            class="navbar-company-code"
             [style.background-color]="activeCompany.brandColor"
           >
             {{ activeCompany.code }}
           </span>
-          <span class="max-w-[7rem] sm:max-w-[9rem] truncate">{{ activeCompany.name }}</span>
-          <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <span class="navbar-company-name">{{ companyShortLabel(activeCompany.name) }}</span>
+          <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        @if (companyMenuOpen()) {
-          <div class="dropdown-menu !min-w-[14rem]" role="menu">
-            @for (company of companyContext.companies(); track company.company_id) {
-              <button
-                type="button"
-                (click)="selectCompany(company.company_id)"
-                class="flex items-center w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors gap-2"
-                [class.font-semibold]="companyContext.activeCompany()?.id === company.company_id"
-                role="menuitem"
-              >
-                <span
-                  class="w-6 h-6 rounded text-[10px] font-bold text-white flex items-center justify-center"
-                  [style.background-color]="company.brand_color || '#1B3A6B'"
-                >
-                  {{ company.company_code }}
-                </span>
-                {{ company.company_name }}
-              </button>
-            }
-            @if (companyContext.canUseConsolidated()) {
-              <button
-                type="button"
-                (click)="selectCompany('consolidated')"
-                class="flex items-center w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors border-t border-[var(--border-color)]"
-                [class.font-semibold]="companyContext.isConsolidated()"
-                role="menuitem"
-              >
-                Consolidated
-              </button>
-            }
-          </div>
-        }
       </div>
     }
 
     @if (auth.isMultiDepartment()) {
-      <div class="relative hidden md:block">
+      <div class="relative hidden lg:block shrink-0">
         <button
           type="button"
           (click)="toggleDeptMenu()"
@@ -135,7 +120,7 @@
     <select
       [value]="preferences.currency()"
       (change)="onCurrencyChange($event)"
-      class="hidden md:block input-field !w-auto !py-1.5 !px-2.5 text-xs font-medium"
+      class="hidden xl:block input-field !w-auto !py-1.5 !px-2.5 text-xs font-medium shrink-0"
       [attr.aria-label]="'common.currency' | translate"
     >
       @for (c of preferences.currencies; track c) {
@@ -145,11 +130,11 @@
 
     <app-locale-theme-controls />
 
-    <div class="hidden sm:block w-px h-6 bg-[var(--border-color)] mx-1"></div>
+    <div class="hidden sm:block w-px h-6 bg-[var(--border-color)] mx-0.5 shrink-0"></div>
 
     <button
       type="button"
-      class="btn-icon relative"
+      class="btn-icon relative shrink-0"
       [attr.aria-label]="'common.notifications' | translate"
       [attr.aria-expanded]="notificationShell.drawerOpen()"
       (click)="notificationShell.openDrawer()"
@@ -167,7 +152,11 @@
       }
     </button>
 
-    <a routerLink="/messaging" class="btn-icon relative" [attr.aria-label]="'common.messages' | translate">
+    <a
+      routerLink="/messaging"
+      class="btn-icon relative shrink-0 hidden sm:inline-flex"
+      [attr.aria-label]="'common.messages' | translate"
+    >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           stroke-linecap="round"
@@ -181,11 +170,11 @@
       }
     </a>
 
-    <div class="relative">
+    <div class="relative shrink-0">
       <button
         type="button"
         (click)="toggleUserMenu()"
-        class="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
+        class="flex items-center gap-1.5 pl-0.5 pr-1 sm:pr-2 py-1 rounded-full hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
         [attr.aria-label]="'common.profile' | translate"
         [attr.aria-expanded]="userMenuOpen()"
       >
@@ -194,13 +183,13 @@
         >
           {{ userInitials() }}
         </div>
-        <svg class="w-3.5 h-3.5 text-[var(--text-muted)] hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 text-[var(--text-muted)] hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       @if (userMenuOpen()) {
-        <div class="dropdown-menu" role="menu">
+        <div class="dropdown-menu !right-0 !left-auto" role="menu">
           <div class="px-4 py-3 border-b border-[var(--border-color)]">
             <p class="text-sm font-semibold truncate">{{ auth.getCurrentUser()?.full_name }}</p>
             <p class="text-xs text-[var(--text-secondary)] truncate mt-0.5">{{ auth.getCurrentUser()?.email }}</p>
@@ -251,5 +240,61 @@
       }
     </div>
   </div>
-
 </header>
+
+@if (companyMenuOpen()) {
+  <button
+    type="button"
+    class="navbar-company-backdrop"
+    (click)="closeCompanyMenu()"
+    [attr.aria-label]="'common.close' | translate"
+  ></button>
+  <div class="navbar-company-menu" role="menu" aria-label="Companies">
+    <p class="navbar-company-menu__label">Workspace</p>
+    @for (company of companyContext.companies(); track company.company_id) {
+      <button
+        type="button"
+        (click)="selectCompany(company.company_id)"
+        class="navbar-company-menu__item"
+        [class.navbar-company-menu__item--active]="companyContext.activeCompany()?.id === company.company_id"
+        role="menuitem"
+      >
+        <span
+          class="navbar-company-code navbar-company-code--lg"
+          [style.background-color]="company.brand_color || '#1B3A6B'"
+        >
+          {{ company.company_code }}
+        </span>
+        <span class="navbar-company-menu__text">
+          <span class="navbar-company-menu__name">{{ company.company_name }}</span>
+          <span class="navbar-company-menu__code">{{ company.company_code }}</span>
+        </span>
+        @if (companyContext.activeCompany()?.id === company.company_id) {
+          <svg class="navbar-company-menu__check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+        }
+      </button>
+    }
+    @if (companyContext.canUseConsolidated()) {
+      <button
+        type="button"
+        (click)="selectCompany('consolidated')"
+        class="navbar-company-menu__item navbar-company-menu__item--divider"
+        [class.navbar-company-menu__item--active]="companyContext.isConsolidated()"
+        role="menuitem"
+      >
+        <span class="navbar-company-code navbar-company-code--lg" style="background-color: #1B3A6B">ALL</span>
+        <span class="navbar-company-menu__text">
+          <span class="navbar-company-menu__name">Consolidated</span>
+          <span class="navbar-company-menu__code">All companies</span>
+        </span>
+        @if (companyContext.isConsolidated()) {
+          <svg class="navbar-company-menu__check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+          </svg>
+        }
+      </button>
+    }
+  </div>
+}

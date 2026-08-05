@@ -1,0 +1,105 @@
+<section class="gm-action-center" [attr.aria-labelledby]="'dept-action-' + department()">
+  <div class="gm-action-center__header">
+    <div class="gm-action-center__intro min-w-0">
+      <div class="gm-action-center__eyebrow">
+        <span class="gm-action-center__pulse" aria-hidden="true"></span>
+        {{ eyebrowKey() | translate }}
+      </div>
+      <h2 [id]="'dept-action-' + department()" class="gm-action-center__title">
+        {{ titleKey() | translate }}
+      </h2>
+      <p class="gm-action-center__subtitle">
+        @if (loading()) {
+          {{ 'dashboard.gm_action.loading' | translate }}
+        } @else if (hasWork()) {
+          {{ subtitlePendingKey() | translate: { count: total() } }}
+        } @else {
+          {{ subtitleClearKey() | translate }}
+        }
+      </p>
+    </div>
+
+    <div class="gm-action-center__actions">
+      @if (hasWork()) {
+        <span class="gm-action-center__badge">{{ total() }}</span>
+      }
+      <button
+        type="button"
+        class="btn-ghost text-xs!"
+        (click)="refresh.emit()"
+        [disabled]="loading() || refreshing()"
+      >
+        {{ 'common.refresh' | translate }}
+      </button>
+    </div>
+  </div>
+
+  @if (loading() && !data()) {
+    <div class="gm-action-center__skeleton" aria-hidden="true">
+      @for (_ of [1, 2, 3]; track $index) {
+        <div class="gm-action-center__skeleton-row"></div>
+      }
+    </div>
+  } @else {
+    @if (categories().length) {
+      <div class="gm-action-center__chips" role="list">
+        @for (cat of categories(); track trackCategory(cat)) {
+          <a
+            role="listitem"
+            class="gm-action-center__chip"
+            [class.gm-action-center__chip--active]="cat.count > 0"
+            [routerLink]="cat.route"
+            [queryParams]="cat.query_params"
+            [attr.title]="cat.description"
+          >
+            <span class="gm-action-center__chip-count">{{ cat.count }}</span>
+            <span class="gm-action-center__chip-label">{{ cat.label }}</span>
+          </a>
+        }
+      </div>
+    }
+
+    @if (!hasWork()) {
+      <div class="gm-action-center__empty">
+        <div class="gm-action-center__empty-icon" aria-hidden="true">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <p class="gm-action-center__empty-title">{{ 'dashboard.gm_action.empty_title' | translate }}</p>
+        <p class="gm-action-center__empty-text">{{ 'dashboard.dept_action.hint' | translate }}</p>
+      </div>
+    } @else {
+      <ul class="gm-action-center__list" role="list">
+        @for (item of items(); track trackItem(item)) {
+          <li>
+            <a
+              class="gm-action-center__item"
+              [class.gm-action-center__item--high]="item.priority === 'high'"
+              [routerLink]="item.route"
+              [queryParams]="item.query_params"
+            >
+              <div class="gm-action-center__item-main min-w-0">
+                <span class="gm-action-center__module">{{ moduleLabel(item.module) | translate }}</span>
+                <p class="gm-action-center__item-title">{{ item.title }}</p>
+                <p class="gm-action-center__item-sub">{{ item.subtitle }}</p>
+              </div>
+              <div class="gm-action-center__item-side">
+                @if (item.amount) {
+                  <span class="gm-action-center__amount">{{ item.amount }}</span>
+                }
+                <span class="gm-action-center__cta">
+                  {{ item.action_label }}
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
+            </a>
+          </li>
+        }
+      </ul>
+      <p class="gm-action-center__hint">{{ 'dashboard.dept_action.hint' | translate }}</p>
+    }
+  }
+</section>

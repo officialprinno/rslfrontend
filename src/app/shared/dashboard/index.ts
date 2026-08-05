@@ -25,6 +25,7 @@ export { ChartContainerComponent } from './components/chart-container/chart-cont
 // Data displays
 export { ActivityFeedComponent } from './components/activity-feed/activity-feed.component';
 export { ApprovalQueueComponent } from './components/approval-queue/approval-queue.component';
+export { DeptActionCenterComponent } from './components/dept-action-center/dept-action-center.component';
 export { DashboardTableComponent } from './components/dashboard-table/dashboard-table.component';
 
 // Filters

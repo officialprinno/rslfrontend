@@ -22,6 +22,16 @@
     <a routerLink="/finance/sales-orders" class="btn-primary text-sm!">View Sales Orders</a>
   </div>
 
+  <div class="mb-6">
+    <app-dept-action-center
+      department="finance"
+      [data]="actionCenter()"
+      [loading]="actionCenterLoading()"
+      [refreshing]="actionCenterRefreshing()"
+      (refresh)="loadActionCenter(true)"
+    />
+  </div>
+
   @if (data(); as d) {
     <ng-container dashInsights>
       <app-insight-banner [insights]="insights()" />

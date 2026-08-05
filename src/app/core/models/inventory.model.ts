@@ -189,6 +189,7 @@ export interface Warehouse {
 export type StockLifecycleStatus = 'AVAILABLE' | 'FROZEN' | 'WIP' | 'ALLOCATED' | 'EMPTY';
 
 export interface StockReservationLine {
+  sales_order_item_id: number;
   sales_order_id: number;
   so_number: string;
   customer_id: number;
@@ -199,7 +200,10 @@ export interface StockReservationLine {
   quantity_reserved: number | string;
   order_status: string;
   inventory_status: string;
+  delivery_status?: string;
   delivery_date: string | null;
+  can_unreserve: boolean;
+  unreserve_blocked_reason: string | null;
 }
 
 export interface StockReservationBreakdown {

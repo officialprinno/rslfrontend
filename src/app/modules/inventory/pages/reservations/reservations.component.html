@@ -58,14 +58,27 @@
                 </td>
                 <td class="table-td">{{ row.warehouse_name }}</td>
                 <td class="table-td text-right">{{ row.quantity_on_hand | number:'1.0-2' }}</td>
-                <td class="table-td text-right font-semibold text-amber-700">
-                  {{ row.quantity_reserved | number:'1.0-2' }}
+                <td class="table-td text-right">
+                  @if (+row.quantity_reserved > 0) {
+                    <button
+                      type="button"
+                      class="font-semibold text-amber-700 hover:underline cursor-pointer"
+                      (click)="openReservedBreakdown(row)"
+                      title="View customers holding reserved stock"
+                    >
+                      {{ row.quantity_reserved | number:'1.0-2' }}
+                    </button>
+                  } @else {
+                    <span class="font-semibold text-amber-700">
+                      {{ row.quantity_reserved | number:'1.0-2' }}
+                    </span>
+                  }
                 </td>
                 <td class="table-td text-right">{{ row.quantity_available | number:'1.0-2' }}</td>
                 @if (canManage()) {
                   <td class="table-td text-right">
-                    <button type="button" class="btn-ghost !text-xs" (click)="release(row)">
-                      Release
+                    <button type="button" class="btn-ghost !text-xs" (click)="manageReservations(row)">
+                      Manage
                     </button>
                   </td>
                 }
@@ -76,4 +89,13 @@
       </div>
     </div>
   }
+
+  <app-stock-reserved-breakdown-modal
+    [open]="reservedModalOpen()"
+    [loading]="reservedLoading()"
+    [breakdown]="reservedBreakdown()"
+    (close)="closeReservedBreakdown()"
+    (breakdownChanged)="onBreakdownChanged($event)"
+    (stockUpdated)="onReservedStockReturned()"
+  />
 </div>

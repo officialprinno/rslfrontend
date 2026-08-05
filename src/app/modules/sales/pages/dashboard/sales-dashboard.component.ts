@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { finalize } from 'rxjs/operators';
 
+import { DeptApprovalsData } from '../../../../core/models/dept-approvals.models';
 import { SalesDashboardData } from '../../../../core/models/sales.model';
+import { DashboardService } from '../../../../core/services/dashboard.service';
 import { SalesService } from '../../../../core/services/sales.service';
 import { formatCurrency, formatDateTime } from '../../../../core/utils/format.util';
 import {
@@ -10,6 +12,7 @@ import {
   DashboardSectionComponent,
   DashboardTableComponent,
   DateRangeValue,
+  DeptActionCenterComponent,
   InsightBannerComponent,
   KpiCardComponent,
   setupDashboardCompanyReload,
@@ -25,17 +28,20 @@ import { SalesNavComponent } from '../../components/sales-nav/sales-nav.componen
     KpiCardComponent,
     DashboardSectionComponent,
     DashboardTableComponent,
+    DeptActionCenterComponent,
   ],
   templateUrl: './sales-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SalesDashboardComponent implements OnInit {
   private readonly sales = inject(SalesService);
+  private readonly dashboardApi = inject(DashboardService);
 
   constructor() {
     setupDashboardCompanyReload(() => {
       this.data.set(null);
       this.load(false, true);
+      this.loadActionCenter(true);
     });
   }
 
@@ -45,6 +51,9 @@ export class SalesDashboardComponent implements OnInit {
   readonly error = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly dateRange = signal<DateRangeValue | null>(null);
+  readonly actionCenter = signal<DeptApprovalsData | null>(null);
+  readonly actionCenterLoading = signal(false);
+  readonly actionCenterRefreshing = signal(false);
 
   readonly formatCurrency = formatCurrency;
   readonly formatDateTime = formatDateTime;
@@ -145,8 +154,27 @@ export class SalesDashboardComponent implements OnInit {
       });
   }
 
+  loadActionCenter(bypassCache = false): void {
+    const hasData = !!this.actionCenter();
+    this.actionCenterLoading.set(!hasData);
+    this.actionCenterRefreshing.set(hasData);
+    this.dashboardApi.getDeptApprovals('sales', bypassCache).subscribe({
+      next: (data) => {
+        this.actionCenter.set(data?.allowed ? data : null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+      error: () => {
+        this.actionCenter.set(null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+    });
+  }
+
   onRefresh(): void {
     this.load(true, true);
+    this.loadActionCenter(true);
   }
 
   onDateRangeChange(range: DateRangeValue): void {

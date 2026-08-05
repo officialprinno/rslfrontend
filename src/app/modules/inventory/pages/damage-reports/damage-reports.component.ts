@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { ApiResponse } from '../../../../core/models/auth.models';
@@ -56,6 +57,7 @@ export class DamageReportsComponent implements OnInit {
   private readonly confirm = inject(ConfirmDialogService);
   private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly route = inject(ActivatedRoute);
 
   readonly reports = signal<DamageReport[]>([]);
   readonly items = signal<Item[]>([]);
@@ -104,7 +106,7 @@ export class DamageReportsComponent implements OnInit {
   ngOnInit(): void {
     this.inventory.getItems({ page_size: 100 }).subscribe((d) => this.items.set(d.results));
     this.inventory.getWarehouses().subscribe((w) => this.warehouses.set(w));
-    this.load();
+    this.load(() => this.openFromQueryParams());
   }
 
   itemOptions(): SelectOption[] {
@@ -127,19 +129,42 @@ export class DamageReportsComponent implements OnInit {
       .filter(Boolean);
   }
 
-  load(): void {
+  load(afterLoad?: () => void): void {
     this.loading.set(true);
     this.error.set(false);
+    const status = this.route.snapshot.queryParamMap.get('status') || undefined;
     this.inventory
-      .getDamageReports({ page: this.page(), page_size: this.pageSize(), ordering: '-created_at' })
+      .getDamageReports({
+        page: this.page(),
+        page_size: this.pageSize(),
+        ordering: '-created_at',
+        ...(status ? { status } : {}),
+      })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (data) => {
           this.reports.set(data.results);
           this.total.set(data.count);
+          afterLoad?.();
         },
         error: () => this.error.set(true),
       });
+  }
+
+  private openFromQueryParams(): void {
+    const id = Number(this.route.snapshot.queryParamMap.get('id'));
+    if (!id) {
+      return;
+    }
+    const match = this.reports().find((r) => r.id === id);
+    if (match) {
+      this.openDetail(match);
+      return;
+    }
+    this.inventory.getDamageReport(id).subscribe({
+      next: (report) => this.openDetail(report),
+      error: () => undefined,
+    });
   }
 
   openNew(): void {

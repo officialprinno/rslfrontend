@@ -3,9 +3,8 @@ import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } 
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs/operators';
 
-import { Stock } from '../../../../core/models/inventory.model';
+import { Stock, StockReservationBreakdown } from '../../../../core/models/inventory.model';
 import { AuthService } from '../../../../core/services/auth.service';
-import { ConfirmDialogService } from '../../../../core/services/confirm-dialog.service';
 import { InventoryService } from '../../../../core/services/inventory.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { WarehouseContextService } from '../../../../core/services/warehouse-context.service';
@@ -15,6 +14,7 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
 import { TableSkeletonComponent } from '../../../../shared/components/table-skeleton/table-skeleton.component';
 import { InventoryNavComponent } from '../../components/inventory-nav/inventory-nav.component';
 import { ProcurementBadgeComponent } from '../../components/procurement-badge/procurement-badge.component';
+import { StockReservedBreakdownModalComponent } from '../../components/stock-reserved-breakdown-modal/stock-reserved-breakdown-modal.component';
 import { canReserveStock } from '../../utils/inventory-permissions.util';
 
 @Component({
@@ -27,6 +27,7 @@ import { canReserveStock } from '../../utils/inventory-permissions.util';
     ProcurementBadgeComponent,
     EmptyStateComponent,
     TableSkeletonComponent,
+    StockReservedBreakdownModalComponent,
   ],
   templateUrl: './reservations.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,12 +36,15 @@ export class ReservationsComponent implements OnInit {
   private readonly inventory = inject(InventoryService);
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
-  private readonly confirm = inject(ConfirmDialogService);
   readonly warehouseContext = inject(WarehouseContextService);
 
   readonly rows = signal<Stock[]>([]);
   readonly loading = signal(true);
   readonly canManage = () => canReserveStock(this.auth);
+
+  readonly reservedModalOpen = signal(false);
+  readonly reservedLoading = signal(false);
+  readonly reservedBreakdown = signal<StockReservationBreakdown | null>(null);
 
   readonly totalReserved = computed(() =>
     this.rows().reduce((sum, row) => sum + Number(row.quantity_reserved || 0), 0),
@@ -71,25 +75,42 @@ export class ReservationsComponent implements OnInit {
       });
   }
 
-  release(row: Stock): void {
-    if (!this.canManage()) {
+  openReservedBreakdown(row: Stock): void {
+    if (Number(row.quantity_reserved ?? 0) <= 0) {
       return;
     }
-    this.confirm
-      .open({
-        title: 'Release reservation',
-        message: `Release ${row.quantity_reserved} units of ${row.item_code}?`,
-        confirmLabel: 'Release',
-      })
-      .subscribe((ok) => {
-        if (!ok) return;
-        this.inventory.releaseStock(row.id, +row.quantity_reserved, 'Manual release').subscribe({
-          next: () => {
-            this.notification.success('Reservation released');
-            this.load();
-          },
-          error: (err) => this.notification.error(getApiErrorMessage(err, 'Release failed')),
-        });
-      });
+    this.reservedModalOpen.set(true);
+    this.reservedLoading.set(true);
+    this.reservedBreakdown.set(null);
+    this.inventory.getStockReservationBreakdown(row.id).subscribe({
+      next: (data) => {
+        this.reservedBreakdown.set(data);
+        this.reservedLoading.set(false);
+      },
+      error: (err) => {
+        this.reservedLoading.set(false);
+        this.reservedModalOpen.set(false);
+        this.notification.error(getApiErrorMessage(err, 'Failed to load reserved stock details'));
+      },
+    });
+  }
+
+  closeReservedBreakdown(): void {
+    this.reservedModalOpen.set(false);
+    this.reservedBreakdown.set(null);
+  }
+
+  onBreakdownChanged(data: StockReservationBreakdown): void {
+    this.reservedBreakdown.set(data);
+    this.load();
+  }
+
+  onReservedStockReturned(): void {
+    this.closeReservedBreakdown();
+    this.load();
+  }
+
+  manageReservations(row: Stock): void {
+    this.openReservedBreakdown(row);
   }
 }

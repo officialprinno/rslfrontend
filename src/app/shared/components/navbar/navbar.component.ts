@@ -25,6 +25,9 @@ interface Breadcrumb {
   imports: [RouterLink, TranslatePipe, LocaleThemeControlsComponent],
   templateUrl: './navbar.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    class: 'block relative z-50',
+  },
 })
 export class NavbarComponent {
   readonly auth = inject(AuthService);
@@ -69,11 +72,7 @@ export class NavbarComponent {
   }
 
   toggleSidebar(): void {
-    if (window.innerWidth < 768) {
-      this.layout.toggleMobileSidebar();
-    } else {
-      this.layout.toggleSidebar();
-    }
+    this.layout.toggleSidebar();
   }
 
   toggleUserMenu(): void {
@@ -109,6 +108,15 @@ export class NavbarComponent {
 
   closeCompanyMenu(): void {
     this.companyMenuOpen.set(false);
+  }
+
+  /** Compact label for the trigger — last 1–2 words so names like Supply / Stein stay readable. */
+  companyShortLabel(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length <= 2) {
+      return name.trim();
+    }
+    return parts.slice(-2).join(' ');
   }
 
   selectCompany(companyId: CompanyScope): void {

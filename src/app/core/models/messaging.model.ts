@@ -97,4 +97,5 @@ export interface TypingEvent {
 
 export interface OnlineStatusEvent {
   user_id: number;
+  online?: boolean;
 }

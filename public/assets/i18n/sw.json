@@ -196,7 +196,8 @@
     "preferences": "Mapendeleo",
     "profile": "Wasifu",
     "all_departments": "Idara Zote",
-    "toggle_sidebar": "Badilisha upau wa pembeni",
+    "toggle_sidebar": "Fungua au funga menyu",
+    "close_sidebar": "Funga menyu",
     "search_placeholder": "Tafuta hati, bidhaa…",
     "notifications": "Arifa",
     "messages": "Ujumbe",
@@ -211,11 +212,94 @@
       "success": "Mafanikio",
       "error": "Hitilafu",
       "warning": "Onyo",
-      "info": "Taarifa"
+      "info": "Taarifa",
+      "new_message": "Ujumbe mpya",
+      "new_email": "Barua pepe mpya",
+      "open_chat": "Fungua mazungumzo",
+      "open_email": "Fungua inbox",
+      "email_one": "Una barua pepe mpya kwenye inbox.",
+      "email_many": "Una barua pepe {{count}} mpya kwenye inbox."
+    },
+    "chat_widget": {
+      "hello": "Habari {{name}},",
+      "welcome": "Karibu kwenye mazungumzo. Chagua ujumbe ili kujibu.",
+      "reply_hint": "Unaweza kujibu hapa moja kwa moja",
+      "empty": "Hakuna mazungumzo bado",
+      "start": "Anza kutuma ujumbe",
+      "open_full": "Fungua messaging kamili",
+      "no_messages": "Hakuna ujumbe",
+      "placeholder": "Andika ujumbe…",
+      "attachment_fallback": "Ametuma kiambatisho",
+      "tab_chats": "Mazungumzo",
+      "tab_people": "Watu",
+      "tab_broadcasts": "Broadcast",
+      "search_people": "Tafuta wafanyakazi…",
+      "no_people": "Hakuna mfanyakazi aliyepatikana",
+      "message_user": "Tuma",
+      "no_broadcasts": "Hakuna broadcast bado",
+      "new_broadcast": "Broadcast mpya",
+      "broadcast": "Broadcast",
+      "broadcast_hint": "Tangazo la kampuni",
+      "broadcast_readonly": "Broadcast inasomwa tu kwenye chat hii",
+      "thread_empty": "Hakuna ujumbe bado kwenye mazungumzo haya",
+      "online": "Mtandaoni",
+      "offline": "Nje ya mtandao",
+      "members": "Wanachama {{count}}",
+      "sent": "Imetumwa",
+      "delivered": "Imefika",
+      "read": "Imesomwa",
+      "opening_chat": "Inafungua mazungumzo…"
     },
     "lang": {
       "en": "English",
       "sw": "Kiswahili"
+    }
+  },
+  "dashboard": {
+    "dept_action": {
+      "hint": "Bofya mstari wowote kufungua ukurasa wa kuthibitisha, kukubali, au kuidhinisha.",
+      "sales": {
+        "eyebrow": "Kwa ajili yako · Sales",
+        "title": "Zinasubiri hatua ya Sales",
+        "subtitle_pending": "Kuna mambo {{count}} yanayohitaji Sales kuendeleza, quotation, au kufuatilia.",
+        "subtitle_clear": "Hakuna hatua za Sales zinazosubiri sasa."
+      },
+      "finance": {
+        "eyebrow": "Kwa ajili yako · Finance",
+        "title": "Zinasubiri uthibitisho wa Finance",
+        "subtitle_pending": "Kuna mambo {{count}} yanayohitaji Finance kuthibitisha, kuidhinisha, au invoice.",
+        "subtitle_clear": "Hakuna hatua za Finance zinazosubiri sasa."
+      },
+      "inventory": {
+        "eyebrow": "Kwa ajili yako · Inventory",
+        "title": "Zinasubiri hatua ya warehouse",
+        "subtitle_pending": "Kuna mambo {{count}} yanayohitaji stock verify, handover, pickup, au GRN.",
+        "subtitle_clear": "Hakuna hatua za warehouse zinazosubiri sasa."
+      },
+      "logistics": {
+        "eyebrow": "Kwa ajili yako · Logistics",
+        "title": "Zinasubiri hatua ya Logistics",
+        "subtitle_pending": "Kuna mambo {{count}} yanayohitaji dispatch, delivery confirm, au delivery cost.",
+        "subtitle_clear": "Hakuna hatua za Logistics zinazosubiri sasa."
+      }
+    },
+    "gm_action": {
+      "eyebrow": "Kwa ajili yako · General Manager",
+      "title": "Zinasubiri uamuzi wako",
+      "loading": "Inapakia mambo yanayohitaji idhini yako…",
+      "subtitle_pending": "Kuna mambo {{count}} yanayohitaji uidhinishe au ukubali. Bofya mstari wowote kufungua.",
+      "subtitle_clear": "Hakuna kinachosubiri idhini yako kwa sasa.",
+      "empty_title": "Umekamilisha yote",
+      "empty_text": "Purchase requisitions, purchase orders, malipo ya supplier/staff, damage reports, stock take, likizo, au credit notes zinapohitaji sahihi yako, zitaonekana hapa.",
+      "hint": "Kidokezo: kila mstari unafungua ukurasa husika. PR pending unaweza kuidhinisha kwa GM override; damage reports zinahitaji idhini yako kabla stock haikufungwa.",
+      "damage_tag": "Damage report",
+      "modules": {
+        "procurement": "Procurement",
+        "finance": "Fedha",
+        "inventory": "Inventory",
+        "sales": "Mauzo",
+        "hr": "HR & Admin"
+      }
     }
   },
   "auth": {

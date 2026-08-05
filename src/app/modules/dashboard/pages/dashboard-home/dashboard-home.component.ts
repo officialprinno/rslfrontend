@@ -2,12 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { SlicePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
+import { ROLES } from '../../../../core/constants/roles.constants';
 import { AuthService } from '../../../../core/services/auth.service';
 import { CompanyContextService } from '../../../../core/services/company-context.service';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { DepartmentContextService } from '../../../../core/services/department-context.service';
 import { SalesService } from '../../../../core/services/sales.service';
 import { MultiDeptDashboardData } from '../../../../core/models/auth.models';
+import { GmApprovalsData } from '../../../../core/models/gm-approvals.models';
 import { SalesDashboardData } from '../../../../core/models/sales.model';
 import { formatCurrency } from '../../../../core/utils/format.util';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
@@ -20,6 +22,7 @@ import {
   KpiCardComponent,
   setupDashboardCompanyReload,
 } from '../../../../shared/dashboard';
+import { GmActionCenterComponent } from '../../components/gm-action-center/gm-action-center.component';
 import {
   DASHBOARD_STATS,
   QUICK_ACTIONS,
@@ -38,6 +41,7 @@ import { QuickAction, StatCard } from '../../models/dashboard.models';
     KpiCardComponent,
     ChartCardComponent,
     DashboardSectionComponent,
+    GmActionCenterComponent,
   ],
   templateUrl: './dashboard-home.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,6 +58,14 @@ export class DashboardHomeComponent {
       const filter = this.deptContext.activeDepartment();
       if (this.showMultiDept()) {
         this.loadMultiDept(filter);
+      }
+    });
+
+    effect(() => {
+      // Reload GM queue when company workspace changes.
+      this.companyContext.activeCompany();
+      if (this.showGmActionCenter()) {
+        this.loadGmApprovals(true);
       }
     });
 
@@ -77,9 +89,15 @@ export class DashboardHomeComponent {
   readonly salesData = signal<SalesDashboardData | null>(null);
   readonly multiDeptData = signal<MultiDeptDashboardData | null>(null);
   readonly multiDeptLoading = signal(false);
+  readonly gmApprovals = signal<GmApprovalsData | null>(null);
+  readonly gmApprovalsLoading = signal(false);
+  readonly gmApprovalsRefreshing = signal(false);
   readonly refreshing = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly formatCurrency = formatCurrency;
+
+  /** Action Center is for General Manager only (not Super Admin support view clutter). */
+  readonly showGmActionCenter = () => this.auth.hasRole(ROLES.GENERAL_MANAGER);
 
   readonly showMultiDept = () =>
     this.auth.isMultiDepartment() ||
@@ -197,6 +215,9 @@ export class DashboardHomeComponent {
         error: () => this.salesData.set(null),
       });
     }
+    if (this.showGmActionCenter()) {
+      this.loadGmApprovals(true);
+    }
   }
 
   loadMultiDept(filter: string, bypassCache = false): void {
@@ -213,6 +234,28 @@ export class DashboardHomeComponent {
         this.multiDeptData.set(null);
         this.multiDeptLoading.set(false);
         this.refreshing.set(false);
+      },
+    });
+  }
+
+  loadGmApprovals(bypassCache = false): void {
+    if (!this.showGmActionCenter()) {
+      this.gmApprovals.set(null);
+      return;
+    }
+    const hasData = !!this.gmApprovals();
+    this.gmApprovalsLoading.set(!hasData);
+    this.gmApprovalsRefreshing.set(hasData);
+    this.dashboard.getGmApprovals(bypassCache).subscribe({
+      next: (data) => {
+        this.gmApprovals.set(data?.allowed ? data : null);
+        this.gmApprovalsLoading.set(false);
+        this.gmApprovalsRefreshing.set(false);
+      },
+      error: () => {
+        this.gmApprovals.set(null);
+        this.gmApprovalsLoading.set(false);
+        this.gmApprovalsRefreshing.set(false);
       },
     });
   }

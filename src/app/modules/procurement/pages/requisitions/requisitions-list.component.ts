@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import { Department, PurchaseRequisition } from '../../../../core/models/procurement.model';
@@ -62,6 +62,7 @@ export class RequisitionsListComponent implements OnInit {
   private readonly notification = inject(NotificationService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
   readonly router = inject(Router);
 
   readonly requisitions = signal<PurchaseRequisition[]>([]);
@@ -76,7 +77,7 @@ export class RequisitionsListComponent implements OnInit {
   readonly search = signal('');
   readonly deptFilter = signal<number | ''>('');
   readonly priorityFilter = signal('');
-  readonly statusFilter = signal('');
+  readonly statusFilter = signal(this.route.snapshot.queryParamMap.get('status') ?? '');
   readonly dateFrom = signal('');
   readonly dateAfter = signal('');
   readonly viewing = signal<PurchaseRequisition | null>(null);
@@ -171,10 +172,10 @@ export class RequisitionsListComponent implements OnInit {
 
   ngOnInit(): void {
     this.departments.getDepartments().subscribe((d) => this.deptList.set(d));
-    this.load();
+    this.load(() => this.openFromQueryParams());
   }
 
-  load(): void {
+  load(afterLoad?: () => void): void {
     this.loading.set(true);
     resetListLoadState(this.error, this.workspaceEmpty);
     const params: Record<string, string | number> = {
@@ -196,6 +197,7 @@ export class RequisitionsListComponent implements OnInit {
         next: (data) => {
           this.requisitions.set(data.results);
           this.total.set(data.count);
+          afterLoad?.();
         },
         error: (e) => handleListLoadError(e, this.error, this.workspaceEmpty),
       });
@@ -210,6 +212,19 @@ export class RequisitionsListComponent implements OnInit {
       },
       error: (e) => this.notification.error(getApiErrorMessage(e)),
     });
+  }
+
+  private openFromQueryParams(): void {
+    const id = Number(this.route.snapshot.queryParamMap.get('id'));
+    if (!id) {
+      return;
+    }
+    const match = this.requisitions().find((r) => r.id === id);
+    if (match) {
+      this.openView(match);
+      return;
+    }
+    this.openView({ id } as PurchaseRequisition);
   }
 
   submit(pr: PurchaseRequisition): void {

@@ -11,9 +11,11 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
+import { DeptApprovalsData } from '../../../../core/models/dept-approvals.models';
 import { InventoryDashboard, MovementType, Warehouse } from '../../../../core/models/inventory.model';
 import { PurchaseOrder } from '../../../../core/models/procurement.model';
 import { AuthService } from '../../../../core/services/auth.service';
+import { DashboardService } from '../../../../core/services/dashboard.service';
 import { InventoryService } from '../../../../core/services/inventory.service';
 import { CompanyContextService } from '../../../../core/services/company-context.service';
 import { ProcurementService } from '../../../../core/services/procurement.service';
@@ -28,6 +30,7 @@ import {
   DashboardLayoutComponent,
   DashboardSectionComponent,
   DateRangeValue,
+  DeptActionCenterComponent,
   InsightBannerComponent,
   KpiCardComponent,
   setupDashboardCompanyReload,
@@ -62,6 +65,7 @@ const PIE_COLORS = ['#1B3A6B', '#2E6DB4', '#4A90D9', '#7EB3E8', '#F0A500', '#2E8
     MovementTypeBadgeComponent,
     ApprovalQueueComponent,
     StatusBadgeComponent,
+    DeptActionCenterComponent,
   ],
   templateUrl: './inventory-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,6 +74,7 @@ export class InventoryDashboardComponent implements OnInit {
   private readonly inventory = inject(InventoryService);
   private readonly procurement = inject(ProcurementService);
   private readonly auth = inject(AuthService);
+  private readonly dashboardApi = inject(DashboardService);
   readonly warehouseContext = inject(WarehouseContextService);
   readonly companyContext = inject(CompanyContextService);
 
@@ -78,6 +83,7 @@ export class InventoryDashboardComponent implements OnInit {
       this.data.set(null);
       this.receivablePos.set([]);
       this.load(false, true);
+      this.loadActionCenter(true);
       if (this.showReceivablePos()) {
         this.loadReceivablePos();
       }
@@ -93,6 +99,9 @@ export class InventoryDashboardComponent implements OnInit {
   readonly error = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly dateRange = signal<DateRangeValue | null>(null);
+  readonly actionCenter = signal<DeptApprovalsData | null>(null);
+  readonly actionCenterLoading = signal(false);
+  readonly actionCenterRefreshing = signal(false);
 
   readonly formatCurrency = formatCurrency;
   readonly formatNumber = formatNumber;
@@ -276,8 +285,27 @@ export class InventoryDashboardComponent implements OnInit {
       });
   }
 
+  loadActionCenter(bypassCache = false): void {
+    const hasData = !!this.actionCenter();
+    this.actionCenterLoading.set(!hasData);
+    this.actionCenterRefreshing.set(hasData);
+    this.dashboardApi.getDeptApprovals('inventory', bypassCache).subscribe({
+      next: (data) => {
+        this.actionCenter.set(data?.allowed ? data : null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+      error: () => {
+        this.actionCenter.set(null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+    });
+  }
+
   onRefresh(): void {
     this.load(true, true);
+    this.loadActionCenter(true);
     if (this.showReceivablePos()) {
       this.loadReceivablePos(true);
     }

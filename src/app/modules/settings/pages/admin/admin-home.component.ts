@@ -91,6 +91,13 @@ import { SettingsAdminNavComponent } from '../../components/settings-admin-nav/s
             View and manage module/action permissions assigned to each role.
           </p>
         </a>
+
+        <a routerLink="/email/admin/mailboxes" class="card p-5 hover:shadow-md transition-shadow group">
+          <h3 class="font-semibold text-gray-900 group-hover:text-[#1B3A6B]">Email Mailboxes</h3>
+          <p class="text-sm text-gray-500 mt-2">
+            Provision and manage @rocksolutions.co.tz mailboxes (Mailcow) for users and shared inboxes.
+          </p>
+        </a>
       </div>
     </div>
   `,

@@ -10,7 +10,9 @@ import {
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
+import { DeptApprovalsData } from '../../../../core/models/dept-approvals.models';
 import { ComplianceAlert, LogisticsDashboard } from '../../../../core/models/logistics.model';
+import { DashboardService } from '../../../../core/services/dashboard.service';
 import { LogisticsService } from '../../../../core/services/logistics.service';
 import { formatCurrency, formatDateTime } from '../../../../core/utils/format.util';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge.component';
@@ -23,6 +25,7 @@ import {
   DashboardTableComponent,
   DashboardTone,
   DateRangeValue,
+  DeptActionCenterComponent,
   InsightBannerComponent,
   KpiCardComponent,
   setupDashboardCompanyReload,
@@ -43,17 +46,20 @@ import { LogisticsNavComponent } from '../../components/logistics-nav/logistics-
     ActivityFeedComponent,
     DashboardTableComponent,
     StatusBadgeComponent,
+    DeptActionCenterComponent,
   ],
   templateUrl: './logistics-dashboard.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LogisticsDashboardComponent implements OnInit {
   private readonly logistics = inject(LogisticsService);
+  private readonly dashboardApi = inject(DashboardService);
 
   constructor() {
     setupDashboardCompanyReload(() => {
       this.data.set(null);
       this.load(false, true);
+      this.loadActionCenter(true);
     });
   }
 
@@ -63,6 +69,9 @@ export class LogisticsDashboardComponent implements OnInit {
   readonly error = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly dateRange = signal<DateRangeValue | null>(null);
+  readonly actionCenter = signal<DeptApprovalsData | null>(null);
+  readonly actionCenterLoading = signal(false);
+  readonly actionCenterRefreshing = signal(false);
 
   readonly formatCurrency = formatCurrency;
   readonly formatDateTime = formatDateTime;
@@ -175,8 +184,27 @@ export class LogisticsDashboardComponent implements OnInit {
       });
   }
 
+  loadActionCenter(bypassCache = false): void {
+    const hasData = !!this.actionCenter();
+    this.actionCenterLoading.set(!hasData);
+    this.actionCenterRefreshing.set(hasData);
+    this.dashboardApi.getDeptApprovals('logistics', bypassCache).subscribe({
+      next: (data) => {
+        this.actionCenter.set(data?.allowed ? data : null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+      error: () => {
+        this.actionCenter.set(null);
+        this.actionCenterLoading.set(false);
+        this.actionCenterRefreshing.set(false);
+      },
+    });
+  }
+
   onRefresh(): void {
     this.load(true, true);
+    this.loadActionCenter(true);
   }
 
   onDateRangeChange(range: DateRangeValue): void {

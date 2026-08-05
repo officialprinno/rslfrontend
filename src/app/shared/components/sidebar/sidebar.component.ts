@@ -65,6 +65,9 @@ export class SidebarComponent {
   readonly currentUrl = signal(this.router.url);
   readonly expandedGroups = signal<Set<string>>(this.loadExpandedGroups());
 
+  /** On phone the drawer always shows labels — ignore desktop rail collapse. */
+  readonly railCollapsed = computed(() => this.collapsed() && !this.layout.isMobile());
+
   private visibleItem(item: NavItem): boolean {
     if (item.route === '/dashboard') {
       return this.auth.canAccessMainDashboard();
@@ -166,6 +169,15 @@ export class SidebarComponent {
   onNavClick(): void {
     this.navItemClick.emit();
     this.layout.closeMobileSidebar();
+  }
+
+  closeMobile(): void {
+    this.layout.closeMobileSidebar();
+  }
+
+  /** Desktop/tablet: reopen the full sidebar from the collapsed rail. */
+  expandDesktop(): void {
+    this.layout.setSidebarCollapsed(false);
   }
 
   logout(): void {

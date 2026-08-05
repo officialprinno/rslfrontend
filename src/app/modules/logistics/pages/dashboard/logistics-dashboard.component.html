@@ -14,6 +14,16 @@
 >
   <app-logistics-nav dashNav />
 
+  <div class="mb-6">
+    <app-dept-action-center
+      department="logistics"
+      [data]="actionCenter()"
+      [loading]="actionCenterLoading()"
+      [refreshing]="actionCenterRefreshing()"
+      (refresh)="loadActionCenter(true)"
+    />
+  </div>
+
   @if (data(); as d) {
     <ng-container dashInsights>
       <app-insight-banner [insights]="insights()" />

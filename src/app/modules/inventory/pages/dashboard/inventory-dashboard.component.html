@@ -29,6 +29,16 @@
     </select>
   </div>
 
+  <div class="mb-6">
+    <app-dept-action-center
+      department="inventory"
+      [data]="actionCenter()"
+      [loading]="actionCenterLoading()"
+      [refreshing]="actionCenterRefreshing()"
+      (refresh)="loadActionCenter(true)"
+    />
+  </div>
+
   @if (isWarehouseRole()) {
     <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 mb-6">
       @if (showReceivablePos()) {

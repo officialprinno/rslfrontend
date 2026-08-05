@@ -1,11 +1,27 @@
 import { Injectable, signal } from '@angular/core';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
+export type ToastKind = 'default' | 'message' | 'email';
 
 export interface ToastMessage {
   id: number;
   type: ToastType;
   message: string;
+  title?: string;
+  kind?: ToastKind;
+  actionLabel?: string;
+  actionUrl?: string;
+  conversationId?: number;
+}
+
+export interface ToastOptions {
+  type?: ToastType;
+  title?: string;
+  kind?: ToastKind;
+  actionLabel?: string;
+  actionUrl?: string;
+  conversationId?: number;
+  durationMs?: number;
 }
 
 @Injectable({
@@ -17,12 +33,24 @@ export class NotificationService {
 
   readonly toasts = this.toastsSignal.asReadonly();
 
-  show(message: string, type: ToastType = 'info', durationMs?: number): void {
+  show(message: string, typeOrOptions: ToastType | ToastOptions = 'info', durationMs?: number): void {
+    const options: ToastOptions =
+      typeof typeOrOptions === 'string' ? { type: typeOrOptions, durationMs } : typeOrOptions;
+    const type = options.type ?? 'info';
     const id = ++this.nextId;
-    const toast: ToastMessage = { id, type, message };
-    this.toastsSignal.update((list) => [...list, toast]);
+    const toast: ToastMessage = {
+      id,
+      type,
+      message,
+      title: options.title,
+      kind: options.kind ?? 'default',
+      actionLabel: options.actionLabel,
+      actionUrl: options.actionUrl,
+      conversationId: options.conversationId,
+    };
+    this.toastsSignal.update((list) => [...list.slice(-4), toast]);
 
-    const duration = durationMs ?? (type === 'error' ? 0 : 5000);
+    const duration = options.durationMs ?? (type === 'error' ? 0 : 6000);
     if (duration > 0) {
       window.setTimeout(() => this.dismiss(id), duration);
     }
@@ -39,8 +67,8 @@ export class NotificationService {
     this.show(message, 'error', 0);
   }
 
-  info(message: string): void {
-    this.show(message, 'info');
+  info(message: string, options?: Omit<ToastOptions, 'type'>): void {
+    this.show(message, { type: 'info', ...options });
   }
 
   warning(message: string): void {

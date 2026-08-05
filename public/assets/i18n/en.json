@@ -197,6 +197,7 @@
     "profile": "Profile",
     "all_departments": "All Departments",
     "toggle_sidebar": "Toggle sidebar",
+    "close_sidebar": "Close menu",
     "search_placeholder": "Search documents, items…",
     "notifications": "Notifications",
     "messages": "Messages",
@@ -211,11 +212,94 @@
       "success": "Success",
       "error": "Error",
       "warning": "Warning",
-      "info": "Information"
+      "info": "Information",
+      "new_message": "New message",
+      "new_email": "New email",
+      "open_chat": "Open chat",
+      "open_email": "Open inbox",
+      "email_one": "You have a new email in your inbox.",
+      "email_many": "You have {{count}} new emails in your inbox."
+    },
+    "chat_widget": {
+      "hello": "Hello {{name}},",
+      "welcome": "Welcome to live chat. Pick a conversation to reply.",
+      "reply_hint": "You can reply right here",
+      "empty": "No conversations yet",
+      "start": "Start messaging",
+      "open_full": "Open full messaging",
+      "no_messages": "No messages",
+      "placeholder": "Type a message…",
+      "attachment_fallback": "Sent an attachment",
+      "tab_chats": "Chats",
+      "tab_people": "People",
+      "tab_broadcasts": "Broadcasts",
+      "search_people": "Search employees…",
+      "no_people": "No employees found",
+      "message_user": "Message",
+      "no_broadcasts": "No broadcasts yet",
+      "new_broadcast": "New broadcast",
+      "broadcast": "Broadcast",
+      "broadcast_hint": "Company-wide announcement",
+      "broadcast_readonly": "Broadcasts are read-only in this chat",
+      "thread_empty": "No messages in this conversation yet",
+      "online": "Online",
+      "offline": "Offline",
+      "members": "{{count}} members",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read",
+      "opening_chat": "Opening conversation…"
     },
     "lang": {
       "en": "English",
       "sw": "Kiswahili"
+    }
+  },
+  "dashboard": {
+    "dept_action": {
+      "hint": "Tap any row to open the page where you can verify, confirm, or approve.",
+      "sales": {
+        "eyebrow": "For you · Sales",
+        "title": "Waiting for Sales action",
+        "subtitle_pending": "{{count}} item(s) need Sales to advance, quote, or follow up.",
+        "subtitle_clear": "No Sales actions waiting right now."
+      },
+      "finance": {
+        "eyebrow": "For you · Finance",
+        "title": "Waiting for Finance verification",
+        "subtitle_pending": "{{count}} item(s) need Finance to verify, approve, or invoice.",
+        "subtitle_clear": "No Finance actions waiting right now."
+      },
+      "inventory": {
+        "eyebrow": "For you · Inventory",
+        "title": "Waiting for warehouse action",
+        "subtitle_pending": "{{count}} item(s) need stock verify, handover, pickup, or GRN confirm.",
+        "subtitle_clear": "No warehouse actions waiting right now."
+      },
+      "logistics": {
+        "eyebrow": "For you · Logistics",
+        "title": "Waiting for Logistics action",
+        "subtitle_pending": "{{count}} item(s) need dispatch, delivery confirm, or cost calculation.",
+        "subtitle_clear": "No Logistics actions waiting right now."
+      }
+    },
+    "gm_action": {
+      "eyebrow": "For you · General Manager",
+      "title": "Waiting for your decision",
+      "loading": "Loading items that need your approval…",
+      "subtitle_pending": "{{count}} item(s) need your approve or accept. Tap any row to open it.",
+      "subtitle_clear": "Nothing is waiting for your approval right now.",
+      "empty_title": "You are all caught up",
+      "empty_text": "When purchase requisitions, purchase orders, supplier/staff payments, damage reports, stock takes, leave, or credit notes need your sign-off, they will appear here.",
+      "hint": "Tip: each row opens the exact page where you can approve or reject. Pending requisitions can be approved by GM override; damage reports need your approval before stock is frozen.",
+      "damage_tag": "Damage report",
+      "modules": {
+        "procurement": "Procurement",
+        "finance": "Finance",
+        "inventory": "Inventory",
+        "sales": "Sales",
+        "hr": "HR & Admin"
+      }
     }
   },
   "auth": {

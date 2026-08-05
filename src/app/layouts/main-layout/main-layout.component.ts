@@ -11,6 +11,7 @@ import { RouterOutlet } from '@angular/router';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { LayoutService } from '../../core/services/layout.service';
 import { NotificationShellService } from '../../core/services/notification-shell.service';
+import { ChatWidgetComponent } from '../../shared/components/chat-widget/chat-widget.component';
 import { NavbarComponent } from '../../shared/components/navbar/navbar.component';
 import { NotificationsPanelComponent } from '../../shared/components/notifications-panel/notifications-panel.component';
 import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
@@ -23,6 +24,7 @@ import { SidebarComponent } from '../../shared/components/sidebar/sidebar.compon
     NavbarComponent,
     NotificationsPanelComponent,
     AppFooterComponent,
+    ChatWidgetComponent,
   ],
   providers: [NotificationShellService],
   templateUrl: './main-layout.component.html',
@@ -32,6 +34,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   readonly layout = inject(LayoutService);
   readonly notificationShell = inject(NotificationShellService);
 
+  private lastWidth: number | null = null;
+
   ngOnInit(): void {
     this.syncBreakpoint();
     this.notificationShell.start();
@@ -39,6 +43,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.notificationShell.stop();
+    this.layout.closeMobileSidebar();
   }
 
   @HostListener('window:resize')
@@ -46,14 +51,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.syncBreakpoint();
   }
 
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.layout.closeMobileSidebar();
+  }
+
   private syncBreakpoint(): void {
     const width = window.innerWidth;
-    if (width < 768) {
-      this.layout.closeMobileSidebar();
-    } else if (width < 1024) {
-      this.layout.setSidebarCollapsed(true);
-    } else {
-      this.layout.setSidebarCollapsed(false);
-    }
+    this.layout.syncBreakpoint(width, this.lastWidth);
+    this.lastWidth = width;
   }
 }

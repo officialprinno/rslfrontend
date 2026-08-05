@@ -68,7 +68,10 @@ export class CompanyContextService {
 
     const remembered = this.shouldRemember() ? this.loadFromStorage() : null;
     if (remembered && this.isAccessible(remembered.id, companies)) {
-      this.activeCompany.set(remembered);
+      const current = this.activeCompany();
+      if (current?.id !== remembered.id) {
+        this.activeCompany.set(remembered);
+      }
       this.syncDashboardScope();
       this.selectionRequiredSignal.set(false);
       return;
@@ -81,6 +84,12 @@ export class CompanyContextService {
   setCompany(companyId: CompanyScope, remember = true): void {
     if (companyId === 'consolidated') {
       if (!this.canUseConsolidated()) {
+        return;
+      }
+      const current = this.activeCompany();
+      if (current?.id === 'consolidated') {
+        this.selectionRequiredSignal.set(false);
+        this.syncDashboardScope();
         return;
       }
       const state: ActiveCompanyState = {
@@ -98,6 +107,16 @@ export class CompanyContextService {
 
     const company = this.companiesSignal().find((c) => c.company_id === companyId);
     if (!company) {
+      return;
+    }
+
+    const current = this.activeCompany();
+    if (current?.id === companyId) {
+      this.selectionRequiredSignal.set(false);
+      this.syncDashboardScope();
+      if (remember) {
+        this.preferences.saveDefaultCompany(company.company_id);
+      }
       return;
     }
 

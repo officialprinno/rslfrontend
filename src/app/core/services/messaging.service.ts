@@ -1,8 +1,9 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import { environment } from '../../environments/environments';
+import { SKIP_ERROR_TOAST } from '../http/http-contexts';
 import { ApiResponse } from '../models/auth.models';
 import {
   AppNotification,
@@ -28,16 +29,27 @@ export class MessagingService {
       );
   }
 
-  getConversation(id: number): Observable<Conversation> {
+  getConversation(id: number, options?: { silent?: boolean }): Observable<Conversation> {
     return this.http
-      .get<ApiResponse<Conversation>>(`${this.baseUrl}/conversations/${id}/`)
+      .get<ApiResponse<Conversation>>(`${this.baseUrl}/conversations/${id}/`, {
+        context: this.context(options?.silent),
+      })
       .pipe(unwrapApi());
   }
 
   createDirectMessage(userId: number): Observable<Conversation> {
     return this.http
       .post<ApiResponse<Conversation>>(`${this.baseUrl}/conversations/direct/`, { user_id: userId })
-      .pipe(unwrapApi());
+      .pipe(
+        unwrapApi(),
+        map((conv) => {
+          // Guard against malformed payloads so the widget never sends to id <= 0.
+          if (!conv || typeof conv.id !== 'number' || conv.id <= 0) {
+            throw new Error('Invalid conversation response');
+          }
+          return conv;
+        }),
+      );
   }
 
   createGroup(name: string, memberIds: number[]): Observable<Conversation> {
@@ -49,11 +61,18 @@ export class MessagingService {
       .pipe(unwrapApi());
   }
 
-  getMessages(conversationId: number, page = 1): Observable<PaginatedData<Message>> {
+  getMessages(
+    conversationId: number,
+    page = 1,
+    options?: { silent?: boolean },
+  ): Observable<PaginatedData<Message>> {
     return this.http
       .get<ApiResponse<PaginatedData<Message>>>(
         `${this.baseUrl}/conversations/${conversationId}/messages/`,
-        { params: buildHttpParams({ page, page_size: 50 }) },
+        {
+          params: buildHttpParams({ page, page_size: 50 }),
+          context: this.context(options?.silent),
+        },
       )
       .pipe(unwrapApi());
   }
@@ -78,9 +97,13 @@ export class MessagingService {
       .pipe(unwrapApi());
   }
 
-  markAsRead(conversationId: number): Observable<void> {
+  markAsRead(conversationId: number, options?: { silent?: boolean }): Observable<void> {
     return this.http
-      .post<ApiResponse<void>>(`${this.baseUrl}/conversations/${conversationId}/mark-read/`, {})
+      .post<ApiResponse<void>>(
+        `${this.baseUrl}/conversations/${conversationId}/mark-read/`,
+        {},
+        { context: this.context(options?.silent) },
+      )
       .pipe(unwrapApi());
   }
 
@@ -117,12 +140,26 @@ export class MessagingService {
       .pipe(unwrapApi());
   }
 
-  searchUsers(query = ''): Observable<{ id: number; full_name: string; department_name: string; role_name: string }[]> {
+  searchUsers(query = ''): Observable<
+    { id: number; full_name: string; department_name: string; role_name: string; is_online?: boolean }[]
+  > {
     return this.http
-      .get<ApiResponse<{ results: { id: number; full_name: string; department_name: string; role_name: string }[] }>>(
-        `${environment.apiUrl}/auth/users/`,
-        { params: buildHttpParams({ search: query, page_size: 50 }) },
-      )
+      .get<
+        ApiResponse<
+          | {
+              results: {
+                id: number;
+                full_name: string;
+                department_name: string;
+                role_name: string;
+                is_online?: boolean;
+              }[];
+            }
+          | { id: number; full_name: string; department_name: string; role_name: string; is_online?: boolean }[]
+        >
+      >(`${environment.apiUrl}/auth/users/`, {
+        params: buildHttpParams({ search: query, page_size: 50 }),
+      })
       .pipe(
         unwrapApi(),
         map((data) => (Array.isArray(data) ? data : (data?.results ?? []))),
@@ -135,5 +172,9 @@ export class MessagingService {
         `${this.baseUrl}/notifications/unread-count/`,
       )
       .pipe(unwrapApi());
+  }
+
+  private context(silent?: boolean): HttpContext {
+    return new HttpContext().set(SKIP_ERROR_TOAST, !!silent);
   }
 }

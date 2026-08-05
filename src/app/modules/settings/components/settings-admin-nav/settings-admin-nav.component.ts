@@ -33,6 +33,7 @@ export class SettingsAdminNavComponent {
     { label: 'Create Account', route: '/admin/users/create' },
     { label: 'Roles', route: '/settings/roles' },
     { label: 'Permissions', route: '/settings/permissions' },
+    { label: 'Email Mailboxes', route: '/email/admin/mailboxes' },
   ];
 
   isSuperAdmin(): boolean {

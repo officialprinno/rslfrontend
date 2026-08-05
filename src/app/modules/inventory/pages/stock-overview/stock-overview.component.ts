@@ -203,6 +203,11 @@ export class StockOverviewComponent implements OnInit {
     this.reservedBreakdown.set(null);
   }
 
+  onBreakdownChanged(data: StockReservationBreakdown): void {
+    this.reservedBreakdown.set(data);
+    this.load();
+  }
+
   onReservedStockReturned(): void {
     this.closeReservedBreakdown();
     this.load();

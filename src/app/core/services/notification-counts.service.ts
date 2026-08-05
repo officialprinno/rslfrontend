@@ -1,8 +1,14 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { catchError, of } from 'rxjs';
+import { catchError, forkJoin, map, Observable, of, tap } from 'rxjs';
 
 import { EmailService } from './email.service';
 import { MessagingService } from './messaging.service';
+
+export interface UnreadSnapshot {
+  messages: number;
+  notifications: number;
+  emails: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class NotificationCountsService {
@@ -22,18 +28,27 @@ export class NotificationCountsService {
   }
 
   refresh(): void {
-    this.messaging
-      .getUnreadCount()
-      .pipe(catchError(() => of({ messages: 0, notifications: 0, total: 0 })))
-      .subscribe((c) => {
-        this.unreadMessages.set(c.messages);
-        this.unreadNotifications.set(c.notifications);
-      });
+    this.refresh$().subscribe();
+  }
 
-    this.email
-      .getUnreadCount()
-      .pipe(catchError(() => of({ inbox: 0, total: 0 })))
-      .subscribe((c) => this.unreadEmails.set(c.inbox));
+  refresh$(): Observable<UnreadSnapshot> {
+    return forkJoin({
+      messaging: this.messaging
+        .getUnreadCount()
+        .pipe(catchError(() => of({ messages: 0, notifications: 0, total: 0 }))),
+      email: this.email.getUnreadCount().pipe(catchError(() => of({ inbox: 0, total: 0 }))),
+    }).pipe(
+      map(({ messaging, email }) => ({
+        messages: messaging.messages,
+        notifications: messaging.notifications,
+        emails: email.inbox,
+      })),
+      tap((snapshot) => {
+        this.unreadMessages.set(snapshot.messages);
+        this.unreadNotifications.set(snapshot.notifications);
+        this.unreadEmails.set(snapshot.emails);
+      }),
+    );
   }
 
   reset(): void {

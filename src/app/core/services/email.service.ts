@@ -6,11 +6,14 @@ import { environment } from '../../environments/environments';
 import { ApiResponse } from '../models/auth.models';
 import {
   ComposeEmailData,
-  ConnectionTest,
   Email,
   EmailAccount,
+  EmailAccountAccess,
   EmailFilters,
   Label,
+  MailboxPermission,
+  MailboxProvisionData,
+  PollResult,
   SyncResult,
 } from '../models/email.model';
 import { PaginatedData } from '../models/paginated.model';
@@ -27,21 +30,28 @@ export class EmailService {
       .pipe(unwrapApi());
   }
 
-  setupEmailAccount(data: Partial<EmailAccount> & { password?: string }): Observable<EmailAccount> {
+  getMyAccounts(): Observable<EmailAccount[]> {
     return this.http
-      .post<ApiResponse<EmailAccount>>(`${this.baseUrl}/account/setup/`, data)
+      .get<ApiResponse<EmailAccount[]>>(`${this.baseUrl}/account/mine/`)
       .pipe(unwrapApi());
   }
 
-  testConnection(data: Record<string, unknown>): Observable<ConnectionTest> {
+  poll(accountId?: number, since?: string | null): Observable<PollResult> {
+    const params: Record<string, string | number> = {};
+    if (accountId) params['account_id'] = accountId;
+    if (since) params['since'] = since;
     return this.http
-      .post<ApiResponse<ConnectionTest>>(`${this.baseUrl}/account/test-connection/`, data)
+      .get<ApiResponse<PollResult>>(`${this.baseUrl}/account/poll/`, {
+        params: buildHttpParams(params),
+      })
       .pipe(unwrapApi());
   }
 
-  syncEmails(): Observable<SyncResult> {
+  syncEmails(accountId?: number): Observable<SyncResult> {
     return this.http
-      .post<ApiResponse<SyncResult>>(`${this.baseUrl}/account/sync/`, {})
+      .post<ApiResponse<SyncResult>>(`${this.baseUrl}/account/sync/`, {
+        account_id: accountId ?? null,
+      })
       .pipe(unwrapApi());
   }
 
@@ -55,6 +65,7 @@ export class EmailService {
     if (filters.label) params['label'] = filters.label;
     if (filters.sort) params['sort'] = filters.sort;
     if (filters.page) params['page'] = filters.page;
+    if (filters.account_id) params['account_id'] = filters.account_id;
     return this.http
       .get<ApiResponse<PaginatedData<Email>>>(`${this.baseUrl}/messages/`, {
         params: buildHttpParams(params),
@@ -69,6 +80,23 @@ export class EmailService {
   }
 
   sendEmail(data: ComposeEmailData): Observable<Email> {
+    if (data.attachments?.length) {
+      const form = new FormData();
+      form.append('to', JSON.stringify(data.to));
+      form.append('cc', JSON.stringify(data.cc ?? []));
+      form.append('bcc', JSON.stringify(data.bcc ?? []));
+      form.append('subject', data.subject);
+      form.append('body_html', data.body_html);
+      form.append('body_text', data.body_text ?? '');
+      if (data.account_id) form.append('account_id', String(data.account_id));
+      if (data.reply_to_id) form.append('reply_to_id', String(data.reply_to_id));
+      for (const file of data.attachments) {
+        form.append('attachments', file, file.name);
+      }
+      return this.http
+        .post<ApiResponse<Email>>(`${this.baseUrl}/messages/send/`, form)
+        .pipe(unwrapApi());
+    }
     return this.http
       .post<ApiResponse<Email>>(`${this.baseUrl}/messages/send/`, data)
       .pipe(unwrapApi());
@@ -128,18 +156,25 @@ export class EmailService {
       .pipe(unwrapApi());
   }
 
-  getLabels(): Observable<Label[]> {
+  getLabels(accountId?: number): Observable<Label[]> {
+    const params: Record<string, string | number> = {};
+    if (accountId) params['account_id'] = accountId;
     return this.http
-      .get<ApiResponse<{ results: Label[] } | Label[]>>(`${this.baseUrl}/labels/`)
+      .get<ApiResponse<{ results: Label[] } | Label[]>>(`${this.baseUrl}/labels/`, {
+        params: buildHttpParams(params),
+      })
       .pipe(
         unwrapApi(),
         map((data) => (Array.isArray(data) ? data : (data?.results ?? []))),
       );
   }
 
-  createLabel(data: { name: string; color: string }): Observable<Label> {
+  createLabel(data: { name: string; color: string }, accountId?: number): Observable<Label> {
     return this.http
-      .post<ApiResponse<Label>>(`${this.baseUrl}/labels/`, data)
+      .post<ApiResponse<Label>>(`${this.baseUrl}/labels/`, {
+        ...data,
+        account_id: accountId,
+      })
       .pipe(unwrapApi());
   }
 
@@ -153,9 +188,83 @@ export class EmailService {
     return this.http.delete<ApiResponse<void>>(`${this.baseUrl}/labels/${id}/`).pipe(unwrapApi());
   }
 
-  getUnreadCount(): Observable<{ inbox: number; total: number }> {
+  getUnreadCount(accountId?: number): Observable<{ inbox: number; total: number }> {
+    const params: Record<string, string | number> = {};
+    if (accountId) params['account_id'] = accountId;
     return this.http
-      .get<ApiResponse<{ inbox: number; total: number }>>(`${this.baseUrl}/messages/unread-count/`)
+      .get<ApiResponse<{ inbox: number; total: number }>>(`${this.baseUrl}/messages/unread-count/`, {
+        params: buildHttpParams(params),
+      })
+      .pipe(unwrapApi());
+  }
+
+  // --- Super Admin mailbox management ---
+
+  adminListMailboxes(params?: Record<string, string>): Observable<EmailAccount[]> {
+    return this.http
+      .get<ApiResponse<EmailAccount[]>>(`${this.baseUrl}/admin/mailboxes/`, {
+        params: buildHttpParams(params ?? {}),
+      })
+      .pipe(unwrapApi());
+  }
+
+  adminGetMailbox(id: number): Observable<EmailAccount> {
+    return this.http
+      .get<ApiResponse<EmailAccount>>(`${this.baseUrl}/admin/mailboxes/${id}/`)
+      .pipe(unwrapApi());
+  }
+
+  adminProvisionMailbox(data: MailboxProvisionData): Observable<EmailAccount> {
+    return this.http
+      .post<ApiResponse<EmailAccount>>(`${this.baseUrl}/admin/mailboxes/`, data)
+      .pipe(unwrapApi());
+  }
+
+  adminSuggestAddress(userId: number): Observable<{ email_address: string }> {
+    return this.http
+      .get<ApiResponse<{ email_address: string }>>(
+        `${this.baseUrl}/admin/mailboxes/suggest-address/`,
+        { params: buildHttpParams({ user_id: userId }) },
+      )
+      .pipe(unwrapApi());
+  }
+
+  adminDisableMailbox(id: number): Observable<EmailAccount> {
+    return this.http
+      .post<ApiResponse<EmailAccount>>(`${this.baseUrl}/admin/mailboxes/${id}/disable/`, {})
+      .pipe(unwrapApi());
+  }
+
+  adminEnableMailbox(id: number): Observable<EmailAccount> {
+    return this.http
+      .post<ApiResponse<EmailAccount>>(`${this.baseUrl}/admin/mailboxes/${id}/enable/`, {})
+      .pipe(unwrapApi());
+  }
+
+  adminDeleteMailbox(id: number): Observable<void> {
+    return this.http
+      .delete<ApiResponse<void>>(`${this.baseUrl}/admin/mailboxes/${id}/?confirm=1`)
+      .pipe(unwrapApi());
+  }
+
+  adminGrantAccess(
+    mailboxId: number,
+    userId: number,
+    permission: MailboxPermission = 'FULL',
+  ): Observable<EmailAccountAccess> {
+    return this.http
+      .post<ApiResponse<EmailAccountAccess>>(
+        `${this.baseUrl}/admin/mailboxes/${mailboxId}/access/`,
+        { user_id: userId, permission },
+      )
+      .pipe(unwrapApi());
+  }
+
+  adminRevokeAccess(mailboxId: number, accessId: number): Observable<void> {
+    return this.http
+      .delete<ApiResponse<void>>(
+        `${this.baseUrl}/admin/mailboxes/${mailboxId}/access/${accessId}/`,
+      )
       .pipe(unwrapApi());
   }
 }

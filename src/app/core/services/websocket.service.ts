@@ -10,6 +10,7 @@ type WsEvent =
   | { type: 'typing.start'; payload: TypingEvent }
   | { type: 'typing.stop'; payload: TypingEvent }
   | { type: 'user.online'; payload: OnlineStatusEvent }
+  | { type: 'user.offline'; payload: OnlineStatusEvent }
   | { type: 'notification.new'; payload: unknown }
   | { type: 'pong' };
 
@@ -113,7 +114,10 @@ export class WebsocketService implements OnDestroy {
         this.typingSubject.next({ ...data.payload, active: false });
         break;
       case 'user.online':
-        this.onlineSubject.next(data.payload);
+        this.onlineSubject.next({ ...data.payload, online: data.payload.online ?? true });
+        break;
+      case 'user.offline':
+        this.onlineSubject.next({ ...data.payload, online: false });
         break;
       case 'notification.new':
         this.notificationSubject.next(data.payload);

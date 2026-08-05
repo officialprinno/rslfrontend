@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { finalize } from 'rxjs/operators';
 
 import {
@@ -46,11 +47,12 @@ export class LeaveComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly notification = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
 
   readonly activeTab = signal<'requests' | 'balances' | 'calendar'>('requests');
   readonly loading = signal(true);
   readonly saving = signal(false);
-  readonly statusFilter = signal('');
+  readonly statusFilter = signal(this.route.snapshot.queryParamMap.get('status') ?? '');
   readonly departmentFilter = signal<number | ''>('');
   readonly calendarMonth = signal(new Date().getMonth() + 1);
   readonly calendarYear = signal(new Date().getFullYear());

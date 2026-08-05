@@ -972,6 +972,20 @@ export interface ItemFormData {
   is_active: boolean;
 }
 
+export interface ItemImportRowError {
+  row: number;
+  item_code?: string;
+  error: unknown;
+}
+
+export interface ItemImportResult {
+  total_rows: number;
+  created_count: number;
+  updated_count: number;
+  failed_count: number;
+  errors: ItemImportRowError[];
+}
+
 export interface CategoryFormData {
   name: string;
   description: string;

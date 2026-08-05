@@ -11,6 +11,7 @@ import { NotificationService } from '../../../../core/services/notification.serv
 import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatCurrency, formatNumber } from '../../../../core/utils/format.util';
 import { handleListLoadError, resetListLoadState } from '../../../../core/utils/workspace-empty-state.util';
+import { downloadBlob } from '../../../../core/utils/download.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { EnterpriseDataTableComponent } from '../../../../shared/components/enterprise-data-table/enterprise-data-table.component';
@@ -94,6 +95,7 @@ export class ItemsListComponent implements OnInit {
   readonly formatNumber = formatNumber;
 
   readonly seeding = signal(false);
+  readonly importing = signal(false);
 
   readonly canAdd = () => canAddItem(this.auth);
   readonly canEdit = () => canEditItem(this.auth);
@@ -232,6 +234,47 @@ export class ItemsListComponent implements OnInit {
       { key: 'selling_price', label: 'Selling Price', format: (r) => formatCurrency(r.selling_price, r.currency_code) },
       { key: 'current_stock', label: 'Stock Qty', format: (r) => formatNumber(this.stockQty(r)) },
     ], this.items());
+  }
+
+  downloadImportTemplate(): void {
+    this.inventory.downloadItemImportTemplate().subscribe({
+      next: (blob) => downloadBlob(blob, 'inventory_items_import_template.xlsx'),
+      error: (e) => this.notification.error(getApiErrorMessage(e, 'Failed to download template')),
+    });
+  }
+
+  onImportFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const filename = file.name.toLowerCase();
+    if (!filename.endsWith('.csv') && !filename.endsWith('.xlsx')) {
+      this.notification.error('Please upload a CSV or XLSX file.');
+      input.value = '';
+      return;
+    }
+
+    this.importing.set(true);
+    this.inventory
+      .importItemsSheet(file)
+      .pipe(finalize(() => this.importing.set(false)))
+      .subscribe({
+        next: (res) => {
+          const summary = `Imported ${res.data.created_count} created, ${res.data.updated_count} updated.`;
+          this.notification.success(res.warning ? `${summary} ${res.warning}` : summary);
+          if (res.data.failed_count > 0) {
+            this.notification.error(`${res.data.failed_count} row(s) failed. Review and re-upload.`);
+          }
+          this.loadCategories();
+          this.loadItems();
+        },
+        error: (e) => this.notification.error(getApiErrorMessage(e, 'Item import failed')),
+      });
+
+    input.value = '';
   }
 
   stockQty(item: Item): number {

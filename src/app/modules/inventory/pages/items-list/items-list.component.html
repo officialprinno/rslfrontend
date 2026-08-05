@@ -2,42 +2,48 @@
   <app-inventory-nav />
 
   <app-page-header title="Inventory Items" subtitle="Manage all stock items">
-  <div class="flex flex-wrap gap-2">
-    @if (canSeedMaster()) {
+    <div class="flex flex-wrap gap-2">
+      @if (canAdd()) {
+      <button type="button" class="btn-secondary" (click)="downloadImportTemplate()">
+        Download Sample Excel
+      </button>
+      <button type="button" class="btn-secondary" [disabled]="importing()" (click)="importInput.click()">
+        {{ importing() ? 'Importing…' : 'Import Excel/CSV' }}
+      </button>
+      <input #importInput type="file" class="hidden" accept=".csv,.xlsx" (change)="onImportFileSelected($event)" />
+      }
+      @if (canSeedMaster()) {
       <button type="button" class="btn-secondary" [disabled]="seeding()" (click)="loadMasterCatalog(false)">
         {{ seeding() ? 'Loading…' : 'Load Master Catalogue' }}
       </button>
-    }
-    @if (canAdd()) {
+      }
+      @if (canAdd()) {
       <button type="button" class="btn-primary" (click)="openAdd()">Add Item</button>
-    }
-  </div>
+      }
+    </div>
   </app-page-header>
 
   <div class="card mb-4">
     <app-list-filter-bar>
       <div filterSearch class="flex-1 min-w-[12rem]">
-        <input
-          type="search"
-          class="search-field"
-          placeholder="Search by name or code..."
-          [ngModel]="search()"
-          (ngModelChange)="search.set($event)"
-          (keyup.enter)="onSearch()"
-        />
+        <input type="search" class="search-field" placeholder="Search by name or code..." [ngModel]="search()"
+          (ngModelChange)="search.set($event)" (keyup.enter)="onSearch()" />
       </div>
       <ng-container filterFields>
-        <select class="input-field !w-auto" [ngModel]="categoryFilter()" (ngModelChange)="categoryFilter.set($event); onSearch()">
+        <select class="input-field !w-auto" [ngModel]="categoryFilter()"
+          (ngModelChange)="categoryFilter.set($event); onSearch()">
           <option value="">All Categories</option>
           @for (cat of categories(); track cat.id) {
-            <option [value]="cat.id">{{ cat.name }}</option>
+          <option [value]="cat.id">{{ cat.name }}</option>
           }
         </select>
-        <select class="input-field !w-auto" [ngModel]="typeFilter()" (ngModelChange)="typeFilter.set($event); onSearch()">
+        <select class="input-field !w-auto" [ngModel]="typeFilter()"
+          (ngModelChange)="typeFilter.set($event); onSearch()">
           <option value="">All Types</option>
           @for (t of itemTypes; track t) { <option [value]="t">{{ t }}</option> }
         </select>
-        <select class="input-field !w-auto" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); onSearch()">
+        <select class="input-field !w-auto" [ngModel]="statusFilter()"
+          (ngModelChange)="statusFilter.set($event); onSearch()">
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -50,109 +56,96 @@
   </div>
 
   @if (loading()) {
-    <app-table-skeleton [rows]="pageSize()" [cols]="10" />
+  <app-table-skeleton [rows]="pageSize()" [cols]="10" />
   } @else if (error()) {
-    <app-error-state (retry)="loadItems()" />
+  <app-error-state (retry)="loadItems()" />
   } @else if (workspaceEmpty()) {
-    <div class="card">
-      <app-empty-state moduleName="Inventory Items" actionLabel="Add Item" (actionClick)="openAdd()" (companySwitched)="loadItems()" />
-    </div>
+  <div class="card">
+    <app-empty-state moduleName="Inventory Items" actionLabel="Add Item" (actionClick)="openAdd()"
+      (companySwitched)="loadItems()" />
+  </div>
   } @else if (!items().length) {
-    <div class="card">
-      <app-empty-state moduleName="Inventory Items" actionLabel="Add Item" (actionClick)="openAdd()" (companySwitched)="loadItems()" />
-    </div>
+  <div class="card">
+    <app-empty-state moduleName="Inventory Items" actionLabel="Add Item" (actionClick)="openAdd()"
+      (companySwitched)="loadItems()" />
+  </div>
   } @else {
-    <app-enterprise-data-table>
-      <thead>
-        <tr>
-          <th class="table-th table-col-md cursor-pointer" (click)="onSort('code')">Code</th>
-          <th class="table-th table-col-lg cursor-pointer" (click)="onSort('name')">Name</th>
-          <th class="table-th table-col-lg">Category</th>
-          <th class="table-th table-col-sm">Type</th>
-          <th class="table-th table-col-sm">Unit</th>
-          <th class="table-th table-col-num cursor-pointer" (click)="onSort('unit_cost')">Unit Cost</th>
-          <th class="table-th table-col-num">Selling Price (Finance)</th>
-          <th class="table-th table-col-num">Stock Qty</th>
-          <th class="table-th table-col-status">Status</th>
-          <th class="table-th table-col-actions">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (item of items(); track item.id) {
-          <tr class="table-row cursor-pointer" (click)="onRowClick(item)">
-            <td class="table-td table-col-md font-mono text-xs font-semibold text-[#1B3A6B]"><app-table-cell-text [value]="item.code" weight="medium" /></td>
-            <td class="table-td table-col-lg"><app-table-cell-text [value]="item.name" weight="medium" /></td>
-            <td class="table-td table-col-lg"><app-table-cell-text [value]="item.category_name" /></td>
-            <td class="table-td table-col-sm"><app-item-type-badge [type]="item.item_type" /></td>
-            <td class="table-td table-col-sm"><app-table-cell-text [value]="item.unit_of_measure" /></td>
-            <td class="table-td table-col-num"><app-table-cell-text [value]="formatCurrency(item.unit_cost, item.currency_code)" /></td>
-            <td class="table-td table-col-num">
-              @if (item.finance_price_approved || item.approved_selling_price) {
-                <app-table-cell-text [value]="formatCurrency(item.approved_selling_price ?? item.selling_price, item.currency_code)" />
-              } @else if (isTradedAwaitingFinance(item)) {
-                <div class="flex flex-col items-end gap-0.5">
-                  <span class="text-xs text-amber-700 font-medium">Awaiting Finance</span>
-                  @if (item.pending_finance_workflow_id) {
-                    @if (item.pending_finance_workflow_grn_number) {
-                      <span class="text-[11px] text-gray-500">GRN {{ item.pending_finance_workflow_grn_number }}</span>
-                    }
-                    @if (canOpenFinancePricing()) {
-                      <a
-                        [routerLink]="['/finance/inventory-workflows', item.pending_finance_workflow_id]"
-                        class="text-[11px] font-semibold text-[#1B3A6B] hover:underline"
-                        (click)="$event.stopPropagation()"
-                      >
-                        Set selling price
-                      </a>
-                    } @else {
-                      <span class="text-[11px] text-gray-500">
-                        {{ financeWorkflowStatusLabel(item.pending_finance_workflow_status) }}
-                      </span>
-                    }
-                  } @else {
-                    <span class="text-[11px] text-gray-500">Confirm GRN to send to Finance</span>
-                  }
-                </div>
-              } @else {
-                <span class="text-xs text-amber-700">Awaiting Finance</span>
-              }
-            </td>
-            <td class="table-td table-col-num font-semibold whitespace-nowrap" [class.text-red-600]="isLowStock(item)">
-              {{ formatNumber(stockQty(item)) }}
-            </td>
-            <td class="table-td table-col-status">
-              <app-status-badge [status]="item.is_active ? 'ACTIVE' : 'CANCELLED'" [label]="item.is_active ? 'Active' : 'Inactive'" />
-            </td>
-            <td class="table-td table-col-actions" (click)="$event.stopPropagation()">
-              <app-table-actions [actions]="rowActions(item)" (actionClick)="onRowAction($event, item)" />
-            </td>
-          </tr>
-        }
-      </tbody>
-      <app-pagination
-        tableFooter
-        [page]="page()"
-        [pageSize]="pageSize()"
-        [total]="total()"
-        (pageChange)="onPageChange($event)"
-        (pageSizeChange)="onPageSizeChange($event)"
-      />
-    </app-enterprise-data-table>
+  <app-enterprise-data-table>
+    <thead>
+      <tr>
+        <th class="table-th table-col-md cursor-pointer" (click)="onSort('code')">Code</th>
+        <th class="table-th table-col-lg cursor-pointer" (click)="onSort('name')">Name</th>
+        <th class="table-th table-col-lg">Category</th>
+        <th class="table-th table-col-sm">Type</th>
+        <th class="table-th table-col-sm">Unit</th>
+        <th class="table-th table-col-num cursor-pointer" (click)="onSort('unit_cost')">Unit Cost</th>
+        <th class="table-th table-col-num">Selling Price (Finance)</th>
+        <th class="table-th table-col-num">Stock Qty</th>
+        <th class="table-th table-col-status">Status</th>
+        <th class="table-th table-col-actions">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of items(); track item.id) {
+      <tr class="table-row cursor-pointer" (click)="onRowClick(item)">
+        <td class="table-td table-col-md font-mono text-xs font-semibold text-[#1B3A6B]"><app-table-cell-text
+            [value]="item.code" weight="medium" /></td>
+        <td class="table-td table-col-lg"><app-table-cell-text [value]="item.name" weight="medium" /></td>
+        <td class="table-td table-col-lg"><app-table-cell-text [value]="item.category_name" /></td>
+        <td class="table-td table-col-sm"><app-item-type-badge [type]="item.item_type" /></td>
+        <td class="table-td table-col-sm"><app-table-cell-text [value]="item.unit_of_measure" /></td>
+        <td class="table-td table-col-num"><app-table-cell-text
+            [value]="formatCurrency(item.unit_cost, item.currency_code)" /></td>
+        <td class="table-td table-col-num">
+          @if (item.finance_price_approved || item.approved_selling_price) {
+          <app-table-cell-text
+            [value]="formatCurrency(item.approved_selling_price ?? item.selling_price, item.currency_code)" />
+          } @else if (isTradedAwaitingFinance(item)) {
+          <div class="flex flex-col items-end gap-0.5">
+            <span class="text-xs text-amber-700 font-medium">Awaiting Finance</span>
+            @if (item.pending_finance_workflow_id) {
+            @if (item.pending_finance_workflow_grn_number) {
+            <span class="text-[11px] text-gray-500">GRN {{ item.pending_finance_workflow_grn_number }}</span>
+            }
+            @if (canOpenFinancePricing()) {
+            <a [routerLink]="['/finance/inventory-workflows', item.pending_finance_workflow_id]"
+              class="text-[11px] font-semibold text-[#1B3A6B] hover:underline" (click)="$event.stopPropagation()">
+              Set selling price
+            </a>
+            } @else {
+            <span class="text-[11px] text-gray-500">
+              {{ financeWorkflowStatusLabel(item.pending_finance_workflow_status) }}
+            </span>
+            }
+            } @else {
+            <span class="text-[11px] text-gray-500">Confirm GRN to send to Finance</span>
+            }
+          </div>
+          } @else {
+          <span class="text-xs text-amber-700">Awaiting Finance</span>
+          }
+        </td>
+        <td class="table-td table-col-num font-semibold whitespace-nowrap" [class.text-red-600]="isLowStock(item)">
+          {{ formatNumber(stockQty(item)) }}
+        </td>
+        <td class="table-td table-col-status">
+          <app-status-badge [status]="item.is_active ? 'ACTIVE' : 'CANCELLED'"
+            [label]="item.is_active ? 'Active' : 'Inactive'" />
+        </td>
+        <td class="table-td table-col-actions" (click)="$event.stopPropagation()">
+          <app-table-actions [actions]="rowActions(item)" (actionClick)="onRowAction($event, item)" />
+        </td>
+      </tr>
+      }
+    </tbody>
+    <app-pagination tableFooter [page]="page()" [pageSize]="pageSize()" [total]="total()"
+      (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+  </app-enterprise-data-table>
   }
 </div>
 
-<app-item-form-modal
-  [open]="showForm()"
-  [item]="editingItem()"
-  [categories]="categories()"
-  (closed)="showForm.set(false)"
-  (saved)="onItemSaved()"
-/>
+<app-item-form-modal [open]="showForm()" [item]="editingItem()" [categories]="categories()"
+  (closed)="showForm.set(false)" (saved)="onItemSaved()" />
 
-<app-item-view-modal
-  [open]="showView()"
-  [item]="viewingItem()"
-  [stockQty]="viewingItem() ? stockQty(viewingItem()!) : 0"
-  (closed)="showView.set(false)"
-  (edit)="openEdit($event)"
-/>
+<app-item-view-modal [open]="showView()" [item]="viewingItem()"
+  [stockQty]="viewingItem() ? stockQty(viewingItem()!) : 0" (closed)="showView.set(false)" (edit)="openEdit($event)" />

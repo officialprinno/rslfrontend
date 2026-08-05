@@ -30,6 +30,7 @@ import {
   MasterInventorySeedPreview,
   MasterInventorySeedResult,
   Item,
+  ItemImportResult,
   ItemFormData,
   ItemSerialNumber,
   ProductionReceiptQueueItem,
@@ -66,7 +67,7 @@ import {
 } from '../models/inventory.model';
 import { ListParams, PaginatedData } from '../models/paginated.model';
 import { SOStockCheck } from '../models/sales.model';
-import { buildHttpParams, unwrapApi, unwrapApiWithMessage } from '../utils/api.util';
+import { buildHttpParams, unwrapApi, unwrapApiWithMessage, unwrapApiWithMeta } from '../utils/api.util';
 import { fetchCachedDashboard } from '../utils/dashboard-fetch.util';
 import { aggregateAvailableStockByItem, aggregateStockByItem } from '../../modules/inventory/utils/stock.util';
 import { groupAvailableStockByItemWarehouse, ItemWarehouseAvailability } from '../../modules/sales/utils/sales-stock.util';
@@ -178,6 +179,25 @@ export class InventoryService {
     return this.http
       .delete<ApiResponse<null>>(`${this.baseUrl}/items/${id}/`)
       .pipe(map(() => undefined));
+  }
+
+  downloadItemImportTemplate(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/items/import-template/`, {
+      responseType: 'blob',
+    });
+  }
+
+  importItemsSheet(file: File): Observable<{
+    data: ItemImportResult;
+    message: string;
+    warning?: string | null;
+    warnings?: unknown[] | null;
+  }> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http
+      .post<ApiResponse<ItemImportResult>>(`${this.baseUrl}/items/import-sheet/`, form)
+      .pipe(unwrapApiWithMeta());
   }
 
   getWarehouses(params: ListParams = {}): Observable<Warehouse[]> {

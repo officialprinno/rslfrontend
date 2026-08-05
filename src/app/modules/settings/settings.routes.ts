@@ -26,6 +26,14 @@ export const SETTINGS_ROUTES: Routes = [
       import('./pages/preferences/user-preferences.component').then((m) => m.UserPreferencesComponent),
   },
   {
+    path: 'change-password',
+    ...settingsGuard,
+    loadComponent: () =>
+      import('./pages/change-password/change-password.component').then(
+        (m) => m.ChangePasswordComponent,
+      ),
+  },
+  {
     path: 'admin',
     ...superAdminRoute,
     loadComponent: () =>

@@ -7,6 +7,7 @@ import { StorageService } from '../services/storage.service';
 import { isTokenExpired } from '../utils/jwt.util';
 
 const AUTH_TIMEOUT_MS = 12_000;
+const CHANGE_PASSWORD_ROUTE = '/settings/change-password';
 
 function redirectToLogin(router: Router, auth: AuthService): UrlTree {
   auth.logout();
@@ -23,10 +24,24 @@ function guardWithTimeout(
   );
 }
 
-export const authGuard: CanActivateFn = (): boolean | UrlTree | Observable<boolean | UrlTree> => {
+function enforcePasswordPolicy(auth: AuthService, router: Router, url: string): boolean | UrlTree {
+  if (!auth.isPasswordChangeOverdue()) {
+    return true;
+  }
+  if (url.startsWith(CHANGE_PASSWORD_ROUTE)) {
+    return true;
+  }
+  return router.createUrlTree([CHANGE_PASSWORD_ROUTE]);
+}
+
+export const authGuard: CanActivateFn = (
+  _route,
+  state,
+): boolean | UrlTree | Observable<boolean | UrlTree> => {
   const auth = inject(AuthService);
   const storage = inject(StorageService);
   const router = inject(Router);
+  const currentUrl = state.url || '/';
 
   const token = storage.getToken();
 
@@ -40,17 +55,17 @@ export const authGuard: CanActivateFn = (): boolean | UrlTree | Observable<boole
       return redirectToLogin(router, auth);
     }
     return guardWithTimeout(
-      auth.refreshToken().pipe(map((): boolean => true)),
+      auth.refreshToken().pipe(map(() => enforcePasswordPolicy(auth, router, currentUrl))),
       redirectToLogin(router, auth),
     );
   }
 
   if (!auth.getCurrentUser()) {
     return guardWithTimeout(
-      auth.fetchCurrentUser().pipe(map((): boolean => true)),
+      auth.fetchCurrentUser().pipe(map(() => enforcePasswordPolicy(auth, router, currentUrl))),
       redirectToLogin(router, auth),
     );
   }
 
-  return true;
+  return enforcePasswordPolicy(auth, router, currentUrl);
 };

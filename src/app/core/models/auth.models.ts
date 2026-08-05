@@ -84,6 +84,10 @@ export interface User {
   employee_name?: string | null;
   language?: 'en' | 'sw';
   theme?: 'dark' | 'light';
+  password_change_required?: boolean;
+  password_change_deadline?: string | null;
+  password_change_overdue?: boolean;
+  password_change_days_left?: number | null;
   created_at: string;
   updated_at: string;
 }

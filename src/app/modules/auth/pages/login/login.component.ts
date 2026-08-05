@@ -17,6 +17,7 @@ import { CompanySelectorComponent } from '../../../../shared/components/company-
 
 
 const REMEMBER_EMAIL_KEY = 'rsl_remember_email';
+const CHANGE_PASSWORD_ROUTE = '/settings/change-password';
 
 
 
@@ -169,7 +170,7 @@ export class LoginComponent implements OnInit {
             return;
           }
 
-          void this.router.navigate([this.auth.getDefaultHomeRoute()]);
+          void this.router.navigate([this.postLoginRoute()]);
 
         },
 
@@ -196,8 +197,8 @@ export class LoginComponent implements OnInit {
 
           this.errorMessage.set(
             apiMessage ??
-              thrownMessage ??
-              'Invalid email or password. Please try again.',
+            thrownMessage ??
+            'Invalid email or password. Please try again.',
           );
 
         },
@@ -209,7 +210,14 @@ export class LoginComponent implements OnInit {
   onCompanySelected(): void {
     this.workspaceReset.resetForCompanySwitch();
     this.companyContext.confirmWorkspaceSelection();
-    void this.router.navigate([this.auth.getDefaultHomeRoute()]);
+    void this.router.navigate([this.postLoginRoute()]);
+  }
+
+  private postLoginRoute(): string {
+    if (this.auth.isPasswordChangeOverdue()) {
+      return CHANGE_PASSWORD_ROUTE;
+    }
+    return this.auth.getDefaultHomeRoute();
   }
 }
 

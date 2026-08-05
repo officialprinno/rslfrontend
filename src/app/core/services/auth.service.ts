@@ -115,6 +115,31 @@ export class AuthService {
     void this.router.navigate(['/login']);
   }
 
+  changePassword(oldPassword: string, newPassword: string): Observable<void> {
+    return this.http
+      .post<ApiResponse<unknown>>(`${this.baseUrl}/change-password/`, {
+        old_password: oldPassword,
+        new_password: newPassword,
+      })
+      .pipe(
+        map(() => {
+          const user = this.userSignal();
+          if (user) {
+            const updated: User = {
+              ...user,
+              password_change_required: false,
+              password_change_deadline: null,
+              password_change_overdue: false,
+              password_change_days_left: null,
+            };
+            this.userSignal.set(updated);
+            this.storage.saveUser(updated);
+          }
+          return undefined;
+        }),
+      );
+  }
+
   refreshToken(): Observable<AuthTokens> {
     const refresh = this.storage.getRefreshToken();
     if (!refresh) {
@@ -313,6 +338,24 @@ export class AuthService {
 
   isAccessTokenExpired(): boolean {
     return isTokenExpired(this.storage.getToken());
+  }
+
+  isPasswordChangeRequired(): boolean {
+    const user = this.userSignal();
+    return Boolean(user?.password_change_required);
+  }
+
+  isPasswordChangeOverdue(): boolean {
+    const user = this.userSignal();
+    return Boolean(user?.password_change_overdue);
+  }
+
+  getPasswordChangeDaysLeft(): number | null {
+    const user = this.userSignal();
+    if (!user || user.password_change_days_left == null) {
+      return null;
+    }
+    return user.password_change_days_left;
   }
 
   getAccessToken(): string | null {

@@ -1,58 +1,43 @@
 <header class="navbar-glass">
   <!-- Left: menu toggle always reserved & tappable -->
   <div class="navbar-left">
-    <button
-      type="button"
-      (click)="toggleSidebar()"
-      class="navbar-menu-btn"
+    <button type="button" (click)="toggleSidebar()" class="navbar-menu-btn"
       [class.navbar-menu-btn--active]="layout.mobileSidebarOpen() || (!layout.isMobile() && !layout.sidebarCollapsed())"
       [attr.aria-label]="'common.toggle_sidebar' | translate"
       [attr.aria-expanded]="layout.isMobile() ? layout.mobileSidebarOpen() : !layout.sidebarCollapsed()"
-      [attr.aria-controls]="'app-sidebar'"
-    >
+      [attr.aria-controls]="'app-sidebar'">
       @if (layout.isMobile() ? layout.mobileSidebarOpen() : !layout.sidebarCollapsed()) {
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
       } @else {
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
       }
     </button>
 
     <div class="navbar-search hidden lg:flex">
       <div class="relative w-full max-w-xs">
-        <svg
-          class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" fill="none"
+          stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
-        <input
-          type="search"
-          [placeholder]="'common.search_placeholder' | translate"
-          class="search-field"
-          [attr.aria-label]="'common.search' | translate"
-        />
+        <input type="search" [placeholder]="'common.search_placeholder' | translate" class="search-field"
+          [attr.aria-label]="'common.search' | translate" />
       </div>
     </div>
 
     <nav class="navbar-crumbs hidden md:flex lg:hidden" [attr.aria-label]="'common.search' | translate">
       @for (crumb of breadcrumbs(); track crumb.url; let last = $last) {
-        @if (!last && crumb.url) {
-          <a [routerLink]="crumb.url" class="text-[var(--text-muted)] hover:text-[#1B3A6B] truncate transition-colors">{{ crumb.labelKey | translate }}</a>
-          <span class="text-[var(--border-color)] mx-1 shrink-0">/</span>
-        } @else {
-          <span class="font-medium text-[var(--text-secondary)] truncate">{{ crumb.labelKey | translate }}</span>
-        }
+      @if (!last && crumb.url) {
+      <a [routerLink]="crumb.url" class="text-[var(--text-muted)] hover:text-[#1B3A6B] truncate transition-colors">{{
+        crumb.labelKey | translate }}</a>
+      <span class="text-[var(--border-color)] mx-1 shrink-0">/</span>
+      } @else {
+      <span class="font-medium text-[var(--text-secondary)] truncate">{{ crumb.labelKey | translate }}</span>
+      }
       }
     </nav>
   </div>
@@ -60,71 +45,53 @@
   <!-- Right: compact actions; never covers the menu button -->
   <div class="navbar-right">
     @if (companyContext.activeCompany(); as activeCompany) {
-      <div class="navbar-company shrink-0">
-        <button
-          type="button"
-          (click)="toggleCompanyMenu()"
-          class="navbar-company-btn"
-          [style.border-color]="activeCompany.brandColor + '33'"
-          [style.background-color]="activeCompany.brandColor + '14'"
-          [style.color]="activeCompany.brandColor"
-          [attr.aria-expanded]="companyMenuOpen()"
-          [attr.title]="activeCompany.name"
-        >
-          <span
-            class="navbar-company-code"
-            [style.background-color]="activeCompany.brandColor"
-          >
-            {{ activeCompany.code }}
-          </span>
-          <span class="navbar-company-name">{{ companyShortLabel(activeCompany.name) }}</span>
-          <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-      </div>
+    <div class="navbar-company shrink-0">
+      <button type="button" (click)="toggleCompanyMenu()" class="navbar-company-btn"
+        [style.border-color]="activeCompany.brandColor + '33'"
+        [style.background-color]="activeCompany.brandColor + '14'" [style.color]="activeCompany.brandColor"
+        [attr.aria-expanded]="companyMenuOpen()" [attr.title]="activeCompany.name">
+        <span class="navbar-company-code" [style.background-color]="activeCompany.brandColor">
+          {{ activeCompany.code }}
+        </span>
+        <span class="navbar-company-name">{{ companyShortLabel(activeCompany.name) }}</span>
+        <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+          aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+    </div>
     }
 
     @if (auth.isMultiDepartment()) {
-      <div class="relative hidden lg:block shrink-0">
-        <button
-          type="button"
-          (click)="toggleDeptMenu()"
-          class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-[#1B3A6B]/15 bg-[#EEF4FB] text-[#1B3A6B] hover:bg-[#E3ECF8] transition-colors"
-          [attr.aria-expanded]="deptMenuOpen()"
-        >
-          <span>{{ deptContext.label() }}</span>
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
+    <div class="relative hidden lg:block shrink-0">
+      <button type="button" (click)="toggleDeptMenu()"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-[#1B3A6B]/15 bg-[#EEF4FB] text-[#1B3A6B] hover:bg-[#E3ECF8] transition-colors"
+        [attr.aria-expanded]="deptMenuOpen()">
+        <span>{{ deptContext.label() }}</span>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      @if (deptMenuOpen()) {
+      <div class="dropdown-menu !min-w-[12rem]" role="menu">
+        @for (opt of departmentOptions(); track opt.value) {
+        <button type="button" (click)="selectDepartment(opt.value)"
+          class="flex items-center w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
+          [class.font-semibold]="deptContext.activeDepartment() === opt.value"
+          [class.text-[#1B3A6B]]="deptContext.activeDepartment() === opt.value" role="menuitem">
+          {{ opt.labelKey | translate }}
         </button>
-        @if (deptMenuOpen()) {
-          <div class="dropdown-menu !min-w-[12rem]" role="menu">
-            @for (opt of departmentOptions(); track opt.value) {
-              <button
-                type="button"
-                (click)="selectDepartment(opt.value)"
-                class="flex items-center w-full text-left px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
-                [class.font-semibold]="deptContext.activeDepartment() === opt.value"
-                [class.text-[#1B3A6B]]="deptContext.activeDepartment() === opt.value"
-                role="menuitem"
-              >
-                {{ opt.labelKey | translate }}
-              </button>
-            }
-          </div>
         }
       </div>
+      }
+    </div>
     }
 
-    <select
-      [value]="preferences.currency()"
-      (change)="onCurrencyChange($event)"
+    <select [value]="preferences.currency()" (change)="onCurrencyChange($event)"
       class="hidden xl:block input-field !w-auto !py-1.5 !px-2.5 text-xs font-medium shrink-0"
-      [attr.aria-label]="'common.currency' | translate"
-    >
+      [attr.aria-label]="'common.currency' | translate">
       @for (c of preferences.currencies; track c) {
-        <option [value]="c">{{ c }}</option>
+      <option [value]="c">{{ c }}</option>
       }
     </select>
 
@@ -132,169 +99,139 @@
 
     <div class="hidden sm:block w-px h-6 bg-[var(--border-color)] mx-0.5 shrink-0"></div>
 
-    <button
-      type="button"
-      class="btn-icon relative shrink-0"
-      [attr.aria-label]="'common.notifications' | translate"
-      [attr.aria-expanded]="notificationShell.drawerOpen()"
-      (click)="notificationShell.openDrawer()"
-    >
+    <button type="button" class="btn-icon relative shrink-0" [attr.aria-label]="'common.notifications' | translate"
+      [attr.aria-expanded]="notificationShell.drawerOpen()" (click)="notificationShell.openDrawer()">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-        />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
       </svg>
       @if (counts.unreadNotifications() > 0) {
-        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[var(--bg-secondary)]"></span>
+      <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[var(--bg-secondary)]"></span>
       }
     </button>
 
-    <a
-      routerLink="/messaging"
-      class="btn-icon relative shrink-0 hidden sm:inline-flex"
-      [attr.aria-label]="'common.messages' | translate"
-    >
+    <a routerLink="/messaging" class="btn-icon relative shrink-0 hidden sm:inline-flex"
+      [attr.aria-label]="'common.messages' | translate">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-        />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
       @if (counts.unreadMessages() > 0) {
-        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[var(--bg-secondary)]"></span>
+      <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full ring-2 ring-[var(--bg-secondary)]"></span>
       }
     </a>
 
     <div class="relative shrink-0">
-      <button
-        type="button"
-        (click)="toggleUserMenu()"
+      <button type="button" (click)="toggleUserMenu()"
         class="flex items-center gap-1.5 pl-0.5 pr-1 sm:pr-2 py-1 rounded-full hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-        [attr.aria-label]="'common.profile' | translate"
-        [attr.aria-expanded]="userMenuOpen()"
-      >
+        [attr.aria-label]="'common.profile' | translate" [attr.aria-expanded]="userMenuOpen()">
         <div
-          class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-[#1B3A6B] to-[#2E86AB] ring-2 ring-[#F0A500]/60"
-        >
+          class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-[#1B3A6B] to-[#2E86AB] ring-2 ring-[#F0A500]/60">
           {{ userInitials() }}
         </div>
-        <svg class="w-3.5 h-3.5 text-[var(--text-muted)] hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-3.5 h-3.5 text-[var(--text-muted)] hidden md:block" fill="none" stroke="currentColor"
+          viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       @if (userMenuOpen()) {
-        <div class="dropdown-menu !right-0 !left-auto" role="menu">
-          <div class="px-4 py-3 border-b border-[var(--border-color)]">
-            <p class="text-sm font-semibold truncate">{{ auth.getCurrentUser()?.full_name }}</p>
-            <p class="text-xs text-[var(--text-secondary)] truncate mt-0.5">{{ auth.getCurrentUser()?.email }}</p>
-            <span class="inline-block mt-2 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-[#EEF4FB] text-[#1B3A6B]">
-              @if (auth.isMultiDepartment()) {
-                {{ 'common.multi_dept' | translate }} · {{ auth.primaryDepartmentLabel() }}
-              } @else {
-                {{ auth.getCurrentUser()?.role_name }}
-              }
-            </span>
-          </div>
-          <a
-            routerLink="/settings/preferences"
-            (click)="closeUserMenu()"
-            class="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
-            role="menuitem"
-          >
-            <svg class="w-4 h-4 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            {{ 'common.view_profile' | translate }}
-          </a>
-          <a
-            routerLink="/settings/preferences"
-            (click)="closeUserMenu()"
-            class="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
-            role="menuitem"
-          >
-            <svg class="w-4 h-4 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            {{ 'common.preferences' | translate }}
-          </a>
-          <div class="border-t border-[var(--border-color)] mt-1 pt-1">
-            <button
-              type="button"
-              (click)="logout()"
-              class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-              role="menuitem"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              {{ 'common.sign_out' | translate }}
-            </button>
-          </div>
+      <div class="dropdown-menu !right-0 !left-auto" role="menu">
+        <div class="px-4 py-3 border-b border-[var(--border-color)]">
+          <p class="text-sm font-semibold truncate">{{ auth.getCurrentUser()?.full_name }}</p>
+          <p class="text-xs text-[var(--text-secondary)] truncate mt-0.5">{{ auth.getCurrentUser()?.email }}</p>
+          <span
+            class="inline-block mt-2 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-[#EEF4FB] text-[#1B3A6B]">
+            @if (auth.isMultiDepartment()) {
+            {{ 'common.multi_dept' | translate }} · {{ auth.primaryDepartmentLabel() }}
+            } @else {
+            {{ auth.getCurrentUser()?.role_name }}
+            }
+          </span>
         </div>
+        <a routerLink="/settings/preferences" (click)="closeUserMenu()"
+          class="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
+          role="menuitem">
+          <svg class="w-4 h-4 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+          {{ 'common.view_profile' | translate }}
+        </a>
+        <a routerLink="/settings/preferences" (click)="closeUserMenu()"
+          class="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
+          role="menuitem">
+          <svg class="w-4 h-4 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          {{ 'common.preferences' | translate }}
+        </a>
+        <a routerLink="/settings/change-password" (click)="closeUserMenu()"
+          class="flex items-center gap-2 px-4 py-2.5 text-sm hover:bg-[var(--hover-bg)] transition-colors"
+          role="menuitem">
+          <svg class="w-4 h-4 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 11c0-.97.787-1.757 1.757-1.757h2.486c.97 0 1.757.787 1.757 1.757v5.486c0 .97-.787 1.757-1.757 1.757h-6.486c-.97 0-1.757-.787-1.757-1.757V11c0-.97.787-1.757 1.757-1.757H12m0-2.486V6.27a2.73 2.73 0 115.46 0v.487" />
+          </svg>
+          Change Password
+        </a>
+        <div class="border-t border-[var(--border-color)] mt-1 pt-1">
+          <button type="button" (click)="logout()"
+            class="flex items-center gap-2 w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+            role="menuitem">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {{ 'common.sign_out' | translate }}
+          </button>
+        </div>
+      </div>
       }
     </div>
   </div>
 </header>
 
 @if (companyMenuOpen()) {
-  <button
-    type="button"
-    class="navbar-company-backdrop"
-    (click)="closeCompanyMenu()"
-    [attr.aria-label]="'common.close' | translate"
-  ></button>
-  <div class="navbar-company-menu" role="menu" aria-label="Companies">
-    <p class="navbar-company-menu__label">Workspace</p>
-    @for (company of companyContext.companies(); track company.company_id) {
-      <button
-        type="button"
-        (click)="selectCompany(company.company_id)"
-        class="navbar-company-menu__item"
-        [class.navbar-company-menu__item--active]="companyContext.activeCompany()?.id === company.company_id"
-        role="menuitem"
-      >
-        <span
-          class="navbar-company-code navbar-company-code--lg"
-          [style.background-color]="company.brand_color || '#1B3A6B'"
-        >
-          {{ company.company_code }}
-        </span>
-        <span class="navbar-company-menu__text">
-          <span class="navbar-company-menu__name">{{ company.company_name }}</span>
-          <span class="navbar-company-menu__code">{{ company.company_code }}</span>
-        </span>
-        @if (companyContext.activeCompany()?.id === company.company_id) {
-          <svg class="navbar-company-menu__check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-          </svg>
-        }
-      </button>
+<button type="button" class="navbar-company-backdrop" (click)="closeCompanyMenu()"
+  [attr.aria-label]="'common.close' | translate"></button>
+<div class="navbar-company-menu" role="menu" aria-label="Companies">
+  <p class="navbar-company-menu__label">Workspace</p>
+  @for (company of companyContext.companies(); track company.company_id) {
+  <button type="button" (click)="selectCompany(company.company_id)" class="navbar-company-menu__item"
+    [class.navbar-company-menu__item--active]="companyContext.activeCompany()?.id === company.company_id"
+    role="menuitem">
+    <span class="navbar-company-code navbar-company-code--lg"
+      [style.background-color]="company.brand_color || '#1B3A6B'">
+      {{ company.company_code }}
+    </span>
+    <span class="navbar-company-menu__text">
+      <span class="navbar-company-menu__name">{{ company.company_name }}</span>
+      <span class="navbar-company-menu__code">{{ company.company_code }}</span>
+    </span>
+    @if (companyContext.activeCompany()?.id === company.company_id) {
+    <svg class="navbar-company-menu__check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+    </svg>
     }
-    @if (companyContext.canUseConsolidated()) {
-      <button
-        type="button"
-        (click)="selectCompany('consolidated')"
-        class="navbar-company-menu__item navbar-company-menu__item--divider"
-        [class.navbar-company-menu__item--active]="companyContext.isConsolidated()"
-        role="menuitem"
-      >
-        <span class="navbar-company-code navbar-company-code--lg" style="background-color: #1B3A6B">ALL</span>
-        <span class="navbar-company-menu__text">
-          <span class="navbar-company-menu__name">Consolidated</span>
-          <span class="navbar-company-menu__code">All companies</span>
-        </span>
-        @if (companyContext.isConsolidated()) {
-          <svg class="navbar-company-menu__check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-          </svg>
-        }
-      </button>
+  </button>
+  }
+  @if (companyContext.canUseConsolidated()) {
+  <button type="button" (click)="selectCompany('consolidated')"
+    class="navbar-company-menu__item navbar-company-menu__item--divider"
+    [class.navbar-company-menu__item--active]="companyContext.isConsolidated()" role="menuitem">
+    <span class="navbar-company-code navbar-company-code--lg" style="background-color: #1B3A6B">ALL</span>
+    <span class="navbar-company-menu__text">
+      <span class="navbar-company-menu__name">Consolidated</span>
+      <span class="navbar-company-menu__code">All companies</span>
+    </span>
+    @if (companyContext.isConsolidated()) {
+    <svg class="navbar-company-menu__check" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+    </svg>
     }
-  </div>
+  </button>
+  }
+</div>
 }

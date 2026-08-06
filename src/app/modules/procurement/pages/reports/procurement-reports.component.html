@@ -1,0 +1,93 @@
+<div class="page-container">
+  <app-procurement-nav />
+  <app-page-header title="Procurement Report" subtitle="Purchase orders with started-by and closed-by tracking" />
+
+  <div class="card p-4 mb-4 print:hidden">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+      <label class="text-sm text-gray-700">
+        From
+        <input type="date" class="input mt-1" [(ngModel)]="dateFrom" />
+      </label>
+      <label class="text-sm text-gray-700">
+        To
+        <input type="date" class="input mt-1" [(ngModel)]="dateTo" />
+      </label>
+      <label class="text-sm text-gray-700">
+        Status
+        <select class="input mt-1" [(ngModel)]="status">
+          @for (value of statuses; track value) {
+          <option [value]="value">{{ value || 'ALL' }}</option>
+          }
+        </select>
+      </label>
+      <div class="flex gap-2">
+        <button class="btn-primary" type="button" (click)="load()" [disabled]="loading()">Run</button>
+        <button class="btn-ghost" type="button" (click)="exportCsv()">Export CSV</button>
+        <button class="btn-ghost" type="button" (click)="exportAuditorCsv()">Auditor CSV</button>
+        <button class="btn-ghost" type="button" (click)="printReport()">Print</button>
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+  <app-table-skeleton [rows]="8" />
+  } @else if (error()) {
+  <app-error-state title="Report unavailable" description="Try loading the report again." />
+  } @else if (data(); as report) {
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+    <div class="card p-4">
+      <p class="text-xs text-gray-500">Total Records</p>
+      <p class="text-2xl font-semibold">{{ report.summary.total_records }}</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-xs text-gray-500">Open Records</p>
+      <p class="text-2xl font-semibold text-amber-700">{{ report.summary.open_records }}</p>
+    </div>
+    <div class="card p-4">
+      <p class="text-xs text-gray-500">Closed Records</p>
+      <p class="text-2xl font-semibold text-green-700">{{ report.summary.closed_records }}</p>
+    </div>
+  </div>
+
+  <div class="card overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="bg-gray-50 text-gray-600">
+        <tr>
+          <th class="px-3 py-2 text-left">PO</th>
+          <th class="px-3 py-2 text-left">Supplier</th>
+          <th class="px-3 py-2 text-left">Status</th>
+          <th class="px-3 py-2 text-left">Order Date</th>
+          <th class="px-3 py-2 text-right">Amount</th>
+          <th class="px-3 py-2 text-left">Items</th>
+          <th class="px-3 py-2 text-left">Invoices</th>
+          <th class="px-3 py-2 text-left">Started By</th>
+          <th class="px-3 py-2 text-left">Closed By</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of report.results; track row.id) {
+        <tr class="border-t border-gray-100">
+          <td class="px-3 py-2 font-medium">{{ row.reference }}</td>
+          <td class="px-3 py-2">{{ row.supplier }}</td>
+          <td class="px-3 py-2">{{ row.status }}</td>
+          <td class="px-3 py-2">{{ row.order_date ? formatDate(row.order_date) : '—' }}</td>
+          <td class="px-3 py-2 text-right">{{ formatCurrency(row.total_amount, 'TZS') }}</td>
+          <td class="px-3 py-2">{{ itemSummary(row) }}</td>
+          <td class="px-3 py-2">{{ invoiceSummary(row) }}</td>
+          <td class="px-3 py-2">{{ row.started_by || '—' }}</td>
+          <td class="px-3 py-2">{{ row.closed_by || '—' }}</td>
+        </tr>
+        }
+        @if (!report.results.length) {
+        <tr>
+          <td class="px-3 py-6 text-center text-gray-500" colspan="9">No report rows found for the selected filters.
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <p class="text-xs text-gray-500 mt-3">Generated at: {{ formatDateTime(report.generated_at) }}</p>
+  }
+</div>

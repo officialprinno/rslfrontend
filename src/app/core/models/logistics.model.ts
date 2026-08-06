@@ -397,3 +397,47 @@ export interface LogisticsSalesOrderDetail extends LogisticsSalesOrder {
   notes?: string;
   created_by_name?: string;
 }
+
+export interface LogisticsDeliveryReportRow {
+  id: number;
+  reference: string;
+  sales_order: string;
+  customer: string;
+  status: string;
+  scheduled_date: string | null;
+  internal_delivery_cost: string;
+  started_by: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  items?: Array<{
+    item_code: string;
+    item_name: string;
+    uom: string;
+    qty: string;
+    condition_out: string;
+  }>;
+  invoices?: Array<{
+    invoice_number: string;
+    invoice_date: string | null;
+    due_date: string | null;
+    total_amount: string;
+    paid_amount: string;
+    status: string;
+  }>;
+  created_at: string | null;
+}
+
+export interface LogisticsDeliveryReportResponse {
+  generated_at: string;
+  filters: {
+    date_from: string | null;
+    date_to: string | null;
+    status: string | null;
+  };
+  summary: {
+    total_records: number;
+    open_records: number;
+    closed_records: number;
+  };
+  results: LogisticsDeliveryReportRow[];
+}

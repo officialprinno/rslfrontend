@@ -38,6 +38,7 @@ import {
   SupplierInvoice,
   SupplierQuotation,
   ProcurementDashboardData,
+  ProcurementReportResponse,
   ThreeWayMatchRecord,
 } from '../models/procurement.model';
 import { buildHttpParams, unwrapApi, unwrapApiWithMessage } from '../utils/api.util';
@@ -721,5 +722,17 @@ export class ProcurementService {
       params,
       bypassCache,
     );
+  }
+
+  getPurchaseOrderReport(params: {
+    date_from?: string;
+    date_to?: string;
+    status?: string;
+  } = {}): Observable<ProcurementReportResponse> {
+    return this.http
+      .get<ApiResponse<ProcurementReportResponse>>(`${this.baseUrl}/reports/purchase-orders/`, {
+        params: buildHttpParams(params),
+      })
+      .pipe(unwrapApi());
   }
 }

@@ -30,5 +30,6 @@ export class LogisticsNavComponent {
     { label: 'Delivery Notes', route: '/logistics/delivery-notes' },
     { label: 'Maintenance', route: '/logistics/maintenance' },
     { label: 'Fuel Records', route: '/logistics/fuel' },
+    { label: 'Reports', route: '/logistics/reports' },
   ];
 }

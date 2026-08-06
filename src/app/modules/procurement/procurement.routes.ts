@@ -1,9 +1,15 @@
 import { Routes } from '@angular/router';
 
 import { procurementModuleGuard } from '../../core/guards/procurement-module.guard';
+import { reportsAccessGuard } from '../../core/guards/reports-access.guard';
 
 const procurementGuard = {
   canActivate: [procurementModuleGuard],
+  data: { module: 'procurement', action: 'read' },
+};
+
+const procurementReportGuard = {
+  canActivate: [reportsAccessGuard],
   data: { module: 'procurement', action: 'read' },
 };
 
@@ -134,6 +140,14 @@ export const PROCUREMENT_ROUTES: Routes = [
     loadComponent: () =>
       import('./pages/supplier-invoices/supplier-invoices-list.component').then(
         (m) => m.SupplierInvoicesListComponent,
+      ),
+  },
+  {
+    path: 'reports',
+    ...procurementReportGuard,
+    loadComponent: () =>
+      import('./pages/reports/procurement-reports.component').then(
+        (m) => m.ProcurementReportsComponent,
       ),
   },
 ];

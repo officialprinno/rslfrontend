@@ -21,6 +21,7 @@ import {
   FuelFormData,
   FuelRecord,
   FuelSummary,
+  LogisticsDeliveryReportResponse,
   LogisticsDashboard,
   LogisticsSalesOrder,
   LogisticsSalesOrderDetail,
@@ -438,6 +439,18 @@ export class LogisticsService {
     return this.http
       .get<ApiResponse<GrnDestinationHint[]>>(`${this.baseUrl}/internal-routes/grn-destination/`, {
         params: buildHttpParams({ po_ids: poIds.join(',') }),
+      })
+      .pipe(unwrapApi());
+  }
+
+  getDeliveryReport(params: {
+    date_from?: string;
+    date_to?: string;
+    status?: string;
+  } = {}): Observable<LogisticsDeliveryReportResponse> {
+    return this.http
+      .get<ApiResponse<LogisticsDeliveryReportResponse>>(`${this.baseUrl}/reports/deliveries/`, {
+        params: buildHttpParams(params),
       })
       .pipe(unwrapApi());
   }

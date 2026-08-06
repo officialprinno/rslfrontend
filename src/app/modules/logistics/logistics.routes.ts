@@ -1,9 +1,15 @@
 import { Routes } from '@angular/router';
 
 import { roleGuard } from '../../core/guards/role.guard';
+import { reportsAccessGuard } from '../../core/guards/reports-access.guard';
 
 const logisticsGuard = {
   canActivate: [roleGuard],
+  data: { module: 'logistics', action: 'read' },
+};
+
+const logisticsReportGuard = {
+  canActivate: [reportsAccessGuard],
   data: { module: 'logistics', action: 'read' },
 };
 
@@ -94,5 +100,13 @@ export const LOGISTICS_ROUTES: Routes = [
     ...logisticsGuard,
     loadComponent: () =>
       import('./pages/fuel/fuel-list.component').then((m) => m.FuelListComponent),
+  },
+  {
+    path: 'reports',
+    ...logisticsReportGuard,
+    loadComponent: () =>
+      import('./pages/reports/logistics-reports.component').then(
+        (m) => m.LogisticsReportsComponent,
+      ),
   },
 ];

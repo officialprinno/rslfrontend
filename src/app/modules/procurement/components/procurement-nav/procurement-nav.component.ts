@@ -29,5 +29,6 @@ export class ProcurementNavComponent {
     { label: 'Purchase Orders', route: '/procurement/purchase-orders' },
     { label: 'GRN', route: '/procurement/grn' },
     { label: 'Invoices', route: '/procurement/supplier-invoices' },
+    { label: 'Reports', route: '/procurement/reports' },
   ];
 }

@@ -1207,3 +1207,47 @@ export interface SalesDashboardData {
   monthly_revenue?: string;
   recent_activities?: SalesDashboardActivity[];
 }
+
+export interface SalesOrderReportRow {
+  id: number;
+  reference: string;
+  customer: string;
+  status: string;
+  delivery_date: string | null;
+  total_amount: string;
+  started_by: string | null;
+  closed_by: string | null;
+  closed_at: string | null;
+  items?: Array<{
+    item_code: string;
+    item_name: string;
+    uom: string;
+    qty: string;
+    unit_price: string;
+    line_total: string;
+  }>;
+  invoices?: Array<{
+    invoice_number: string;
+    invoice_date: string | null;
+    due_date: string | null;
+    total_amount: string;
+    paid_amount: string;
+    status: string;
+  }>;
+  created_at: string | null;
+}
+
+export interface SalesOrderReportResponse {
+  generated_at: string;
+  filters: {
+    date_from: string | null;
+    date_to: string | null;
+    status: string | null;
+  };
+  summary: {
+    total_records: number;
+    open_records: number;
+    closed_records: number;
+  };
+  results: SalesOrderReportRow[];
+}

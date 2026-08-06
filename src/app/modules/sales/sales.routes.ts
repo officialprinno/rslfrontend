@@ -1,9 +1,15 @@
 import { Routes } from '@angular/router';
 
 import { roleGuard } from '../../core/guards/role.guard';
+import { reportsAccessGuard } from '../../core/guards/reports-access.guard';
 
 const salesGuard = {
   canActivate: [roleGuard],
+  data: { module: 'sales', action: 'read' },
+};
+
+const salesReportGuard = {
+  canActivate: [reportsAccessGuard],
   data: { module: 'sales', action: 'read' },
 };
 
@@ -144,5 +150,11 @@ export const SALES_ROUTES: Routes = [
       import('./pages/credit-notes/credit-note-view.component').then(
         (m) => m.CreditNoteViewComponent,
       ),
+  },
+  {
+    path: 'reports',
+    ...salesReportGuard,
+    loadComponent: () =>
+      import('./pages/reports/sales-reports.component').then((m) => m.SalesReportsComponent),
   },
 ];

@@ -30,5 +30,6 @@ export class SalesNavComponent {
     { label: 'Invoices', route: '/sales/invoices' },
     { label: 'Payments', route: '/sales/payments' },
     { label: 'Credit Notes', route: '/sales/credit-notes' },
+    { label: 'Reports', route: '/sales/reports' },
   ];
 }

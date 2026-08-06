@@ -35,6 +35,7 @@ import {
   QuotationFormData,
   QuotationVerification,
   SalesDashboardData,
+  SalesOrderReportResponse,
   SalesOrder,
   SalesOrderDocument,
   SalesCreditAttachment,
@@ -815,5 +816,17 @@ export class SalesService {
       params,
       bypassCache,
     );
+  }
+
+  getSalesOrderReport(params: {
+    date_from?: string;
+    date_to?: string;
+    status?: string;
+  } = {}): Observable<SalesOrderReportResponse> {
+    return this.http
+      .get<ApiResponse<SalesOrderReportResponse>>(`${this.baseUrl}/reports/orders/`, {
+        params: buildHttpParams(params),
+      })
+      .pipe(unwrapApi());
   }
 }

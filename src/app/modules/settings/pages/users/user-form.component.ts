@@ -30,6 +30,8 @@ interface CompanyRow {
   selected: boolean;
 }
 
+type CompanyScope = 'SUPPLY' | 'STEIN' | 'BOTH';
+
 @Component({
   selector: 'app-user-form',
   imports: [FormsModule, RouterLink, PageHeaderComponent, SettingsAdminNavComponent],
@@ -53,6 +55,7 @@ export class UserFormComponent implements OnInit {
   readonly assignments = signal<AssignmentRow[]>([]);
   readonly companyRows = signal<CompanyRow[]>([]);
   readonly companyOptions = signal<CompanyOption[]>([]);
+  readonly companyScope = signal<CompanyScope>('BOTH');
   readonly previewPermissions = signal<Permission[]>([]);
 
   readonly permissionModules = PERMISSION_MODULES;
@@ -106,6 +109,7 @@ export class UserFormComponent implements OnInit {
               };
             }),
           );
+          this.companyScope.set(this.detectScopeFromRows(this.companyRows()));
         },
         error: (err) => this.notification.error(getApiErrorMessage(err, 'Failed to load user')),
       });
@@ -176,6 +180,10 @@ export class UserFormComponent implements OnInit {
         default_company: row.selected && row.company === companyId,
       })),
     );
+  }
+
+  onScopeChange(scope: CompanyScope): void {
+    this.applyCompanyScope(scope);
   }
 
   resetPassword(): void {
@@ -266,5 +274,54 @@ export class UserFormComponent implements OnInit {
       }
     }
     this.previewPermissions.set(perms);
+  }
+
+  private applyCompanyScope(scope: CompanyScope): void {
+    this.companyScope.set(scope);
+    const options = this.companyOptions();
+    const supply = options.find((c) => c.code?.toUpperCase() === 'SUPPLY');
+    const stein = options.find((c) => c.code?.toUpperCase() === 'STEIN');
+    const selectedIds = new Set<number>();
+
+    if (scope === 'SUPPLY' || scope === 'BOTH') {
+      if (supply) selectedIds.add(supply.id);
+    }
+    if (scope === 'STEIN' || scope === 'BOTH') {
+      if (stein) selectedIds.add(stein.id);
+    }
+    if (!selectedIds.size) {
+      for (const c of options) {
+        selectedIds.add(c.id);
+      }
+    }
+
+    const previousDefault = this.companyRows().find((r) => r.default_company && selectedIds.has(r.company));
+    const fallbackDefault = previousDefault?.company ?? Array.from(selectedIds)[0] ?? null;
+
+    this.companyRows.set(
+      options.map((c) => ({
+        company: c.id,
+        selected: selectedIds.has(c.id),
+        default_company: fallbackDefault != null && c.id === fallbackDefault,
+      })),
+    );
+  }
+
+  private detectScopeFromRows(rows: CompanyRow[]): CompanyScope {
+    const selected = rows.filter((r) => r.selected);
+    if (!selected.length) return 'BOTH';
+
+    const selectedCodes = new Set(
+      selected
+        .map((row) => this.companyOptions().find((c) => c.id === row.company)?.code?.toUpperCase())
+        .filter((code): code is string => Boolean(code)),
+    );
+
+    const hasSupply = selectedCodes.has('SUPPLY');
+    const hasStein = selectedCodes.has('STEIN');
+
+    if (hasSupply && hasStein) return 'BOTH';
+    if (hasStein) return 'STEIN';
+    return 'SUPPLY';
   }
 }

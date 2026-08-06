@@ -27,6 +27,8 @@ interface CompanyRow {
   selected: boolean;
 }
 
+type CompanyScope = 'SUPPLY' | 'STEIN' | 'BOTH';
+
 @Component({
   selector: 'app-user-create',
   imports: [FormsModule, RouterLink, PageHeaderComponent, SettingsAdminNavComponent],
@@ -50,6 +52,7 @@ export class UserCreateComponent implements OnInit {
   readonly companyOptions = signal<CompanyOption[]>([]);
   readonly assignments = signal<AssignmentRow[]>([{ department: '', role: '', is_primary: true }]);
   readonly companyRows = signal<CompanyRow[]>([]);
+  readonly companyScope = signal<CompanyScope>('BOTH');
 
   readonly selectedEmployeeId = signal<number | ''>('');
   readonly email = signal('');
@@ -62,7 +65,10 @@ export class UserCreateComponent implements OnInit {
 
   ngOnInit(): void {
     this.departments.getDepartments().subscribe((departments) => this.deptOptions.set(departments));
-    this.companies.listCompanies().subscribe((companies) => this.companyOptions.set(companies));
+    this.companies.listCompanies().subscribe((companies) => {
+      this.companyOptions.set(companies);
+      this.applyCompanyScope('BOTH');
+    });
     this.hr.getEmployeesWithoutAccounts().subscribe((employees) => {
       this.employeesWithoutAccounts.set(employees);
       const preselect = this.route.snapshot.queryParamMap.get('employee');
@@ -115,6 +121,7 @@ export class UserCreateComponent implements OnInit {
     this.selectedEmployeeId.set(employeeId);
     if (!employeeId) {
       this.provisionFromEmployee.set(false);
+      this.applyCompanyScope(this.companyScope());
       return;
     }
     this.provisionFromEmployee.set(true);
@@ -148,11 +155,18 @@ export class UserCreateComponent implements OnInit {
           );
           if (!this.companyRows().some((r) => r.default_company)) {
             const firstSelected = this.companyRows().find((r) => r.selected);
-            if (firstSelected) firstSelected.default_company = true;
+            if (firstSelected) {
+              this.setDefaultCompany(firstSelected.company);
+            }
           }
+          this.companyScope.set(this.detectScopeFromRows(this.companyRows()));
         },
         error: (err) => this.notification.error(getApiErrorMessage(err)),
       });
+  }
+
+  onScopeChange(scope: CompanyScope): void {
+    this.applyCompanyScope(scope);
   }
 
   toggleCompany(companyId: number, selected: boolean): void {
@@ -175,6 +189,55 @@ export class UserCreateComponent implements OnInit {
         default_company: row.selected && row.company === companyId,
       })),
     );
+  }
+
+  private applyCompanyScope(scope: CompanyScope): void {
+    this.companyScope.set(scope);
+    const options = this.companyOptions();
+    const supply = options.find((c) => c.code?.toUpperCase() === 'SUPPLY');
+    const stein = options.find((c) => c.code?.toUpperCase() === 'STEIN');
+    const selectedIds = new Set<number>();
+
+    if (scope === 'SUPPLY' || scope === 'BOTH') {
+      if (supply) selectedIds.add(supply.id);
+    }
+    if (scope === 'STEIN' || scope === 'BOTH') {
+      if (stein) selectedIds.add(stein.id);
+    }
+    if (!selectedIds.size) {
+      for (const c of options) {
+        selectedIds.add(c.id);
+      }
+    }
+
+    const previousDefault = this.companyRows().find((r) => r.default_company && selectedIds.has(r.company));
+    const fallbackDefault = previousDefault?.company ?? Array.from(selectedIds)[0] ?? null;
+
+    this.companyRows.set(
+      options.map((c) => ({
+        company: c.id,
+        selected: selectedIds.has(c.id),
+        default_company: fallbackDefault != null && c.id === fallbackDefault,
+      })),
+    );
+  }
+
+  private detectScopeFromRows(rows: CompanyRow[]): CompanyScope {
+    const selected = rows.filter((r) => r.selected);
+    if (!selected.length) return 'BOTH';
+
+    const selectedCodes = new Set(
+      selected
+        .map((row) => this.companyOptions().find((c) => c.id === row.company)?.code?.toUpperCase())
+        .filter((code): code is string => Boolean(code)),
+    );
+
+    const hasSupply = selectedCodes.has('SUPPLY');
+    const hasStein = selectedCodes.has('STEIN');
+
+    if (hasSupply && hasStein) return 'BOTH';
+    if (hasStein) return 'STEIN';
+    return 'SUPPLY';
   }
 
   companyName(companyId: number): string {
@@ -219,25 +282,25 @@ export class UserCreateComponent implements OnInit {
 
     const req$ = employeeId
       ? this.users.createUserFromEmployee({
-          employee: +employeeId,
-          email: this.email().trim(),
-          password: this.password(),
-          role: primaryRole.role,
-          is_active: this.isActive(),
-          department_assignments: payloadAssignments,
-          company_assignments: companyAssignments,
-        })
+        employee: +employeeId,
+        email: this.email().trim(),
+        password: this.password(),
+        role: primaryRole.role,
+        is_active: this.isActive(),
+        department_assignments: payloadAssignments,
+        company_assignments: companyAssignments,
+      })
       : this.users.createUser({
-          email: this.email().trim(),
-          password: this.password(),
-          first_name: this.firstName().trim(),
-          last_name: this.lastName().trim(),
-          phone: this.phone().trim(),
-          is_active: this.isActive(),
-          is_multi_department: payloadAssignments.length > 1,
-          department_assignments: payloadAssignments,
-          company_assignments: companyAssignments,
-        });
+        email: this.email().trim(),
+        password: this.password(),
+        first_name: this.firstName().trim(),
+        last_name: this.lastName().trim(),
+        phone: this.phone().trim(),
+        is_active: this.isActive(),
+        is_multi_department: payloadAssignments.length > 1,
+        department_assignments: payloadAssignments,
+        company_assignments: companyAssignments,
+      });
 
     req$.pipe(finalize(() => this.saving.set(false))).subscribe({
       next: (user) => {

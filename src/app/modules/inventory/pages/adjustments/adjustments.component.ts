@@ -7,6 +7,7 @@ import {
   AdjustmentFormData,
   AdjustmentType,
   Item,
+  OpeningStockImportResult,
   StockAdjustment,
   Warehouse,
 } from '../../../../core/models/inventory.model';
@@ -15,6 +16,7 @@ import { ConfirmDialogService } from '../../../../core/services/confirm-dialog.s
 import { InventoryService } from '../../../../core/services/inventory.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { extractFieldErrors, getApiErrorMessage } from '../../../../core/utils/api.util';
+import { downloadBlob } from '../../../../core/utils/download.util';
 import { exportToExcel } from '../../../../core/utils/export.util';
 import { formatDateTime, formatNumber } from '../../../../core/utils/format.util';
 import { EmptyStateComponent } from '../../../../shared/components/empty-state/empty-state.component';
@@ -58,9 +60,15 @@ export class AdjustmentsComponent implements OnInit {
   readonly items = signal<Item[]>([]);
   readonly warehouses = signal<Warehouse[]>([]);
   readonly loading = signal(true);
+  readonly itemsLoading = signal(false);
   readonly error = signal(false);
   readonly saving = signal(false);
   readonly showModal = signal(false);
+  readonly showImportModal = signal(false);
+  readonly importing = signal(false);
+  readonly downloadingTemplate = signal(false);
+  readonly autoApproveImport = signal(true);
+  readonly importResult = signal<OpeningStockImportResult | null>(null);
   readonly total = signal(0);
   readonly page = signal(1);
   readonly pageSize = signal(10);
@@ -81,8 +89,8 @@ export class AdjustmentsComponent implements OnInit {
   readonly canApprove = () => canApproveAdjustment(this.auth);
 
   ngOnInit(): void {
-    this.inventory.getItems({ page_size: 100 }).subscribe((d) => this.items.set(d.results));
-    this.inventory.getWarehouses().subscribe((w) => this.warehouses.set(w));
+    this.loadItemOptions();
+    this.inventory.getWarehouses({ is_active: true }).subscribe((w) => this.warehouses.set(w));
     this.load();
   }
 
@@ -90,8 +98,27 @@ export class AdjustmentsComponent implements OnInit {
     return this.items().map((i) => ({
       value: i.id,
       label: `${i.code} — ${i.name}`,
+      code: i.code,
+      name: i.name,
       sublabel: i.category_name,
     }));
+  }
+
+  loadItemOptions(): void {
+    this.itemsLoading.set(true);
+    this.inventory
+      .getAllItems({ is_active: true })
+      .pipe(finalize(() => this.itemsLoading.set(false)))
+      .subscribe({
+        next: (items) => {
+          this.items.set(items);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.notification.error('Failed to load items for the picker.');
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   load(): void {
@@ -111,10 +138,84 @@ export class AdjustmentsComponent implements OnInit {
 
   openNew(): void {
     this.fieldErrors.set({});
-    this.inventory.getItems({ page_size: 100, is_active: true }).subscribe((d) => this.items.set(d.results));
+    if (!this.items().length) {
+      this.loadItemOptions();
+    }
     this.inventory.getWarehouses({ is_active: true }).subscribe((w) => this.warehouses.set(w));
     this.form.reset({ item: null, warehouse: null, adjustment_type: 'INCREASE', quantity: 1, reason: '' });
     this.showModal.set(true);
+  }
+
+  openImport(): void {
+    this.importResult.set(null);
+    this.autoApproveImport.set(this.canApprove());
+    this.showImportModal.set(true);
+  }
+
+  downloadOpeningStockTemplate(): void {
+    this.downloadingTemplate.set(true);
+    this.inventory
+      .downloadOpeningStockTemplate()
+      .pipe(finalize(() => this.downloadingTemplate.set(false)))
+      .subscribe({
+        next: (blob) => downloadBlob(blob, 'opening_stock_import_template.xlsx'),
+        error: (e) => this.notification.error(getApiErrorMessage(e, 'Failed to download template')),
+      });
+  }
+
+  onOpeningStockFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const filename = file.name.toLowerCase();
+    if (!filename.endsWith('.csv') && !filename.endsWith('.xlsx')) {
+      this.notification.error('Please upload a CSV or XLSX file.');
+      input.value = '';
+      return;
+    }
+
+    this.importing.set(true);
+    this.importResult.set(null);
+    this.inventory
+      .importOpeningStock(file, this.autoApproveImport())
+      .pipe(finalize(() => this.importing.set(false)))
+      .subscribe({
+        next: (res) => {
+          this.importResult.set(res.data);
+          const summary =
+            `${res.data.applied_count} applied to stock, ` +
+            `${res.data.pending_count} pending approval, ` +
+            `${res.data.failed_count} failed` +
+            (res.data.skipped_count ? `, ${res.data.skipped_count} skipped` : '') +
+            '.';
+          if (res.data.applied_count > 0 || res.data.pending_count > 0) {
+            this.notification.success(res.warning ? `${summary} ${res.warning}` : summary);
+          } else {
+            this.notification.error(res.message || 'No opening stock rows were imported.');
+          }
+          this.load();
+          this.cdr.markForCheck();
+        },
+        error: (e) => {
+          this.notification.error(getApiErrorMessage(e, 'Opening stock import failed'));
+          this.cdr.markForCheck();
+        },
+      });
+
+    input.value = '';
+  }
+
+  formatImportError(error: unknown): string {
+    if (typeof error === 'string') return error;
+    if (error == null) return 'Unknown error';
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
   }
 
   onSubmit(): void {

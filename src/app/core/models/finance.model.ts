@@ -560,12 +560,41 @@ export interface InventoryPriceVersion {
   updated_at: string;
 }
 
+export type InventoryFinanceWorkflowSource = 'GRN' | 'OPENING_BALANCE';
+
+export interface OpeningBalancePricingImportRowError {
+  row: number;
+  item_code?: string;
+  warehouse?: string;
+  error: unknown;
+  'Item Code'?: string;
+  Warehouse?: string;
+  'Unit Cost'?: string;
+  'Selling Price'?: string;
+  Quantity?: string;
+  Error?: string;
+}
+
+export interface OpeningBalancePricingImportResult {
+  total_rows: number;
+  created_count: number;
+  updated_count: number;
+  approved_count: number;
+  pending_count: number;
+  failed_count: number;
+  errors: OpeningBalancePricingImportRowError[];
+  failed_rows: OpeningBalancePricingImportRowError[];
+  warnings: string[];
+}
+
 export interface InventoryFinanceWorkflow {
   id: number;
   company: number | null;
-  grn: number;
+  source?: InventoryFinanceWorkflowSource;
+  source_label?: string;
+  grn: number | null;
   grn_number: string;
-  grn_item: number;
+  grn_item: number | null;
   item: number;
   item_code: string;
   item_name: string;

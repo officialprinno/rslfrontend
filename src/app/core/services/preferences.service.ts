@@ -6,6 +6,7 @@ import { Observable, catchError, map, of } from 'rxjs';
 import { environment } from '../../environments/environments';
 import { ApiResponse } from '../models/auth.models';
 import { AppLanguage, AppTheme, CurrencyCode } from '../models/preferences.models';
+import { setDisplayCurrencyCode } from '../utils/display-currency.store';
 import { ThemeService } from './theme.service';
 
 const CURRENCY_KEY = 'rsl_currency';
@@ -38,6 +39,7 @@ export class PreferencesService {
     const lang = this.languageSignal();
     const theme = this.themeSignal();
     this.themeService.apply(theme);
+    setDisplayCurrencyCode(this.currencySignal());
     this.translate.setFallbackLang('en');
     document.documentElement.lang = lang;
     return this.translate.use(lang);
@@ -46,6 +48,7 @@ export class PreferencesService {
   setCurrency(code: CurrencyCode): void {
     this.currencySignal.set(code);
     localStorage.setItem(CURRENCY_KEY, code);
+    setDisplayCurrencyCode(code);
   }
 
   setLanguage(lang: AppLanguage, persistRemote = true): void {

@@ -32,6 +32,7 @@ import {
   Item,
   ItemImportResult,
   ItemFormData,
+  OpeningStockImportResult,
   ItemSerialNumber,
   ProductionReceiptQueueItem,
   ReorderSuggestion,
@@ -146,15 +147,27 @@ export class InventoryService {
       .pipe(unwrapApi());
   }
 
+  /** Fetch all item pages (API max page size is 100). */
+  getAllItems(params: ListParams = {}): Observable<Item[]> {
+    const pageSize = 100;
+    const fetchPage = (page: number, acc: Item[]): Observable<Item[]> =>
+      this.getItems({ page_size: pageSize, page, ordering: 'code', ...params }).pipe(
+        switchMap((data) => {
+          const merged = acc.concat(data.results);
+          return data.next ? fetchPage(page + 1, merged) : of(merged);
+        }),
+      );
+    return fetchPage(1, []);
+  }
+
   /** Ready + not-ready commercial stock for quotation / sales order line pickers. */
   getSalesLineItems(): Observable<Item[]> {
-    const base = { page_size: 500, is_active: true };
+    // API max_page_size is 100 — must walk every page or later SKUs never appear.
+    const base = { is_active: true };
     return forkJoin({
-      ready: this.getItems({ ...base, for_sales: true }),
-      stock: this.getItems({ ...base, for_sales_lines: true }),
-    }).pipe(
-      map(({ ready, stock }) => mergeSalesLineItemLists(ready.results, stock.results)),
-    );
+      ready: this.getAllItems({ ...base, for_sales: true }),
+      stock: this.getAllItems({ ...base, for_sales_lines: true }),
+    }).pipe(map(({ ready, stock }) => mergeSalesLineItemLists(ready, stock)));
   }
 
   getItem(id: number): Observable<Item> {
@@ -382,6 +395,32 @@ export class InventoryService {
     return this.http
       .post<ApiResponse<StockAdjustment>>(`${this.baseUrl}/adjustments/${id}/reject/`, {})
       .pipe(unwrapApi());
+  }
+
+  downloadOpeningStockTemplate(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/adjustments/opening-stock-template/`, {
+      responseType: 'blob',
+    });
+  }
+
+  importOpeningStock(
+    file: File,
+    autoApprove = true,
+  ): Observable<{
+    data: OpeningStockImportResult;
+    message: string;
+    warning?: string | null;
+    warnings?: unknown[] | null;
+  }> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('auto_approve', autoApprove ? 'true' : 'false');
+    return this.http
+      .post<ApiResponse<OpeningStockImportResult>>(
+        `${this.baseUrl}/adjustments/import-opening-stock/`,
+        form,
+      )
+      .pipe(unwrapApiWithMeta());
   }
 
   getDamageReports(params: ListParams = {}): Observable<PaginatedData<DamageReport>> {

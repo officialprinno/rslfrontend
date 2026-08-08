@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, OnInit, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -12,9 +12,16 @@ import {
   InventoryCostMethod,
   InventoryPriceVersion,
 } from '../../../../core/models/finance.model';
+import { CurrencyCode } from '../../../../core/models/preferences.models';
+import { DisplayCurrencyService } from '../../../../core/services/display-currency.service';
 import { FinanceService } from '../../../../core/services/finance.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
+import {
+  convertAmount,
+  displayCurrencyRevision,
+  getDisplayCurrencyCode,
+} from '../../../../core/utils/display-currency.store';
 import { formatCurrency, formatDateTime, formatNumber } from '../../../../core/utils/format.util';
 import { ErrorStateComponent } from '../../../../shared/components/error-state/error-state.component';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
@@ -114,7 +121,7 @@ const PRICING_FIELDS: Array<{
   label: string;
   help: string;
   placeholder: string;
-  prefix?: 'TZS' | '%';
+  prefix?: 'money' | '%';
   required?: boolean;
 }> = [
     {
@@ -122,7 +129,7 @@ const PRICING_FIELDS: Array<{
       label: 'Selling Unit Price',
       help: 'Primary selling price used by Sales orders after finance approval.',
       placeholder: 'Enter selling unit price',
-      prefix: 'TZS',
+      prefix: 'money',
       required: true,
     },
     {
@@ -130,35 +137,35 @@ const PRICING_FIELDS: Array<{
       label: 'Wholesale Price',
       help: 'Price used for bulk or wholesale channel customers.',
       placeholder: 'Enter wholesale price',
-      prefix: 'TZS',
+      prefix: 'money',
     },
     {
       name: 'retail_price',
       label: 'Retail Price',
       help: 'Front-facing retail price for standard sales.',
       placeholder: 'Enter retail price',
-      prefix: 'TZS',
+      prefix: 'money',
     },
     {
       name: 'dealer_price',
       label: 'Dealer Price',
       help: 'Special price reserved for dealer or distributor channels.',
       placeholder: 'Enter dealer price',
-      prefix: 'TZS',
+      prefix: 'money',
     },
     {
       name: 'customer_price',
       label: 'Customer / Minimum Selling Price',
       help: 'Lowest approved customer-facing price using the existing customer price field.',
       placeholder: 'Enter minimum customer price',
-      prefix: 'TZS',
+      prefix: 'money',
     },
     {
       name: 'promotional_price',
       label: 'Promotional Price',
       help: 'Optional promotional price for approved campaigns or temporary offers.',
       placeholder: 'Enter promotional price',
-      prefix: 'TZS',
+      prefix: 'money',
     },
     {
       name: 'markup_percent',
@@ -175,6 +182,27 @@ const PRICING_FIELDS: Array<{
       prefix: '%',
     },
   ];
+
+const COSTING_MONEY_FIELDS: CostingFieldName[] = [
+  'purchase_cost',
+  'purchase_vat',
+  'freight',
+  'insurance',
+  'import_duty',
+  'clearing_charges',
+  'transportation',
+  'handling_charges',
+  'other_landed_costs',
+];
+
+const PRICING_MONEY_FIELDS: PricingFieldName[] = [
+  'selling_unit_price',
+  'wholesale_price',
+  'retail_price',
+  'dealer_price',
+  'customer_price',
+  'promotional_price',
+];
 
 const COST_METHOD_OPTIONS: Array<{ value: InventoryCostMethod; label: string }> = [
   { value: 'FIFO', label: 'FIFO' },
@@ -243,7 +271,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
               </article>
               <article class="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Current Landed Cost</p>
-                <p class="text-xl font-semibold text-slate-900 mt-2">{{ formatCurrency(currentLandedCost()) }}</p>
+                <p class="text-xl font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(currentLandedCost()) }}</p>
                 <p class="text-xs text-slate-500 mt-1">
                   @if (vatIncludedInLandedCost()) {
                     Includes purchase VAT in inventory cost
@@ -254,7 +282,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
               </article>
               <article class="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Calculated Unit Cost</p>
-                <p class="text-xl font-semibold text-slate-900 mt-2">{{ formatCurrency(calculatedUnitCost()) }}</p>
+                <p class="text-xl font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(calculatedUnitCost()) }}</p>
                 <p class="text-xs text-slate-500 mt-1">Landed cost divided by received quantity</p>
               </article>
               <article class="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-sm">
@@ -341,12 +369,12 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
             </div>
             <div class="rounded-2xl border border-[#1B3A6B]/10 bg-blue-50 px-4 py-3">
               <dt class="text-slate-600">In costing now</dt>
-              <dd class="font-semibold text-[#1B3A6B] mt-1">{{ formatCurrency(currentLandedCost()) }}</dd>
+              <dd class="font-semibold text-[#1B3A6B] mt-1">{{ formatDisplayMoney(currentLandedCost()) }}</dd>
               <dd class="text-xs text-slate-500 mt-1">
                 @if (vatIncludedInLandedCost()) {
                   VAT included in landed cost
                 } @else {
-                  VAT {{ formatCurrency(purchaseVatAmount()) }} excluded — Input VAT recoverable
+                  VAT {{ formatDisplayMoney(purchaseVatAmount()) }} excluded — Input VAT recoverable
                 }
               </dd>
             </div>
@@ -429,7 +457,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                       <label class="block text-sm font-semibold text-slate-900">{{ field.label }}</label>
                       <p class="mt-1 text-xs text-slate-500">{{ field.help }}</p>
                       <div class="mt-3 flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-[#1B3A6B]">
-                        <span class="inline-flex items-center border-r border-slate-200 px-3 text-xs font-semibold text-slate-500">TZS</span>
+                        <span class="inline-flex items-center border-r border-slate-200 px-3 text-xs font-semibold text-slate-500">{{ displayCode() }}</span>
                         <input
                           class="w-full bg-transparent px-3 py-3 text-sm text-slate-900 outline-none"
                           type="number"
@@ -479,7 +507,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                     <p class="text-sm font-medium text-slate-900">{{ field.label }}</p>
                     <p class="text-xs text-slate-500">{{ field.help }}</p>
                   </dt>
-                  <dd class="text-sm font-semibold text-slate-900">{{ formatCurrency(costValue(field.name)) }}</dd>
+                  <dd class="text-sm font-semibold text-slate-900">{{ formatDisplayMoney(costValue(field.name)) }}</dd>
                 </div>
                 }
               }
@@ -496,13 +524,13 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                     }
                   </p>
                 </div>
-                <p class="text-sm font-semibold text-slate-900">{{ formatCurrency(purchaseVatAmount()) }}</p>
+                <p class="text-sm font-semibold text-slate-900">{{ formatDisplayMoney(purchaseVatAmount()) }}</p>
               </div>
             </div>
             <div class="mt-4 rounded-3xl border border-[#1B3A6B]/10 bg-[#1B3A6B] p-5 text-white shadow-lg">
               <div class="flex items-center justify-between text-sm">
                 <span>Total Landed Cost</span>
-                <strong class="text-lg">{{ formatCurrency(currentLandedCost()) }}</strong>
+                <strong class="text-lg">{{ formatDisplayMoney(currentLandedCost()) }}</strong>
               </div>
               <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div class="rounded-2xl bg-white/10 px-4 py-3">
@@ -511,11 +539,11 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                 </div>
                 <div class="rounded-2xl bg-white/10 px-4 py-3">
                   <p class="text-xs uppercase tracking-wide text-white/70">Unit Cost</p>
-                  <p class="text-lg font-semibold mt-1">{{ formatCurrency(calculatedUnitCost()) }}</p>
+                  <p class="text-lg font-semibold mt-1">{{ formatDisplayMoney(calculatedUnitCost()) }}</p>
                 </div>
                 <div class="rounded-2xl bg-white/10 px-4 py-3 col-span-2">
                   <p class="text-xs uppercase tracking-wide text-white/70">Inventory Value</p>
-                  <p class="text-lg font-semibold mt-1">{{ formatCurrency(inventoryValue()) }}</p>
+                  <p class="text-lg font-semibold mt-1">{{ formatDisplayMoney(inventoryValue()) }}</p>
                 </div>
               </div>
             </div>
@@ -554,7 +582,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                       <label class="block text-sm font-semibold text-slate-900">{{ field.label }}</label>
                       <p class="mt-1 text-xs text-slate-500">{{ field.help }}</p>
                       <div class="mt-3 flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-[#1B3A6B]">
-                        <span class="inline-flex items-center border-r border-slate-200 px-3 text-xs font-semibold text-slate-500">{{ field.prefix || 'TZS' }}</span>
+                        <span class="inline-flex items-center border-r border-slate-200 px-3 text-xs font-semibold text-slate-500">{{ field.prefix === '%' ? '%' : displayCode() }}</span>
                         <input
                           class="w-full bg-transparent px-3 py-3 text-sm text-slate-900 outline-none"
                           type="number"
@@ -607,7 +635,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
             <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="rounded-2xl border border-white bg-white px-4 py-4 shadow-sm">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Selling Price</p>
-                <p class="text-lg font-semibold text-slate-900 mt-2">{{ formatCurrency(sellingPrice()) }}</p>
+                <p class="text-lg font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(sellingPrice()) }}</p>
               </div>
               <div class="rounded-2xl border border-white bg-white px-4 py-4 shadow-sm">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Calculated Margin</p>
@@ -619,7 +647,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
               </div>
               <div class="rounded-2xl border border-white bg-white px-4 py-4 shadow-sm">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Gross Profit / Unit</p>
-                <p class="text-lg font-semibold text-slate-900 mt-2">{{ formatCurrency(expectedGrossProfit()) }}</p>
+                <p class="text-lg font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(expectedGrossProfit()) }}</p>
               </div>
             </div>
 
@@ -631,7 +659,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                     <p class="text-xs text-slate-500">{{ field.help }}</p>
                   </dt>
                   <dd class="text-sm font-semibold text-slate-900">
-                    {{ field.prefix === '%' ? formatPercent(pricingValue(field.name)) : formatCurrency(pricingValue(field.name)) }}
+                    {{ field.prefix === '%' ? formatPercent(pricingValue(field.name)) : formatDisplayMoney(pricingValue(field.name)) }}
                   </dd>
                 </div>
               }
@@ -651,12 +679,12 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Inventory Cost</p>
-                <p class="text-2xl font-semibold text-slate-900 mt-2">{{ formatCurrency(currentLandedCost()) }}</p>
+                <p class="text-2xl font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(currentLandedCost()) }}</p>
                 <p class="text-xs text-slate-500 mt-1">Total landed cost from costing inputs</p>
               </div>
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Selling Price</p>
-                <p class="text-2xl font-semibold text-slate-900 mt-2">{{ formatCurrency(sellingPrice()) }}</p>
+                <p class="text-2xl font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(sellingPrice()) }}</p>
                 <p class="text-xs text-slate-500 mt-1">Primary selling price to be enforced for Sales</p>
               </div>
               <div class="rounded-2xl border border-slate-200 bg-white p-4">
@@ -665,7 +693,7 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
               </div>
               <div class="rounded-2xl border border-slate-200 bg-white p-4">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Unit Cost</p>
-                <p class="text-lg font-semibold text-slate-900 mt-2">{{ formatCurrency(calculatedUnitCost()) }}</p>
+                <p class="text-lg font-semibold text-slate-900 mt-2">{{ formatDisplayMoney(calculatedUnitCost()) }}</p>
               </div>
               <div class="rounded-2xl border border-slate-200 bg-white p-4">
                 <p class="text-xs uppercase tracking-wide text-slate-500">Expected Margin</p>
@@ -769,8 +797,8 @@ const PRICING_METHOD_OPTIONS: Array<{ value: InventoryPricingMethod; label: stri
                 <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <p class="text-sm font-semibold text-slate-900">Release impact</p>
                   <ul class="mt-2 space-y-1 text-xs text-slate-600 list-disc pl-4">
-                    <li>Item unit cost will update to {{ formatCurrency(calculatedUnitCost()) }}</li>
-                    <li>Sales selling price will update to {{ formatCurrency(sellingPrice()) }}</li>
+                    <li>Item unit cost will update to {{ formatDisplayMoney(calculatedUnitCost()) }}</li>
+                    <li>Sales selling price will update to {{ formatDisplayMoney(sellingPrice()) }}</li>
                     <li>Finance-held quantity will move into saleable visibility</li>
                   </ul>
                 </div>
@@ -843,8 +871,29 @@ export class InventoryWorkflowDetailComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly displayCurrency = inject(DisplayCurrencyService);
+
+  /** Currency currently shown in money form inputs (rebase when navbar currency changes). */
+  private readonly formMoneyCurrency = signal<CurrencyCode | null>(null);
 
   readonly activeStep = signal<WizardStep>(0);
+
+  readonly displayCode = computed(() => {
+    displayCurrencyRevision();
+    return getDisplayCurrencyCode();
+  });
+
+  private readonly rebaseOnDisplayCurrencyChange = effect(() => {
+    const next = this.displayCode();
+    const prev = this.formMoneyCurrency();
+    if (!prev) {
+      this.formMoneyCurrency.set(next);
+      return;
+    }
+    if (prev === next) return;
+    this.rebaseMoneyForms(prev, next);
+    this.formMoneyCurrency.set(next);
+  });
 
   readonly workflow = signal<InventoryFinanceWorkflow | null>(null);
   readonly currentApprovedPrice = signal<InventoryPriceVersion | null>(null);
@@ -867,6 +916,11 @@ export class InventoryWorkflowDetailComponent implements OnInit {
   readonly formatCurrency = formatCurrency;
   readonly formatDateTime = formatDateTime;
   readonly formatNumber = formatNumber;
+
+  /** Form money values are already in display currency — do not convert again. */
+  formatDisplayMoney(amount: number | string | null | undefined): string {
+    return formatCurrency(amount, this.displayCode(), { native: true });
+  }
 
   readonly costingForm = this.fb.group({
     cost_method: this.fb.control<InventoryCostMethod | null>(null, Validators.required),
@@ -1018,8 +1072,16 @@ export class InventoryWorkflowDetailComponent implements OnInit {
     const raw = this.costingForm.getRawValue();
     this.finance
       .submitInventoryCosting(workflow.id, {
-        ...raw,
-        purchase_vat: raw.purchase_vat ?? 0,
+        cost_method: raw.cost_method,
+        purchase_cost: this.toBaseMoney(raw.purchase_cost),
+        purchase_vat: this.toBaseMoney(raw.purchase_vat ?? 0),
+        freight: this.toBaseMoney(raw.freight),
+        insurance: this.toBaseMoney(raw.insurance),
+        import_duty: this.toBaseMoney(raw.import_duty),
+        clearing_charges: this.toBaseMoney(raw.clearing_charges),
+        transportation: this.toBaseMoney(raw.transportation),
+        handling_charges: this.toBaseMoney(raw.handling_charges),
+        other_landed_costs: this.toBaseMoney(raw.other_landed_costs),
       } as never)
       .subscribe({
         next: () => {
@@ -1039,8 +1101,20 @@ export class InventoryWorkflowDetailComponent implements OnInit {
     const workflow = this.workflow();
     if (!workflow || this.pricingForm.invalid || !this.canPreparePricing()) return;
     this.submitting.set(true);
+    const raw = this.pricingForm.getRawValue();
     this.finance
-      .prepareInventoryPricing(workflow.id, this.pricingForm.getRawValue() as never)
+      .prepareInventoryPricing(workflow.id, {
+        pricing_method: raw.pricing_method,
+        selling_unit_price: this.toBaseMoney(raw.selling_unit_price),
+        wholesale_price: this.toBaseMoneyOrNull(raw.wholesale_price),
+        retail_price: this.toBaseMoneyOrNull(raw.retail_price),
+        dealer_price: this.toBaseMoneyOrNull(raw.dealer_price),
+        customer_price: this.toBaseMoneyOrNull(raw.customer_price),
+        promotional_price: this.toBaseMoneyOrNull(raw.promotional_price),
+        markup_percent: raw.markup_percent,
+        margin_percent: raw.margin_percent,
+        notes: raw.notes,
+      } as never)
       .subscribe({
         next: () => {
           this.notifications.success('Pricing version prepared.');
@@ -1157,25 +1231,25 @@ export class InventoryWorkflowDetailComponent implements OnInit {
   private patchForms(workflow: InventoryFinanceWorkflow, latestPrice: InventoryPriceVersion | null): void {
     this.costingForm.reset({
       cost_method: workflow.workflow_status === 'RECEIVED' ? null : workflow.cost_method,
-      purchase_cost: this.nullableMoney(workflow.purchase_cost),
-      purchase_vat: this.nullableOptionalMoney(workflow.purchase_vat),
-      freight: this.nullableOptionalMoney(workflow.freight),
-      insurance: this.nullableOptionalMoney(workflow.insurance),
-      import_duty: this.nullableOptionalMoney(workflow.import_duty),
-      clearing_charges: this.nullableOptionalMoney(workflow.clearing_charges),
-      transportation: this.nullableOptionalMoney(workflow.transportation),
-      handling_charges: this.nullableOptionalMoney(workflow.handling_charges),
-      other_landed_costs: this.nullableOptionalMoney(workflow.other_landed_costs),
+      purchase_cost: this.toDisplayMoney(workflow.purchase_cost),
+      purchase_vat: this.toDisplayOptionalMoney(workflow.purchase_vat),
+      freight: this.toDisplayOptionalMoney(workflow.freight),
+      insurance: this.toDisplayOptionalMoney(workflow.insurance),
+      import_duty: this.toDisplayOptionalMoney(workflow.import_duty),
+      clearing_charges: this.toDisplayOptionalMoney(workflow.clearing_charges),
+      transportation: this.toDisplayOptionalMoney(workflow.transportation),
+      handling_charges: this.toDisplayOptionalMoney(workflow.handling_charges),
+      other_landed_costs: this.toDisplayOptionalMoney(workflow.other_landed_costs),
     });
 
     this.pricingForm.reset({
       pricing_method: latestPrice?.pricing_method ?? null,
-      selling_unit_price: this.nullableMoney(latestPrice?.selling_unit_price),
-      wholesale_price: this.nullableOptionalMoney(latestPrice?.wholesale_price),
-      retail_price: this.nullableOptionalMoney(latestPrice?.retail_price),
-      dealer_price: this.nullableOptionalMoney(latestPrice?.dealer_price),
-      customer_price: this.nullableOptionalMoney(latestPrice?.customer_price),
-      promotional_price: this.nullableOptionalMoney(latestPrice?.promotional_price),
+      selling_unit_price: this.toDisplayMoney(latestPrice?.selling_unit_price),
+      wholesale_price: this.toDisplayOptionalMoney(latestPrice?.wholesale_price),
+      retail_price: this.toDisplayOptionalMoney(latestPrice?.retail_price),
+      dealer_price: this.toDisplayOptionalMoney(latestPrice?.dealer_price),
+      customer_price: this.toDisplayOptionalMoney(latestPrice?.customer_price),
+      promotional_price: this.toDisplayOptionalMoney(latestPrice?.promotional_price),
       markup_percent: this.nullableOptionalMoney(latestPrice?.markup_percent),
       margin_percent: this.nullableOptionalMoney(latestPrice?.margin_percent),
       notes: latestPrice?.notes ?? '',
@@ -1184,6 +1258,53 @@ export class InventoryWorkflowDetailComponent implements OnInit {
     this.approvalForm.reset({
       reason: workflow.approval_reason || '',
     });
+    this.formMoneyCurrency.set(this.displayCode());
+  }
+
+  /** API stores TZS; show form inputs in navbar display currency. */
+  private toDisplayMoney(value: unknown): number | null {
+    const amount = this.nullableMoney(value);
+    if (amount == null) return null;
+    return Number(this.displayCurrency.toDisplay(amount, 'TZS').toFixed(4));
+  }
+
+  private toDisplayOptionalMoney(value: unknown): number | null {
+    const amount = this.toDisplayMoney(value);
+    return amount != null && amount > 0 ? amount : null;
+  }
+
+  private toBaseMoney(value: number | null | undefined): number {
+    const display = Number(value ?? 0);
+    const converted = convertAmount(display, this.displayCode(), 'TZS');
+    return converted ?? display;
+  }
+
+  private toBaseMoneyOrNull(value: number | null | undefined): number | null {
+    if (value == null || value === ('' as never)) return null;
+    const display = Number(value);
+    if (!Number.isFinite(display) || display <= 0) return null;
+    return this.toBaseMoney(display);
+  }
+
+  private rebaseMoneyForms(from: string, to: string): void {
+    for (const name of COSTING_MONEY_FIELDS) {
+      const control = this.costingForm.controls[name];
+      const value = control.value;
+      if (value == null || value === ('' as never)) continue;
+      const converted = convertAmount(Number(value), from, to);
+      if (converted != null) {
+        control.setValue(Number(converted.toFixed(4)), { emitEvent: true });
+      }
+    }
+    for (const name of PRICING_MONEY_FIELDS) {
+      const control = this.pricingForm.controls[name];
+      const value = control.value;
+      if (value == null || value === ('' as never)) continue;
+      const converted = convertAmount(Number(value), from, to);
+      if (converted != null) {
+        control.setValue(Number(converted.toFixed(4)), { emitEvent: true });
+      }
+    }
   }
 
   private nullableMoney(value: unknown): number | null {

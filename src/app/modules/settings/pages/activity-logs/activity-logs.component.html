@@ -1,0 +1,218 @@
+<div class="page-container">
+  <app-settings-admin-nav />
+  <app-page-header
+    title="Activity Logs"
+    subtitle="Super Admin — login, logout, page visits, and system actions for troubleshooting"
+  />
+
+  <div class="card p-4 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+      <div class="xl:col-span-2">
+        <label class="input-label">Search</label>
+        <input
+          type="search"
+          class="input-field"
+          placeholder="User, module, action, record…"
+          [ngModel]="search()"
+          (ngModelChange)="search.set($event)"
+          (keyup.enter)="applyFilters()"
+        />
+      </div>
+      <div>
+        <label class="input-label">User</label>
+        <select
+          class="input-field"
+          [ngModel]="userId()"
+          (ngModelChange)="userId.set($event === '' || $event == null ? '' : +$event)"
+        >
+          <option [ngValue]="''">All users</option>
+          @for (u of userOptions(); track u.id) {
+            <option [ngValue]="u.id">{{ u.full_name || u.email }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Module</label>
+        <select class="input-field" [ngModel]="module()" (ngModelChange)="module.set($event)">
+          @for (m of modules; track m.value) {
+            <option [value]="m.value">{{ m.label }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Status</label>
+        <select class="input-field" [ngModel]="status()" (ngModelChange)="status.set($event)">
+          <option value="">All</option>
+          <option value="SUCCESS">Success</option>
+          <option value="FAILED">Failed</option>
+        </select>
+      </div>
+      <div>
+        <label class="input-label">Action</label>
+        <input
+          type="text"
+          class="input-field"
+          placeholder="e.g. login, page_view"
+          [ngModel]="action()"
+          (ngModelChange)="action.set($event)"
+          (keyup.enter)="applyFilters()"
+        />
+      </div>
+      <div>
+        <label class="input-label">From</label>
+        <input type="date" class="input-field" [ngModel]="dateFrom()" (ngModelChange)="dateFrom.set($event)" />
+      </div>
+      <div>
+        <label class="input-label">To</label>
+        <input type="date" class="input-field" [ngModel]="dateTo()" (ngModelChange)="dateTo.set($event)" />
+      </div>
+      <div class="xl:col-span-2 flex items-end gap-2">
+        <button type="button" class="btn-primary" (click)="applyFilters()">Apply</button>
+        <button type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="card p-4">
+      <app-table-skeleton [rows]="8" [cols]="7" />
+    </div>
+  } @else if (!rows().length) {
+    <div class="card p-8 text-center">
+      <p class="font-semibold text-slate-800">No activity found</p>
+      <p class="text-sm text-slate-500 mt-1">
+        No activity matches these filters yet. Login, navigation, and system actions will appear here.
+      </p>
+    </div>
+  } @else {
+    <div class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="data-table w-full text-sm">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>User</th>
+              <th>Module</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>IP</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.id) {
+              <tr class="hover:bg-slate-50/80">
+                <td class="whitespace-nowrap text-slate-600">
+                  {{ row.created_at | date: 'medium' }}
+                </td>
+                <td>
+                  <div class="font-medium text-slate-900">{{ row.user_name || '—' }}</div>
+                  <div class="text-xs text-slate-500">{{ row.user_email || '' }}</div>
+                  @if (row.department_name) {
+                    <div class="text-[11px] text-slate-400">{{ row.department_name }}</div>
+                  }
+                </td>
+                <td>
+                  <span class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {{ row.module }}
+                  </span>
+                </td>
+                <td class="max-w-xs">
+                  <div class="font-medium text-slate-800 truncate" [title]="prettyAction(row)">
+                    {{ prettyAction(row) }}
+                  </div>
+                  @if (row.record_id) {
+                    <div class="text-xs text-slate-400 truncate">{{ row.record_id }}</div>
+                  }
+                </td>
+                <td>
+                  <span
+                    class="inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+                    [class]="statusTone(row.status)"
+                  >
+                    {{ row.status || 'SUCCESS' }}
+                  </span>
+                </td>
+                <td class="text-xs text-slate-500 whitespace-nowrap">{{ row.ip_address || '—' }}</td>
+                <td>
+                  <button type="button" class="text-[#1B3A6B] text-xs font-semibold hover:underline" (click)="openDetail(row)">
+                    Details
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="border-t border-slate-100 px-4 py-3">
+        <app-pagination
+          [page]="page()"
+          [pageSize]="pageSize"
+          [total]="total()"
+          (pageChange)="onPageChange($event)"
+        />
+      </div>
+    </div>
+  }
+</div>
+
+@if (selected(); as row) {
+  <div class="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <button type="button" class="absolute inset-0 bg-slate-950/40" aria-label="Close" (click)="closeDetail()"></button>
+    <div class="relative w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-xl border border-slate-200">
+      <header class="sticky top-0 flex items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Activity detail</p>
+          <h3 class="text-lg font-semibold text-slate-900 mt-0.5">{{ prettyAction(row) }}</h3>
+          <p class="text-xs text-slate-500 mt-1">{{ row.created_at | date: 'full' }}</p>
+        </div>
+        <button type="button" class="btn-secondary !text-sm" (click)="closeDetail()">Close</button>
+      </header>
+      <div class="px-5 py-4 space-y-4 text-sm">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <dt class="text-xs text-slate-500">User</dt>
+            <dd class="font-medium text-slate-900">{{ row.user_name || '—' }}</dd>
+            <dd class="text-xs text-slate-500">{{ row.user_email || '' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500">Status</dt>
+            <dd>
+              <span class="inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold" [class]="statusTone(row.status)">
+                {{ row.status || 'SUCCESS' }}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500">Module / Action</dt>
+            <dd class="font-medium">{{ row.module }} · {{ row.action }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500">IP address</dt>
+            <dd>{{ row.ip_address || '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500">Company</dt>
+            <dd>{{ row.company_name || '—' }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-slate-500">Department</dt>
+            <dd>{{ row.department_name || '—' }}</dd>
+          </div>
+          <div class="sm:col-span-2">
+            <dt class="text-xs text-slate-500">Record ID</dt>
+            <dd class="break-all">{{ row.record_id || '—' }}</dd>
+          </div>
+        </dl>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">New values</p>
+          <pre class="rounded-xl bg-slate-50 border border-slate-100 p-3 text-xs overflow-x-auto text-slate-700">{{ detailJson(row.new_values) }}</pre>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Old values</p>
+          <pre class="rounded-xl bg-slate-50 border border-slate-100 p-3 text-xs overflow-x-auto text-slate-700">{{ detailJson(row.old_values) }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+}

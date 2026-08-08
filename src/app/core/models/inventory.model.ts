@@ -917,6 +917,7 @@ export interface InventoryAuditLog {
   module: string;
   action: string;
   record_id: string;
+  status?: string;
   old_values: Record<string, unknown> | null;
   new_values: Record<string, unknown> | null;
   created_at: string;
@@ -984,6 +985,24 @@ export interface ItemImportResult {
   updated_count: number;
   failed_count: number;
   errors: ItemImportRowError[];
+}
+
+export interface OpeningStockImportRowError {
+  row: number;
+  item_code?: string;
+  warehouse?: string;
+  error: unknown;
+}
+
+export interface OpeningStockImportResult {
+  total_rows: number;
+  created_count: number;
+  applied_count: number;
+  pending_count: number;
+  skipped_count: number;
+  failed_count: number;
+  errors: OpeningStockImportRowError[];
+  warnings: string[];
 }
 
 export interface CategoryFormData {

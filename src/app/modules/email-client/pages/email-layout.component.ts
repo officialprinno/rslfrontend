@@ -87,17 +87,41 @@ export class EmailLayoutComponent implements OnInit, OnDestroy {
   readonly composeTitle = signal('New Message');
   readonly composeFromId = signal<number | null>(null);
 
+  /** Phone: list vs thread. Tablet/desktop ignore for split layout. */
+  readonly mobilePane = signal<'list' | 'thread'>('list');
+  /** Folder drawer on phone/tablet. */
+  readonly navOpen = signal(false);
+
   @ViewChild('composeEditor') private composeEditor?: ElementRef<HTMLDivElement>;
 
   readonly formatTime = formatMessageTime;
 
   readonly folders: { key: EmailFolder; label: string; icon: string }[] = [
-    { key: 'INBOX', label: 'Inbox', icon: '📥' },
-    { key: 'SENT', label: 'Sent', icon: '📤' },
-    { key: 'DRAFT', label: 'Drafts', icon: '📝' },
-    { key: 'TRASH', label: 'Trash', icon: '🗑️' },
-    { key: 'SPAM', label: 'Spam', icon: '⚠️' },
+    { key: 'INBOX', label: 'Inbox', icon: 'inbox' },
+    { key: 'SENT', label: 'Sent', icon: 'sent' },
+    { key: 'DRAFT', label: 'Drafts', icon: 'draft' },
+    { key: 'TRASH', label: 'Trash', icon: 'trash' },
+    { key: 'SPAM', label: 'Spam', icon: 'spam' },
   ];
+
+  currentFolderLabel(): string {
+    return this.folders.find((f) => f.key === this.folder())?.label ?? 'Mail';
+  }
+
+  openNav(): void {
+    this.navOpen.set(true);
+  }
+
+  closeNav(): void {
+    this.navOpen.set(false);
+  }
+
+  backToList(): void {
+    this.discardCompose();
+    this.selectedId.set(null);
+    this.selectedEmail.set(null);
+    this.mobilePane.set('list');
+  }
 
   ngOnInit(): void {
     this.loadAccounts();
@@ -248,6 +272,8 @@ export class EmailLayoutComponent implements OnInit, OnDestroy {
     this.pollSince = acc.last_synced;
     this.selectedId.set(null);
     this.selectedEmail.set(null);
+    this.mobilePane.set('list');
+    this.navOpen.set(false);
     this.loadLabels();
     this.loadEmails(true);
     this.email.getUnreadCount(acc.id).subscribe((c) => this.unreadInbox.set(c.inbox));
@@ -295,6 +321,8 @@ export class EmailLayoutComponent implements OnInit, OnDestroy {
     this.folder.set(f);
     this.selectedId.set(null);
     this.selectedEmail.set(null);
+    this.mobilePane.set('list');
+    this.navOpen.set(false);
     this.loadEmails();
   }
 
@@ -302,6 +330,8 @@ export class EmailLayoutComponent implements OnInit, OnDestroy {
     this.discardCompose();
     this.selectedId.set(id);
     this.showImages.set(false);
+    this.mobilePane.set('thread');
+    this.navOpen.set(false);
     this.email.getEmail(id).subscribe((e) => {
       this.selectedEmail.set(e);
       if (!e.is_read) {
@@ -394,6 +424,9 @@ export class EmailLayoutComponent implements OnInit, OnDestroy {
     this.composeFiles.set([]);
     this.composeError.set('');
     this.composeReplyToId.set(null);
+    if (!this.selectedId()) {
+      this.mobilePane.set('list');
+    }
   }
 
   openCompose(): void {
@@ -406,6 +439,8 @@ export class EmailLayoutComponent implements OnInit, OnDestroy {
     this.composeError.set('');
     this.composeReplyToId.set(null);
     this.composeFromId.set(this.account()?.id ?? this.pickDefaultAccount(this.mailboxes())?.id ?? null);
+    this.mobilePane.set('thread');
+    this.navOpen.set(false);
     this.hydrateComposeEditor('<p><br></p>', true);
   }
 

@@ -98,11 +98,11 @@ export class PoFormComponent implements OnInit {
       }
     });
     forkJoin({
-      items: this.inventory.getItems({ page_size: 200, is_active: true }),
+      items: this.inventory.getAllItems({ is_active: true }),
       suppliers: this.procurement.getSuppliers({ page_size: 100, is_active: true }),
       currencies: this.currencyService.getCurrencies(),
     }).subscribe(({ items, suppliers, currencies }) => {
-      this.items.set(items.results);
+      this.items.set(items);
       this.suppliers.set(suppliers.results);
       this.currencies.set(currencies);
       if (id) {
@@ -132,6 +132,8 @@ export class PoFormComponent implements OnInit {
       value: i.id,
       label: `${i.code} — ${i.name}`,
       sublabel: `Unit: ${i.unit_of_measure || '—'}`,
+      code: i.code,
+      name: i.name,
     }));
   }
 

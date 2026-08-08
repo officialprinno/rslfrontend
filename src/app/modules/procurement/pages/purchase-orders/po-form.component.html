@@ -112,7 +112,8 @@
                     [options]="itemOptions()"
                     [value]="line.value.item"
                     [wideDropdown]="true"
-                    placeholder="Search inventory item..."
+                    [maxVisible]="80"
+                    placeholder="Search by item code or name..."
                     (valueChange)="onItemSelect(i, $event)"
                   />
                 </div>

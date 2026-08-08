@@ -5,6 +5,7 @@ import { finalize } from 'rxjs/operators';
 
 import { Currency } from '../../../../core/models/inventory.model';
 import { CurrencyService } from '../../../../core/services/currency.service';
+import { DisplayCurrencyService } from '../../../../core/services/display-currency.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { getApiErrorMessage } from '../../../../core/utils/api.util';
 import { PageHeaderComponent } from '../../../../shared/components/page-header/page-header.component';
@@ -18,6 +19,7 @@ import { FinanceNavComponent } from '../../components/finance-nav/finance-nav.co
 })
 export class ExchangeRatesComponent implements OnInit {
   private readonly currenciesApi = inject(CurrencyService);
+  private readonly displayCurrency = inject(DisplayCurrencyService);
   private readonly notification = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -99,6 +101,7 @@ export class ExchangeRatesComponent implements OnInit {
       .pipe(finalize(() => this.saving.set(false)))
       .subscribe({
         next: () => {
+          this.displayCurrency.refreshRates();
           this.notification.success(
             'Exchange rates published for 24 hours. All users were notified.',
           );

@@ -74,11 +74,11 @@ export class InvoiceFormComponent implements OnInit {
         status: 'CONFIRMED,PROCESSING,PARTIAL,DELIVERED',
         page_size: 100,
       }),
-      items: this.inventory.getItems({ page_size: 200, is_active: true, for_sales: true }),
+      items: this.inventory.getAllItems({ is_active: true, for_sales: true }),
       currencies: this.currencyService.getCurrencies(),
     }).subscribe(({ orders, items, currencies }) => {
       this.salesOrders.set(orders.results);
-      this.items.set(items.results);
+      this.items.set(items);
       this.currencies.set(currencies);
 
       if (id) {

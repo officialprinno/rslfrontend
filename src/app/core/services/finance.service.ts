@@ -39,6 +39,8 @@ import {
   InventoryPricingInput,
   InventoryPriceVersion,
   InventoryValuationSummary,
+  OpeningBalancePricingImportResult,
+  OpeningBalancePricingImportRowError,
   FinanceVendor,
   FinanceVendorFormData,
   IncomeStatement,
@@ -64,7 +66,7 @@ import {
 import { Invoice } from '../models/sales.model';
 import { SupplierInvoice } from '../models/procurement.model';
 import { ListParams, PaginatedData } from '../models/paginated.model';
-import { buildHttpParams, unwrapApi, unwrapApiWithMessage } from '../utils/api.util';
+import { buildHttpParams, unwrapApi, unwrapApiWithMessage, unwrapApiWithMeta } from '../utils/api.util';
 import { fetchCachedDashboard } from '../utils/dashboard-fetch.util';
 
 @Injectable({ providedIn: 'root' })
@@ -98,6 +100,40 @@ export class FinanceService {
         { params: buildHttpParams({ page_size: 50, ordering: '-received_at', ...params }) },
       )
       .pipe(unwrapApi());
+  }
+
+  downloadOpeningBalancePricingTemplate(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/inventory-workflows/opening-balance-pricing-template/`, {
+      responseType: 'blob',
+    });
+  }
+
+  importOpeningBalancePricing(
+    file: File,
+    autoApprove = false,
+  ): Observable<{
+    data: OpeningBalancePricingImportResult;
+    message: string;
+    warning?: string | null;
+    warnings?: unknown[] | null;
+  }> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('auto_approve', autoApprove ? 'true' : 'false');
+    return this.http
+      .post<ApiResponse<OpeningBalancePricingImportResult>>(
+        `${this.baseUrl}/inventory-workflows/import-opening-balance-pricing/`,
+        form,
+      )
+      .pipe(unwrapApiWithMeta());
+  }
+
+  downloadOpeningBalancePricingFailures(failedRows: OpeningBalancePricingImportRowError[]): Observable<Blob> {
+    return this.http.post(
+      `${this.baseUrl}/inventory-workflows/opening-balance-pricing-failures/`,
+      { failed_rows: failedRows },
+      { responseType: 'blob' },
+    );
   }
 
   getInventoryWorkflow(id: number): Observable<InventoryFinanceWorkflow> {

@@ -92,6 +92,13 @@ import { SettingsAdminNavComponent } from '../../components/settings-admin-nav/s
           </p>
         </a>
 
+        <a routerLink="/settings/activity-logs" class="card p-5 hover:shadow-md transition-shadow group">
+          <h3 class="font-semibold text-gray-900 group-hover:text-[#1B3A6B]">Activity Logs</h3>
+          <p class="text-sm text-gray-500 mt-2">
+            See what each user did — login/logout times, page visits, successes, and failures for troubleshooting.
+          </p>
+        </a>
+
         <a routerLink="/email/admin/mailboxes" class="card p-5 hover:shadow-md transition-shadow group">
           <h3 class="font-semibold text-gray-900 group-hover:text-[#1B3A6B]">Email Mailboxes</h3>
           <p class="text-sm text-gray-500 mt-2">

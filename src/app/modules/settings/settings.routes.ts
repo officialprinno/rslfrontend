@@ -75,4 +75,10 @@ export const SETTINGS_ROUTES: Routes = [
     loadComponent: () =>
       import('./pages/permissions/permissions-list.component').then((m) => m.PermissionsListComponent),
   },
+  {
+    path: 'activity-logs',
+    ...superAdminRoute,
+    loadComponent: () =>
+      import('./pages/activity-logs/activity-logs.component').then((m) => m.ActivityLogsComponent),
+  },
 ];

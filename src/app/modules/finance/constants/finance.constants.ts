@@ -1,3 +1,9 @@
+import {
+  convertAmount,
+  displayCurrencyRevision,
+  getDisplayCurrencyCode,
+} from '../../../core/utils/display-currency.store';
+
 export const COMPANY_DETAILS = {
   name: 'Rock Solutions Limited',
   tin: '127-950-695',
@@ -139,14 +145,20 @@ export function maskAccountNumber(num: string): string {
 }
 
 export function formatAccountingAmount(amount: string | number, code = 'TZS'): string {
-  const value = Number(amount ?? 0);
+  // Finance statements are stored in base TZS; convert to navbar display currency.
+  displayCurrencyRevision();
+  const source = (code || 'TZS').toUpperCase();
+  const display = getDisplayCurrencyCode();
+  const raw = Number(amount ?? 0);
+  const converted = convertAmount(raw, source, display);
+  const value = converted ?? raw;
+  const labelCode = converted == null ? source : display;
   const abs = Math.abs(value);
   const formatted = new Intl.NumberFormat('en-TZ', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(abs);
-  const prefix = value < 0 ? `(${code} ${formatted})` : `${code} ${formatted}`;
-  return prefix;
+  return value < 0 ? `(${labelCode} ${formatted})` : `${labelCode} ${formatted}`;
 }
 
 export function isNegativeAmount(amount: string | number): boolean {

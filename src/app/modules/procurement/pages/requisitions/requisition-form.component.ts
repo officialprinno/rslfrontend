@@ -182,7 +182,7 @@ export class RequisitionFormComponent implements OnInit {
 
     forkJoin({
 
-      items: this.inventory.getItems({ page_size: 200, is_active: true }),
+      items: this.inventory.getAllItems({ is_active: true }),
 
       depts: this.departments.getDepartments(),
 
@@ -190,7 +190,7 @@ export class RequisitionFormComponent implements OnInit {
 
     }).subscribe(({ items, depts, warehouses }) => {
 
-      this.items.set(items.results);
+      this.items.set(items);
 
       this.deptList.set(depts);
 
@@ -237,6 +237,10 @@ export class RequisitionFormComponent implements OnInit {
       value: i.id,
 
       label: `${i.code} — ${i.name}`,
+
+      code: i.code,
+
+      name: i.name,
 
     }));
 
